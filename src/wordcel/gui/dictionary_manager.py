@@ -302,12 +302,12 @@ class SetupDialog(QDialog):
         self.shortcut.setToolTip("Look up selected or copied text. Shared by all languages.")
         shared_layout.addRow("Text lookup", self.shortcut)
         self.translation_shortcut = ShortcutEdit(settings.value("translation_hotkey", ""),
-            settings.value("translation_hotkey_preset", "Meta+Shift+T" if sys.platform == "darwin" else "Ctrl+Shift+T"))
+            settings.value("translation_hotkey_preset", "Ctrl+Shift+T"))
         shortcut_layout.addRow("Translate", self.translation_shortcut)
         self.translation_shortcut.enabled.toggled.connect(lambda _: self.autosave(self.save_translation_shortcut))
         self.translation_shortcut.recorder.editingFinished.connect(lambda: self.autosave(self.save_translation_shortcut))
         self.hover_shortcut = ShortcutEdit(settings.value("hover_hotkey", ""),
-            settings.value("hover_hotkey_preset", "Meta+Shift+H" if sys.platform == "darwin" else "Ctrl+Shift+H"))
+            settings.value("hover_hotkey_preset", "Ctrl+Shift+H"))
         shortcut_layout.addRow("Toggle hover scan", self.hover_shortcut)
         self.hover_shortcut.enabled.toggled.connect(lambda _: self.autosave(self.save_hover_shortcut))
         self.hover_shortcut.recorder.editingFinished.connect(lambda: self.autosave(self.save_hover_shortcut))
