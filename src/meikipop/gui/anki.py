@@ -16,7 +16,7 @@ from meikipop.anki import (AnkiClient, DUPLICATE_ACTIONS, DUPLICATE_SCOPES, FIEL
                            sentence_readings, suggest_fields)
 from meikipop.gui.shortcut_edit import ShortcutEdit
 from meikipop.gui.quick_lookup import _GlossConverter
-from meikipop.scripts.import_yomitan_dict_html import StructuredContentConverter
+from meikipop.dictionary.structured_content import StructuredContentConverter
 from meikipop.utils.timing import mark
 
 

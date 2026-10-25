@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QApplication
 from meikipop.config.config import config
 from meikipop.gui.profile_appearance import DEFAULTS, ProfileAppearance, load_appearance
 from meikipop.gui.popup_style import surface_colors
-from meikipop.gui.themes import THEMES, theme_name
+from meikipop.gui.themes import THEMES
 
 
 def luminance(color):
@@ -60,7 +60,7 @@ class ProfileThemeTests(unittest.TestCase):
     def test_percentage_opacity_applies_to_presets_and_round_trips(self):
         with tempfile.TemporaryDirectory() as folder:
             settings = QSettings(str(Path(folder) / 'settings.ini'), QSettings.Format.IniFormat)
-            settings.setValue('profiles/ja/theme_name', 'Green')
+            settings.setValue('profiles/ja/theme_name', 'Tokyo Night')
             widget = ProfileAppearance(settings, lambda: 'ja', lambda: load_appearance(settings, 'ja'))
             try:
                 self.assertEqual(widget.controls['background_opacity'].value(), 98)
@@ -213,7 +213,7 @@ class ProfileThemeTests(unittest.TestCase):
             finally:
                 widget.deleteLater()
 
-    def test_default_dark_and_legacy_name_keep_saved_opacity(self):
+    def test_default_dark_keeps_saved_opacity(self):
         with tempfile.TemporaryDirectory() as folder:
             settings = QSettings(str(Path(folder) / 'settings.ini'), QSettings.Format.IniFormat)
             previous = dict(config.__dict__)
@@ -236,16 +236,14 @@ class ProfileThemeTests(unittest.TestCase):
                 self.assertFalse(widget.pinned_frequency.isChecked())
                 for key in ('background_opacity', 'scale', 'furigana_scale'):
                     self.assertEqual(widget.controls[key].suffix(), '%')
-                self.assertEqual(theme_name('Monochrome Dark'), 'Dark')
-                settings.setValue('profiles/ja/theme_name', 'Monochrome Dark')
+                settings.setValue('profiles/ja/theme_name', 'Dark')
                 settings.setValue('profiles/ja/background_opacity', 128)
                 widget.reload()
                 load_appearance(settings, 'ja')
                 self.assertEqual(widget.theme.currentText(), 'Dark')
                 self.assertEqual(config.theme_name, 'Dark')
                 self.assertEqual(config.background_opacity, 128)
-                self.assertEqual(settings.value('profiles/ja/theme_name'), 'Monochrome Dark')
-                self.assertNotIn('Monochrome Dark', [widget.theme.itemText(i) for i in range(widget.theme.count())])
+                self.assertEqual(settings.value('profiles/ja/theme_name'), 'Dark')
             finally:
                 config.__dict__.update(previous)
                 widget.deleteLater()

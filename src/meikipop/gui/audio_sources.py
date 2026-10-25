@@ -41,11 +41,11 @@ class AudioSources(QWidget):
 
     def load(self, sources, path, *, prefer_local=False):
         self.path = path
-        self._prefer_local = prefer_local or "database" in sources
+        self._prefer_local = prefer_local
         with QSignalBlocker(self.items):
             self.items.clear()
             for source in dict.fromkeys([*sources, "online", "tts"]):
-                if source != "database" and (path or not source.startswith("db:")):
+                if path or not source.startswith("db:"):
                     self.add(source, enabled=source in sources)
             self.items.setCurrentRow(0)
         if path:

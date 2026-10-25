@@ -19,9 +19,7 @@ dependencies = [
     "mss>=10.0.0",
     "requests>=2.32.4",
     "Pillow>=11.2.1",
-    "betterproto>=2.0.0b7",
     "protobuf>=6.33.1",
-    "websockets>=15.0.1",
     # macOS uses its built-in Vision engine; no OCR model download is needed.
     "meikiocr>=0.3.5; sys_platform != 'darwin'",
     # Keep the established runtime where its wheels exist (through Python 3.13).
@@ -30,7 +28,6 @@ dependencies = [
     "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
     "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
     "pyobjc-framework-Vision>=10.0; sys_platform == 'darwin'",
-    "lxml",
     "platformdirs",
     "romkan2==0.1.1",
     "huggingface-hub>=2.1.1",
@@ -48,11 +45,6 @@ morphology = ["stanza==1.14.0", "torch==2.8.0"]
 # wheels on the same release so Python wrappers match the native extension.
 # Paddle 3.3.x has a PIR/oneDNN regression; 3.2.2 accelerates the same v6 models.
 turkish-ocr = ["paddleocr==3.7.0", "paddlex[ocr-core]==3.7.2", "paddlepaddle==3.2.2", "opencv-python-headless==4.10.0.84"]
-
-[project.entry-points."meikipop.scripts"]
-build-dict = "meikipop.scripts.build_dictionary:main"
-import-yomitan-dict-html = "meikipop.scripts.import_yomitan_dict_html:main"
-import-yomitan-dict-text = "meikipop.scripts.import_yomitan_dict_text:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

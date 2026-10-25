@@ -37,8 +37,7 @@ class OcrProvider(abc.ABC):
     """
     Abstract base class for an OCR provider.
 
-    Any class that implements this interface can be used by the application's
-    OcrProcessor. This allows for easily swapping out different OCR backends.
+    Providers supply normalized text boxes to the shared screen lookup.
     """
 
     @property

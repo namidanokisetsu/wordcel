@@ -160,13 +160,12 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
                 add("recommended:" + code + ":" + recommended.title, recommended.title, code,
                     "recommended", recommended, removable=False)
         model = data / "languages" / code / "stanza"
-        if code in STANZA_LANGUAGES and code not in {"ja", "tr"} or model.exists():
+        if code in STANZA_LANGUAGES and code not in {"ja", "tr"}:
             from meikipop.language.stanza_analyzer import model_status, RESOURCES_VERSION
             state = None if not model.exists() else (
                 "Installed" if model_status(code, model / RESOURCES_VERSION) == "Installed" else "Incomplete")
-            legacy = code in {"ja", "tr"}
-            add("stanza:" + code, "Stanza morphology (legacy)" if legacy else "Stanza morphology", code,
-                "legacy" if legacy else "morphology", code, (model,), status=state)
+            add("stanza:" + code, "Stanza morphology", code,
+                "morphology", code, (model,), status=state)
         if code in {"ja", "tr"}:
             add("builtin:" + code, "Japanese word forms" if code == "ja" else "Zeyrek morphology", code,
                 status="Built in", removable=False)

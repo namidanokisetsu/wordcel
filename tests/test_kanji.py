@@ -1,6 +1,6 @@
 import unittest
 
-from meikipop.dictionary.kanji import KanjiEntry, from_legacy, kanji_characters
+from meikipop.dictionary.kanji import KanjiEntry, kanji_characters
 from meikipop.gui.kanji_panel import render_kanji, render_kanji_details, render_kanji_extra
 
 
@@ -49,14 +49,6 @@ class KanjiTests(unittest.TestCase):
         self.assertEqual(kanji_characters("日本語", 0), ())
         self.assertEqual(kanji_characters("ひらがなカタカナabc"), ())
 
-    def test_legacy_adapter_keeps_components_and_examples(self):
-        entry = from_legacy({"character": "語", "meanings": ["language"], "readings": ["ゴ", "かた.る"],
-                             "components": [{"c": "言", "m": "speech"}],
-                             "examples": [{"w": "日本語", "r": "にほんご", "m": "Japanese"}]})
-        self.assertEqual(entry.onyomi, ("ゴ",))
-        self.assertEqual(entry.kunyomi, ("かた.る",))
-        self.assertEqual(entry.components[0]["c"], "言")
-        self.assertEqual(entry.examples[0]["w"], "日本語")
 
     def test_compact_panel_keeps_details_separate(self):
         entry = KanjiEntry("猫", "Kanji Source", ("ビョウ",), ("ねこ",), ("cat",), stats=(("strokes", "11"),),

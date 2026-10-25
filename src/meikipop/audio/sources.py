@@ -13,4 +13,4 @@ def source_order(settings, language):
 
 
 def source_label(source):
-    return {"tts": "System voice", "database": "Local recordings", "online": "Online pronunciations"}.get(source, source.removeprefix("db:"))
+    return {"tts": "System voice", "online": "Online pronunciations"}.get(source, source.removeprefix("db:"))

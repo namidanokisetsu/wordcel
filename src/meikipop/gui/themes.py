@@ -31,8 +31,4 @@ THEMES = {
 
 
 def theme_name(name):
-    if name == "Green":
-        return "Tokyo Night"
-    if name == "Monochrome Dark":
-        return "Dark"
     return name if name in THEMES else "Dark"

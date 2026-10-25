@@ -1,11 +1,8 @@
 """Per-user operating-system startup registration."""
 from __future__ import annotations
 
-import logging
 import sys
 from pathlib import Path
-
-logger = logging.getLogger(__name__)
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 VALUE_NAME = "meikipop"
@@ -69,12 +66,3 @@ def set_startup_enabled(enabled: bool) -> None:
             winreg.DeleteValue(key, VALUE_NAME)
     except FileNotFoundError:
         pass
-
-
-def refresh_startup_registration(enabled: bool) -> None:
-    """Refresh an enabled entry after an executable is moved or upgraded."""
-    if enabled:
-        try:
-            set_startup_enabled(True)
-        except OSError:
-            logger.exception("Could not refresh the Windows startup registration")

@@ -1,4 +1,4 @@
-"""Kanji card data shared by local metadata packs and the legacy dictionary.
+"""Kanji card data from local metadata packs.
 
 Compact glyph/readings/meanings with optional examples and components follow
 the interaction in https://github.com/hectahertz/meikikai; no data is invented.
@@ -36,15 +36,3 @@ def kanji_characters(text, limit=8):
                 if len(result) >= limit:
                     break
     return tuple(result) if limit > 0 else ()
-
-
-def from_legacy(data, source="KANJIDIC"):
-    """Adapt an already-loaded legacy kanji record, preserving its examples."""
-    readings = data.get("readings", ())
-    onyomi = tuple(reading for reading in readings if any("ァ" <= char <= "ヺ" for char in reading))
-    kunyomi = tuple(reading for reading in readings if reading not in onyomi)
-    stats = data.get("stats", ())
-    return KanjiEntry(character=data["character"], source=source, onyomi=onyomi, kunyomi=kunyomi,
-                      meanings=tuple(data.get("meanings", ())), tags=tuple(data.get("tags", ())),
-                      stats=tuple(stats.items()) if isinstance(stats, dict) else tuple(stats),
-                      components=tuple(data.get("components", ())), examples=tuple(data.get("examples", ())))

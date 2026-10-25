@@ -120,11 +120,10 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.shutdown()
                 audio.deleteLater()
 
-    def test_saved_priority_overrides_legacy_mode_and_can_disable_sources(self):
+    def test_saved_priority_can_disable_sources(self):
         from meikipop.audio.sources import source_order
         with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.lookup_audio.AudioWorker"):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
-            settings.setValue("profiles/tr/audio_mode", "online")
             settings.setValue("profiles/tr/audio_priority", ["tts", "online"])
             audio = LookupAudio()
             word = Entry("ev", "ev", "", "Fixture", "tr", ("house",))
@@ -368,11 +367,6 @@ class AudioSourceSettingsTests(unittest.TestCase):
         self.assertEqual(self.sources.order(), [])
         self.assertEqual(self.sources.items.count(), 4)
 
-    def test_legacy_aggregate_expands_once_without_remaining_in_list(self):
-        self.sources.load(["tts", "online", "db:nhk", "database"], "android.db")
-        self.sources.received("android.db", ["jpod", "nhk"])
-        self.assertEqual(self.sources.order(), ["db:nhk", "db:jpod", "tts", "online"])
-        self.assertEqual(self.sources.items.count(), 4)
 
     def test_removal_ignores_pending_database_response(self):
         self.sources.load(["db:jpod", "tts"], "android.db")

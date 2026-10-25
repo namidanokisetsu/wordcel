@@ -153,21 +153,6 @@ class VisionBridgeTests(unittest.TestCase):
         request.assert_called_once_with()
 
 
-class MacFocusTests(unittest.TestCase):
-    def test_legacy_popup_uses_appkit_to_restore_frontmost_app(self):
-        from meikipop.gui import popup
-
-        active = Mock()
-        workspace = Mock()
-        workspace.sharedWorkspace.return_value.frontmostApplication.return_value = active
-        appkit = SimpleNamespace(NSWorkspace=workspace, NSApplicationActivateAllWindows=1)
-        state = SimpleNamespace(_previous_active_window_on_mac=None)
-        with patch.object(popup, "IS_MACOS", True), patch.object(popup, "AppKit", appkit):
-            popup.Popup._store_active_window_on_mac(state)
-            self.assertIs(state._previous_active_window_on_mac, active)
-            popup.Popup._restore_focus_on_mac(state)
-        active.activateWithOptions_.assert_called_once_with(1)
-        self.assertIsNone(state._previous_active_window_on_mac)
 
 
 class MacBundleTests(unittest.TestCase):

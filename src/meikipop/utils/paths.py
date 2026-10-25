@@ -22,18 +22,10 @@ class MeikiPaths:
 
     @property
     def data_dir(self):
-        """Location of dictionary.pkl"""
+        """Location of managed app data"""
         return self._platform_dirs.user_data_dir
     
-    @property
-    def config_path(self):
-        """Full path to config.ini"""
-        return os.path.join(self._platform_dirs.user_config_dir, 'config.ini')
     
-    @property
-    def dictionary_path(self):
-        """Location of dictionary.pkl"""
-        return os.path.join(self.data_dir, 'dictionary.pkl')
     
     @property
     def cache_dir(self):

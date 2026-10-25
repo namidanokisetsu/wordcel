@@ -23,7 +23,7 @@ from meikipop.gui.action_icons import action_button, action_icon
 from meikipop.gui.ruby import RubyBrowser, TAG_PREFIX, ruby_html
 from meikipop.gui.gloss_content import normalize_definitions
 from meikipop.language.profiles import configured_profiles, default_partner, visible_profiles
-from meikipop.scripts.import_yomitan_dict_html import StructuredContentConverter
+from meikipop.dictionary.structured_content import StructuredContentConverter
 from meikipop.utils.timing import mark
 
 

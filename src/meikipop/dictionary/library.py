@@ -64,7 +64,7 @@ class Entry:
     morphology: tuple = ()
 
     def glosses(self):
-        from meikipop.scripts.import_yomitan_dict_html import StructuredContentConverter
+        from meikipop.dictionary.structured_content import StructuredContentConverter
         return StructuredContentConverter().extract_glosses(list(self.definitions))
 
 
@@ -74,7 +74,7 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
     Existing packs stay readable during imports. The archive hash makes reimport
     idempotent; revisions with the same title are selected by installation time.
     """
-    from meikipop.scripts.import_yomitan_dict_text import extract_glosses
+    from meikipop.dictionary.plain_content import extract_glosses
     archive = Path(archive)
     directory = Path(directory or default_library_path())
     directory.mkdir(parents=True, exist_ok=True)
