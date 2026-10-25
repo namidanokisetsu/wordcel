@@ -121,6 +121,58 @@ def _download(url, destination, digest, progress=None, cancelled=None, local=Non
         temporary.unlink(missing_ok=True)
 
 
+def _download_model(model, root, progress=None, cancelled=None, downloads=None):
+    """Resume Hub transfers, then publish only the pinned, verified model."""
+    destination = root / "models" / model["file"]
+    _cancelled(cancelled)
+    if destination.is_file() and _sha256(destination, cancelled) == model["sha256"]:
+        return destination
+    local = Path(downloads) / model["file"] if downloads else None
+    url = f'https://huggingface.co/tencent/{model["repo"]}/resolve/{model["revision"]}/{model["file"]}'
+    if local and local.is_file():
+        return _download(url, destination, model["sha256"], progress, cancelled, local, model["size"])
+
+    from wordcel.utils.model_cache import configure_model_cache
+    configure_model_cache()
+    from huggingface_hub import hf_hub_download
+    from tqdm.auto import tqdm
+
+    class DownloadProgress(tqdm):
+        def display(self, *args, **kwargs):
+            pass
+
+        def update(self, amount=1):
+            _cancelled(cancelled)
+            updated = super().update(amount)
+            if progress and updated:
+                percent = min(100, int(self.n * 100 / self.total)) if self.total else 0
+                progress(f'{model["file"]}: {percent}%')
+            return updated
+
+    # Hub keeps resumable .incomplete files and transfer metadata in this cache.
+    stage = root / "downloads" / "huggingface" / model["repo"] / model["revision"]
+    for attempt in range(2):
+        _cancelled(cancelled)
+        if progress:
+            progress(f'Downloading {model["file"]}…')
+        source = Path(hf_hub_download(
+            repo_id="tencent/" + model["repo"], filename=model["file"], revision=model["revision"],
+            local_dir=stage, tqdm_class=DownloadProgress, force_download=bool(attempt), token=False))
+        _cancelled(cancelled)
+        if progress:
+            progress(f'Verifying {model["file"]}…')
+        received = source.stat().st_size
+        if received == model["size"] and _sha256(source, cancelled) == model["sha256"]:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(source, destination)
+            return destination
+        source.unlink()
+        if progress:
+            progress("Model verification failed. Retrying the download…")
+    raise ValueError(f'Download verification failed: {model["file"]} '
+                     f'({received:,} bytes received; {model["size"]:,} expected). Retry the download.')
+
+
 def _archive_target(root, name):
     relative = PurePosixPath(name)
     if not relative.parts or relative.is_absolute() or ".." in relative.parts or "\\" in name or ":" in name:
@@ -244,8 +296,7 @@ def install_model(profile="quality", directory=None, progress=None, cancelled=No
             return registry
         model = MODELS[profile]
         url = f'https://huggingface.co/tencent/{model["repo"]}/resolve/{model["revision"]}/{model["file"]}'
-        model_path = _download(url, root / "models" / model["file"], model["sha256"], progress,
-                               cancelled, Path(downloads) / model["file"] if downloads else None, model["size"])
+        model_path = _download_model(model, root, progress, cancelled, downloads)
         if not isinstance(registry.get("models"), dict):
             registry["models"] = {}
         registry["models"][profile] = dict(path=model_path.relative_to(root).as_posix(),

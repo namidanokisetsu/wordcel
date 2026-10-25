@@ -49,6 +49,75 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(server._download("https://example.invalid", target,
                                              hashlib.sha256(target.read_bytes()).hexdigest()), target)
 
+    def model_fixture(self):
+        return dict(repo="fixture", revision="pinned", file="model.gguf", size=5,
+                    sha256=hashlib.sha256(b"model").hexdigest())
+
+    def test_hub_model_retries_corruption_before_atomically_replacing_existing_model(self):
+        model = self.model_fixture()
+        target = self.root / "models" / model["file"]
+        target.parent.mkdir()
+        target.write_bytes(b"previous")
+        calls = []
+
+        def transfer(**options):
+            calls.append(options)
+            self.assertEqual(target.read_bytes(), b"previous")
+            source = Path(options["local_dir"]) / model["file"]
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_bytes(b"model" if options["force_download"] else b"broken")
+            return str(source)
+
+        with patch("huggingface_hub.hf_hub_download", side_effect=transfer):
+            self.assertEqual(server._download_model(model, self.root), target)
+        self.assertEqual(target.read_bytes(), b"model")
+        self.assertEqual([call["force_download"] for call in calls], [False, True])
+        self.assertTrue(all(call["revision"] == "pinned" for call in calls))
+
+    def test_hub_verification_failure_preserves_existing_model(self):
+        model = self.model_fixture()
+        target = self.root / "models" / model["file"]
+        target.parent.mkdir()
+        target.write_bytes(b"previous")
+
+        def transfer(**options):
+            source = Path(options["local_dir"]) / model["file"]
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_bytes(b"wrong")
+            return str(source)
+
+        with patch("huggingface_hub.hf_hub_download", side_effect=transfer):
+            with self.assertRaisesRegex(ValueError, "verification failed"):
+                server._download_model(model, self.root)
+        self.assertEqual(target.read_bytes(), b"previous")
+
+    def test_hub_cancellation_keeps_resumable_data_without_publishing_a_model(self):
+        model, stop = self.model_fixture(), threading.Event()
+        partials = []
+
+        def transfer(**options):
+            partial = Path(options["local_dir"]) / ".cache" / "model.incomplete"
+            partial.parent.mkdir(parents=True)
+            partial.write_bytes(b"mod")
+            partials.append(partial)
+            with options["tqdm_class"](total=5) as progress:
+                stop.set()
+                progress.update(3)
+
+        with patch("huggingface_hub.hf_hub_download", side_effect=transfer):
+            with self.assertRaises(InterruptedError):
+                server._download_model(model, self.root, cancelled=stop)
+        self.assertFalse((self.root / "models" / model["file"]).exists())
+        self.assertEqual(partials[0].read_bytes(), b"mod")
+
+    def test_installed_verified_hub_model_needs_no_network(self):
+        model = self.model_fixture()
+        target = self.root / "models" / model["file"]
+        target.parent.mkdir()
+        target.write_bytes(b"model")
+        with patch("huggingface_hub.hf_hub_download", side_effect=AssertionError("network")):
+            self.assertEqual(server._download_model(model, self.root), target)
+
     def test_runtime_only_setup_does_not_download_or_replace_models(self):
         runtime = self.root / f"runtime-{server.RELEASE}-win-x64"
         runtime.mkdir()
