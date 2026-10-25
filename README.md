@@ -4,7 +4,16 @@ Multilingual OCR popup dictionary for Windows and macOS. Look up screen or selec
 
 [Download](https://github.com/namidanokisetsu/wordcel/releases) · [Supported languages](docs/LANGUAGES.md) · [User guide](docs/USER_GUIDE.md)
 
-![Wordcel lookup demo](docs/images/lookup-demo.gif)
+<table>
+  <tr>
+    <th width="50%">Japanese demo</th>
+    <th width="50%">Turkish demo</th>
+  </tr>
+  <tr>
+    <td><a href="docs/images/lookup-demo.gif"><img src="docs/images/lookup-demo.gif" alt="Japanese lookup demo" width="100%"></a></td>
+    <td><a href="docs/images/turkish-lookup-demo.gif"><img src="docs/images/turkish-lookup-demo.gif" alt="Turkish lookup demo" width="100%"></a></td>
+  </tr>
+</table>
 
 ## Where to get dictionaries
 
