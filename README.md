@@ -1,6 +1,6 @@
 ﻿# Wordcel
 
-[Download](https://github.com/namidanokisetsu/wordcel/releases/latest) · [User guide](docs/USER_GUIDE.md)
+[Download](https://github.com/namidanokisetsu/wordcel/releases) · [User guide](docs/USER_GUIDE.md)
 
 ![Wordcel lookup demo](docs/images/lookup-demo.gif)
 

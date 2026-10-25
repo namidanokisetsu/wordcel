@@ -2,7 +2,7 @@
 
 ## Install
 
-[Download](https://github.com/namidanokisetsu/wordcel/releases/latest) the Windows
+[Download](https://github.com/namidanokisetsu/wordcel/releases) the Windows
 installer or the macOS DMG for your Mac's processor. Open Wordcel, choose a
 language, and select the dictionaries and models to download. You can skip
 downloads and add them later in **Settings**. Wordcel runs in the system tray.
