@@ -48,6 +48,8 @@ def install(language, progress=None, cancelled=None):
     if language == "ja" or language not in STANZA_LANGUAGES:
         raise ValueError("Choose a language with base-form model support.")
     if getattr(sys, "frozen", False):
+        from wordcel.optional_runtimes import install as install_engine
+        install_engine("stanza", progress, cancelled)
         if progress:
             progress("Downloading base-form model…")
         _run(["--setup-morphology", language], cancelled)

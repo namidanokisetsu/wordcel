@@ -1,13 +1,17 @@
-"""Shared desktop app; runtimes are bundled, user dictionaries/models are not."""
+"""Shared desktop app with optional engines downloaded during feature setup."""
 from pathlib import Path
 import subprocess
 import sys
 from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 root = Path(SPECPATH)
+sys.path.insert(0, str(root / "packaging"))
+from optional_runtimes import prepare, strip
+runtime_manifest, external_files = prepare(root)
 ranking_dir = root / "build" / "turkish-ranking"
 subprocess.run([sys.executable, "-m", "wordcel.scripts.build_turkish_ranking", str(ranking_dir)], check=True)
 datas = [(str(root / "src/wordcel/resources"), "wordcel/resources"),
+         (str(runtime_manifest), "wordcel/resources"),
          (str(ranking_dir / "*.json"), "wordcel/resources/turkish"),
          (str(root / "src/wordcel/scripts/deconjugator.json"), "wordcel/scripts"),
          (str(root / "LICENSE"), "licenses/wordcel")]
@@ -26,6 +30,7 @@ a = Analysis([str(root / "src/wordcel/scripts/quick_lookup.py")],
              pathex=[str(root / "src")], binaries=binaries, datas=datas,
              hiddenimports=hiddenimports, runtime_hooks=[str(root / "packaging/runtime.py")],
              excludes=["tkinter", "tensorflow", "jax", "IPython", "pytest"], optimize=0)
+strip(a, external_files)
 pyz = PYZ(a.pure)
 options = dict(exclude_binaries=True, debug=False, strip=False, upx=False,
                icon=str(root / "src/wordcel/resources/icon.ico"))

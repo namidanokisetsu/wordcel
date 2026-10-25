@@ -64,6 +64,9 @@ def install(provider, progress, cancelled):
         return install_screenai(progress, cancelled)
     if provider == "vision":
         return ""
+    if provider == "paddle":
+        from wordcel.optional_runtimes import install as install_engine
+        install_engine("paddle", progress, cancelled)
     from wordcel.scripts.setup_morphology import _run
     import sys
     progress("Downloading OCR models…")
@@ -76,6 +79,8 @@ def install(provider, progress, cancelled):
 
 def setup_models(provider, *, onnx_dir=None):
     if provider == "paddle":
+        from wordcel.optional_runtimes import require
+        require("paddle")
         from wordcel.ocr.turkish_paddle import setup_ocr
         setup_ocr(onnx_dir=onnx_dir)
     elif provider == "meikiocr":

@@ -15,6 +15,10 @@ def processors_for(language):
 
 def model_status(language, model_dir=None):
     """Inspect local files without importing Stanza or loading its models."""
+    from wordcel.optional_runtimes import ready, activate
+    if not ready("stanza"):
+        return "Not installed"
+    activate()
     try:
         if version("stanza") != STANZA_VERSION:
             return "Setup needed"
@@ -54,6 +58,8 @@ def model_available(language):
 
 
 def setup_models(model_dir=None, *, language):
+    from wordcel.optional_runtimes import require
+    require("stanza")
     import stanza
     if stanza.__version__ != STANZA_VERSION:
         raise RuntimeError(f"Install stanza=={STANZA_VERSION} before setting up models")
@@ -64,6 +70,8 @@ def setup_models(model_dir=None, *, language):
 
 class StanzaAnalyzer:
     def __init__(self, model_dir=None, *, language):
+        from wordcel.optional_runtimes import require
+        require("stanza")
         import stanza
         if stanza.__version__ != STANZA_VERSION:
             raise RuntimeError(f"Expected stanza=={STANZA_VERSION}")

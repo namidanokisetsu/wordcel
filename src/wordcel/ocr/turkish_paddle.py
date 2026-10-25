@@ -44,6 +44,8 @@ def model_root():
 
 
 def prepare_environment():
+    from wordcel.optional_runtimes import require
+    require("paddle")
     os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
     global _openmp
     if sys.platform != "win32" or _openmp is not None:

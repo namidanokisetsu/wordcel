@@ -15,6 +15,9 @@ def _get_build_version() -> str:
 
 
 BUILD_VERSION = _get_build_version()
+sys.path.insert(0, str(Path(CONF['specpath']) / 'packaging'))
+from optional_runtimes import prepare, strip
+runtime_manifest, external_files = prepare(Path(CONF['specpath']))
 ranking_dir = Path(CONF['specpath']) / 'build' / 'turkish-ranking'
 subprocess.run([sys.executable, '-m', 'wordcel.scripts.build_turkish_ranking', str(ranking_dir)], check=True)
 model_data, model_binaries, model_imports = collect_all('stanza')
@@ -30,6 +33,7 @@ a = Analysis(
     pathex=['src'],
     binaries=model_binaries,
     datas=model_data + [
+        (str(runtime_manifest), 'wordcel/resources'),
         (str(ranking_dir / '*.json'), 'wordcel/resources/turkish'),
         ('src/wordcel/resources/icon.ico', 'wordcel/resources'),
         ('src/wordcel/scripts/deconjugator.json', 'wordcel/scripts'),
@@ -43,6 +47,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+strip(a, external_files)
 pyz = PYZ(a.pure)
 
 exe = EXE(

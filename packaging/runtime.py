@@ -9,6 +9,8 @@ from wordcel.utils.windowed_processes import configure_windowed_helpers
 
 configure_windowed_helpers()
 configure_model_cache()
+from wordcel.optional_runtimes import activate
+activate()
 
 if sys.platform == "darwin":
     import certifi
