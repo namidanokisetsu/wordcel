@@ -948,8 +948,7 @@ class QuickLookupWindow(QDialog):
         self._result_screenshot = None
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        from meikipop.gui.translation_view import TranslationFrame
-        self.frame = TranslationFrame()
+        self.frame = QFrame()
         outer.addWidget(self.frame)
         layout = QVBoxLayout(self.frame)
         layout.setContentsMargins(FRAME_PADDING, PANE_PADDING, FRAME_PADDING, PANE_PADDING)
@@ -1074,8 +1073,6 @@ class QuickLookupWindow(QDialog):
         self.browser.word_selected.connect(self.lookup_word)
         from meikipop.gui.translation_view import TranslationPanel
         self.translation_panel = TranslationPanel(self.settings)
-        self.frame.panel = self.translation_panel
-        self.translation_panel.splitter.splitterMoved.connect(lambda *_: self.frame.update())
         from meikipop.gui.copy_feedback import CopyFeedback
         self.copy_feedback = CopyFeedback(self.frame)
         self.translation_panel.copied.connect(self.copy_feedback.show_confirmation)

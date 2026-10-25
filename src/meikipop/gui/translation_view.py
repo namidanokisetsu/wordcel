@@ -2,32 +2,14 @@
 from html import escape
 
 from PyQt6.QtCore import QSignalBlocker, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QTextCursor
-from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QSplitter, QTextEdit, QToolButton, QVBoxLayout, QWidget
+from PyQt6.QtGui import QTextCursor
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QSplitter, QTextEdit, QToolButton, QVBoxLayout, QWidget
 
 from meikipop.config.config import config
 from meikipop.gui.ruby import RubyBrowser
 from meikipop.gui.section_scroll import ReadingPosition
 from meikipop.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, surface_colors
 from meikipop.gui.action_icons import action_button
-
-
-class TranslationFrame(QFrame):
-    panel = None
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        if self.panel is None or not self.panel.isVisible():
-            return
-        splitter = self.panel.splitter
-        if splitter.orientation() != Qt.Orientation.Horizontal:
-            return
-        handle = splitter.handle(1)
-        rect = self.contentsRect()
-        rect.setLeft(handle.mapTo(self, handle.rect().topLeft()).x())
-        rect.setWidth(handle.width())
-        painter = QPainter(self)
-        painter.fillRect(rect, QColor(surface_colors(config.color_background, config.color_foreground)["border"]))
 
 
 class PaneSplitter(QSplitter):
