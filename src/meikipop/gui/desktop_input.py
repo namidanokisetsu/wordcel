@@ -73,6 +73,9 @@ class DesktopInput(QObject):
         self._pin_native = None
         self._consumed_pin_keys = set()
         self.navigation_source = None
+        self.popup_handle = None
+        self.block_scan_keys = False
+        self._consumed_scan_keys = {}
         self.popup_bindings = {}
         self._consumed_navigation_keys = set()
         self._last_click = None
@@ -147,9 +150,28 @@ class DesktopInput(QObject):
 
     def filter_key(self, message, data):
         down = message in (0x100, 0x104)
+        scan_key = {0x10: keyboard.Key.shift, 0xA0: keyboard.Key.shift_l, 0xA1: keyboard.Key.shift_r,
+                    0x11: keyboard.Key.ctrl, 0xA2: keyboard.Key.ctrl_l, 0xA3: keyboard.Key.ctrl_r,
+                    0x12: keyboard.Key.alt, 0xA4: keyboard.Key.alt_l, 0xA5: keyboard.Key.alt_r,
+                    0x5B: keyboard.Key.cmd_l, 0x5C: keyboard.Key.cmd_r}.get(data.vkCode)
+        if scan_key is not None:
+            token = normalise_pynput_key(scan_key)
+            if (down and self.block_scan_keys and data.vkCode not in self._consumed_scan_keys
+                    and self.activation.uses_token(token)):
+                from meikipop.utils.window_focus import foreground_is_fullscreen
+                if foreground_is_fullscreen():
+                    self._consumed_scan_keys[data.vkCode] = token
+            if data.vkCode in self._consumed_scan_keys:
+                if not down:
+                    del self._consumed_scan_keys[data.vkCode]
+                # Suppression bypasses pynput's ordinary callback.
+                self.key(scan_key, down)
+                self.keys.suppress_event()
+                return False
         if self._pin_native and down and data.vkCode == self._pin_native[0] and data.vkCode not in self._consumed_pin_keys:
             import ctypes
-            state = ctypes.windll.user32.GetAsyncKeyState
+            native_state = ctypes.windll.user32.GetAsyncKeyState
+            state = lambda vk: native_state(vk) | (0x8000 if self._suppressed_modifier(vk) else 0)
             if (all(any(state(mod) & 0x8000 for mod in group) for group in self._pin_native[1])
                     and self._request_ready_pin()):
                 self._consumed_pin_keys.add(data.vkCode)
@@ -164,7 +186,7 @@ class DesktopInput(QObject):
             user32.GetForegroundWindow.restype = ctypes.c_void_p
             modifiers = sum(bit for keys, bit in (((0x10,), 1), ((0x11,), 2), ((0x12,), 4),
                                                   ((0x5B, 0x5C), 8))
-                            if any(user32.GetAsyncKeyState(key) & 0x8000 for key in keys))
+                            if any(self._suppressed_modifier(key) or user32.GetAsyncKeyState(key) & 0x8000 for key in keys))
             active = (self.navigation_source and self.visible.is_set()
                       and user32.GetForegroundWindow() == self.navigation_source)
             action = self.popup_bindings.get((data.vkCode, modifiers))
@@ -197,7 +219,16 @@ class DesktopInput(QObject):
             mark("pin_click", ready=self.pin_ready.is_set(), visible=self.visible.is_set())
         return button == self.pin_gesture and self._request_ready_pin()
 
+    def _suppressed_modifier(self, vk):
+        token = {0x10: "shift", 0x11: "ctrl", 0x12: "alt", 0x5B: "cmd", 0x5C: "cmd"}.get(vk)
+        return token is not None and token in self._consumed_scan_keys.values()
+
     def filter_mouse(self, message, data):
+        if message in (0x20A, 0x20E) and self.popup_handle and self.visible.is_set():
+            from meikipop.utils.window_focus import route_popup_wheel
+            if route_popup_wheel(self.popup_handle, message, data):
+                self.clicks.suppress_event()
+                return False
         event = {0x201: ("left", True), 0x202: ("left", False),
                  0x207: ("middle", True), 0x208: ("middle", False)}.get(message)
         if event is None:

@@ -88,6 +88,25 @@ def restore_foreground(handle, child=None):
                     user32.AttachThreadInput(current, thread, False)
 
 
+def route_popup_wheel(handle, message, data):
+    """Post wheel input only to the native popup beneath the pointer."""
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32")
+    user32.WindowFromPoint.argtypes = [wintypes.POINT]
+    user32.WindowFromPoint.restype = wintypes.HWND
+    user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+    user32.GetAncestor.restype = wintypes.HWND
+    user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    target = user32.WindowFromPoint(data.pt)
+    if not target or user32.GetAncestor(target, 2) != handle:
+        return False
+    modifiers = sum(flag for vk, flag in ((0x01, 1), (0x02, 2), (0x10, 4), (0x11, 8), (0x04, 16))
+                    if user32.GetAsyncKeyState(vk) & 0x8000)
+    position = (data.pt.x & 0xffff) | ((data.pt.y & 0xffff) << 16)
+    return bool(user32.PostMessageW(target, message, (data.mouseData & 0xffff0000) | modifiers, position))
+
+
 def foreground_is_fullscreen():
     """Compare native bounds so mixed-DPI and secondary displays stay correct."""
     from PyQt6.QtWidgets import QApplication

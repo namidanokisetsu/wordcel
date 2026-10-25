@@ -288,6 +288,10 @@ class SetupDialog(QDialog):
             self.scan_mouse.addItem(label, value)
         shortcut_layout.addRow("Screen lookup key", self.scan_key)
         shortcut_layout.addRow("Screen lookup mouse", self.scan_mouse)
+        self.block_scan_keys = QCheckBox("Block scan keys in fullscreen")
+        self.block_scan_keys.setToolTip("Keep screen lookup keys from reaching fullscreen apps, including each key in a combination")
+        if sys.platform == "win32":
+            shortcut_layout.addRow(self.block_scan_keys)
         self.pin_shortcut = ShortcutEdit("c", "C")
         self.pin_shortcut.setMaximumWidth(190)
         self.pin_shortcut.enabled.setText("Key")
@@ -497,6 +501,7 @@ class SetupDialog(QDialog):
         self.translation_warm.toggled.connect(lambda _: self.autosave(lambda: self.save_translation(cancel=False)))
         for control in (self.scan_key, self.scan_mouse):
             control.currentIndexChanged.connect(lambda _: self.autosave(self.save_screen_shortcut))
+        self.block_scan_keys.toggled.connect(lambda _: self.autosave(self.save_screen_shortcut))
         for control, callback in ((self.shortcut, self.save_shortcut), (self.pin_shortcut, self.save_pin_shortcut)):
             control.recorder.editingFinished.connect(lambda callback=callback: self.autosave(callback))
             control.enabled.toggled.connect(lambda _, callback=callback: self.autosave(callback))
@@ -803,6 +808,7 @@ class SetupDialog(QDialog):
     def save_screen_shortcut(self):
         bindings = ",".join(value for value in (self.scan_key.currentData(), self.scan_mouse.currentData()) if value)
         self.settings.setValue(f"profiles/{self.profile.currentData()}/scan_bindings", bindings)
+        self.settings.setValue(f"profiles/{self.profile.currentData()}/block_scan_keys", self.block_scan_keys.isChecked())
         self.notify_scan_settings()
 
     def save_popup_shortcuts(self):
@@ -914,6 +920,8 @@ class SetupDialog(QDialog):
         with QSignalBlocker(self.combine_frequencies):
             self.combine_frequencies.setChecked(self.settings.value(f"profiles/{code}/combine_frequencies", True, bool))
         bindings = self.settings.value(f"profiles/{code}/scan_bindings", "shift,middle").split(",")
+        with QSignalBlocker(self.block_scan_keys):
+            self.block_scan_keys.setChecked(self.settings.value(f"profiles/{code}/block_scan_keys", False, bool))
         self.pin_shortcut.set_value(self.settings.value(f"profiles/{code}/pin_shortcut", "c"),
                                     self.settings.value(f"profiles/{code}/pin_shortcut_preset", "C"))
         with QSignalBlocker(self.selected_text):

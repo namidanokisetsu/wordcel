@@ -116,6 +116,10 @@ class ActivationState:
         with self._lock:
             return self._active
 
+    def uses_token(self, token: str) -> bool:
+        with self._lock:
+            return any(token in binding for binding in self._bindings)
+
     @property
     def activation_id(self) -> int:
         with self._lock:

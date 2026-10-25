@@ -131,6 +131,11 @@ existing Windows input hook routes unmodified arrows, Page Up/Down and Home/End
 and configured popup actions to the pinned popup only while its source remains
 foreground; matching releases are consumed even after dismissal. Other keyboard
 input stays with the source.
+Optional Windows fullscreen scan-key blocking consumes configured modifiers'
+down/up pairs while still updating scan state. It defaults off per profile;
+consumed modifiers remain available to popup shortcuts.
+Wheel input over the popup is posted to its native window and suppressed at the
+mouse hook, preventing the foreground game from also scrolling.
 Copy text uses these same configurable bindings without activating the popup;
 an unpinned fullscreen preview routes only Copy text while a reading pane has a
 selection. Source window and child-focus restoration on dismissal remains unchanged.

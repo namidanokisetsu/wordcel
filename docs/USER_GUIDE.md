@@ -88,6 +88,9 @@ disable lookup and popup bindings. Popup defaults are **R** for replay,
 **Shift+A** for Anki, **Shift+C** for copying the sentence and **Alt+Left** for Back.
 **Copy text** defaults to **Ctrl+C**, including selected preview text over fullscreen Windows apps.
 Close a pinned popup before starting another lookup with a keyboard hold.
+Windows passes scan keys through to games by default. Enable **Block scan keys
+in fullscreen** in Shortcuts to reserve them for lookup, or choose another scan
+binding if the game needs Shift. Scrolling over the popup stays in the popup.
 **Buttons** controls each popup action independently. **Sentence size** controls
 sentence and translation text. Click the compact sentence to read it in full.
 Tokyo Night and Dracula use darker, high-contrast palettes. EVA pairs dark purple

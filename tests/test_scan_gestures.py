@@ -35,6 +35,89 @@ class ScanGestureTests(unittest.TestCase):
         self.input.pin_ready.set()
         self.input.pin_gesture = gesture
 
+    def test_fullscreen_scan_key_still_scans_and_consumes_release_after_focus_change(self):
+        self.input.block_scan_keys = True
+        held = Mock()
+        self.input.hold_changed.connect(held)
+        key = SimpleNamespace(vkCode=0xA0)
+        with patch("meikipop.utils.window_focus.foreground_is_fullscreen", return_value=True) as fullscreen:
+            self.assertFalse(self.input.filter_key(0x100, key))
+            self.assertTrue(self.input.activation.active)
+            self.assertTrue(self.input._suppressed_modifier(0x10))
+            fullscreen.return_value = False
+            self.input.block_scan_keys = False
+            self.assertFalse(self.input.filter_key(0x101, key))
+            self.assertFalse(self.input.activation.active)
+            self.assertFalse(self.input._suppressed_modifier(0x10))
+            self.assertEqual(self.input.keys.suppress_event.call_count, 2)
+            self.input.filter_key(0x100, key)
+            self.assertEqual(self.input.keys.suppress_event.call_count, 2)
+            self.input.activation.set_bindings("ctrl")
+            self.input.block_scan_keys = True
+            fullscreen.return_value = True
+            self.input.filter_key(0x100, key)
+            self.assertEqual(self.input.keys.suppress_event.call_count, 2)
+
+    def test_suppressed_shift_keeps_popup_shortcuts_working(self):
+        self.input.block_scan_keys = True
+        requested = Mock()
+        self.input.popup_action_requested.connect(requested)
+        self.input.navigation_source = 42
+        self.input.popup_controls_active.set()
+        self.input.visible.set()
+        self.input.popup_bindings = {(0x43, 1): "copy"}
+        user32 = Mock()
+        user32.GetForegroundWindow.return_value = 42
+        user32.GetAsyncKeyState.return_value = 0
+        with patch("meikipop.utils.window_focus.foreground_is_fullscreen", return_value=True), \
+                patch("ctypes.WinDLL", return_value=user32, create=True):
+            self.input.filter_key(0x100, SimpleNamespace(vkCode=0xA0))
+            self.assertFalse(self.input.activation.active)
+            self.input.filter_key(0x100, SimpleNamespace(vkCode=0x43))
+            requested.assert_called_once_with("copy")
+
+    def test_scan_key_blocking_defaults_off_and_supports_combinations(self):
+        with patch("meikipop.utils.window_focus.foreground_is_fullscreen", return_value=True):
+            self.input.filter_key(0x100, SimpleNamespace(vkCode=0xA0))
+            self.input.keys.suppress_event.assert_not_called()
+            self.input.block_scan_keys = True
+            self.input.activation.set_bindings("ctrl+shift")
+            self.input.filter_key(0x100, SimpleNamespace(vkCode=0xA2))
+            self.assertFalse(self.input.activation.active)
+            self.input.filter_key(0x100, SimpleNamespace(vkCode=0xA0))
+            self.assertTrue(self.input.activation.active)
+            self.assertEqual(self.input.keys.suppress_event.call_count, 2)
+
+    def test_wheel_is_consumed_only_when_delivered_to_visible_popup(self):
+        self.input.popup_handle = 123
+        data = object()
+        with patch("meikipop.utils.window_focus.route_popup_wheel", return_value=True) as route:
+            self.assertTrue(self.input.filter_mouse(0x20A, data))
+            route.assert_not_called()
+            self.input.visible.set()
+            for message in (0x20A, 0x20E):
+                self.assertFalse(self.input.filter_mouse(message, data))
+                route.assert_called_with(123, message, data)
+            route.return_value = False
+            self.assertTrue(self.input.filter_mouse(0x20A, data))
+            self.assertEqual(self.input.clicks.suppress_event.call_count, 2)
+
+    def test_native_wheel_routing_uses_hit_window_and_preserves_signed_delta(self):
+        from ctypes import wintypes
+        from meikipop.utils.window_focus import route_popup_wheel
+        user32 = Mock()
+        user32.WindowFromPoint.return_value = 124
+        user32.GetAncestor.return_value = 123
+        user32.GetAsyncKeyState.return_value = 0
+        data = SimpleNamespace(pt=wintypes.POINT(-10, 200), mouseData=(-120 & 0xffff) << 16)
+        with patch("ctypes.WinDLL", return_value=user32, create=True):
+            self.assertTrue(route_popup_wheel(123, 0x20A, data))
+            user32.PostMessageW.assert_called_once_with(124, 0x20A, data.mouseData, (200 << 16) | 0xfff6)
+            user32.PostMessageW.reset_mock()
+            user32.GetAncestor.return_value = 456
+            self.assertFalse(route_popup_wheel(123, 0x20A, data))
+            user32.PostMessageW.assert_not_called()
+
     def test_fullscreen_navigation_consumes_only_source_scrolling_keys(self):
         navigated = Mock()
         self.input.navigation_requested.connect(navigated)
@@ -423,6 +506,7 @@ class ScanSettingsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             settings = QSettings(str(Path(temp) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
+            settings.setValue("profiles/tr/target", "en")
             apply_shortcut = Mock()
             dialog = SetupDialog(Path(temp) / "library", settings, apply_shortcut)
             try:
@@ -434,6 +518,13 @@ class ScanSettingsTests(unittest.TestCase):
                 dialog.pin_shortcut.recorder.clear()
                 dialog.scan_key.setCurrentIndex(dialog.scan_key.findData("ctrl"))
                 self.assertEqual(settings.value("profiles/ja/scan_bindings"), "ctrl,middle")
+                self.assertFalse(dialog.block_scan_keys.isChecked())
+                dialog.block_scan_keys.setChecked(True)
+                self.assertTrue(settings.value("profiles/ja/block_scan_keys", False, bool))
+                dialog.profile.setCurrentIndex(dialog.profile.findData("tr"))
+                self.assertFalse(dialog.block_scan_keys.isChecked())
+                dialog.profile.setCurrentIndex(dialog.profile.findData("ja"))
+                self.assertTrue(dialog.block_scan_keys.isChecked())
                 apply_shortcut.assert_not_called()
                 dialog.pin_shortcut.recorder.setKeySequence(QKeySequence("X"))
                 dialog.pin_shortcut.recorder.editingFinished.emit()

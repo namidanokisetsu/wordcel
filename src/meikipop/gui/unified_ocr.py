@@ -594,6 +594,7 @@ class UnifiedOCR(QObject):
             self.pin_gesture = "left"
         if self.input:
             self.input.pin_gesture = self.pin_gesture
+            self.input.block_scan_keys = settings.value(f"profiles/{profile}/block_scan_keys", False, bool) if settings else False
             self.input.set_pin_shortcut(settings.value(f"profiles/{profile}/pin_shortcut", "c") if settings else "c")
             self._reload_popup_bindings()
         self._sync_timer()
@@ -632,6 +633,8 @@ class UnifiedOCR(QObject):
             active = self.window.isVisible() and self.window.is_pinned
             (self.input.popup_controls_active.set if active else self.input.popup_controls_active.clear)()
         if self.input:
+            self.input.popup_handle = (int(self.window.winId())
+                if sys.platform == "win32" and self.window.isVisible() else None)
             self.input.navigation_source = (getattr(self.window, "_previous_foreground", None)
                 if (getattr(self.window, "_fullscreen_overlay", False)
                     and (self.window.is_pinned or self.window._selected_reading_browser() is not None)
