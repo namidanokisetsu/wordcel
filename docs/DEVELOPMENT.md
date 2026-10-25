@@ -82,6 +82,7 @@ share divider thickness, styling and pane padding; dividers stay within their
 splitter bounds. Translation headers use equal top insets.
 Without a saved split, its position fits the rendered glyph block and pane header,
 subject to available space. Opening and closing kanji never resize the popup.
+Closing kanji returns focus from its controls to the dictionary; focus elsewhere stays put.
 Lookup prepares kanji data for every returned headword in result order.
 Sticky headings retain the ruby and pitch object renderers and forward links
 without navigating their own document.

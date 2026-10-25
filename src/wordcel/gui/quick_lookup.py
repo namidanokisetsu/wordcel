@@ -2148,6 +2148,9 @@ class QuickLookupWindow(QDialog):
         from wordcel.gui.section_scroll import ReadingPosition
         position = ReadingPosition(self.browser)
         self.fit_timer.stop()
+        focused = QApplication.focusWidget()
+        if not visible and focused is not None and self.kanji_panel.isAncestorOf(focused):
+            self.browser.setFocus(Qt.FocusReason.OtherFocusReason)
         self.kanji_panel.setVisible(visible)
         self.layout().activate()
         if visible:

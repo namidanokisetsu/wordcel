@@ -3261,6 +3261,19 @@ class QuickLookupTests(unittest.TestCase):
             self.app.processEvents()
             self.assertEqual(self.window.geometry(), geometry)
 
+    def test_closing_kanji_returns_pane_focus_to_dictionary(self):
+        self.window.show_entries((entry(),), kanji=(KanjiEntry("x", meanings=("test",)),))
+        self.window.activateWindow()
+        self.app.processEvents()
+        for widget in (self.window.kanji_browser, self.window.kanji_close, self.window.search):
+            with self.subTest(widget=widget):
+                self.window._select_kanji("x")
+                widget.setFocus()
+                self.assertIs(self.app.focusWidget(), widget)
+                self.window._close_kanji()
+                expected = widget if widget is self.window.search else self.window.browser
+                self.assertIs(self.app.focusWidget(), expected)
+
     def test_kanji_divider_remembers_share_and_keeps_manual_window_size(self):
         self.window.show_entries((entry(),), kanji=(KanjiEntry("猫", meanings=("cat",)),))
         self.app.processEvents()
