@@ -62,6 +62,10 @@ class SetupOperation(QObject):
                          ("dictionary:" + recommended.identity,) if recommended else
                          tuple("dictionary:" + item.identity for item in update) if isinstance(update, list) else
                          ("dictionary:" + update[1],) if update else ("dictionary-import",))
+        if self.resource == "all":
+            self.job_keys = ("all",)
+        elif engine:
+            self.job_keys = ("engine:" + engine,)
 
     def start(self):
         if not self.jobs.claim(self.job_keys, self, self.cancelled, "Preparing download…"):
@@ -87,12 +91,15 @@ class SetupOperation(QObject):
                     from wordcel.optional_runtimes import install
                     install(self.engine, progress, self.cancelled)
                     status, changed = "Engine installed.", True
+                    from wordcel.optional_runtimes import restart_needed
+                    if self.engine == "stanza" and restart_needed():
+                        status = "Engine installed. Restart Wordcel to use it."
                 else:
                     from wordcel.resource_bundle import export_bundle, import_bundle
                     mode, path = self.bundle
                     operation = export_bundle if mode == "export" else import_bundle
                     operation(path, self.directory, progress, self.cancelled)
-                    status, changed = ("Resources exported.", False) if mode == "export" else ("Resources imported.", True)
+                    status, changed = ("Resources exported.", False) if mode == "export" else ("Resources imported. Restart Wordcel to use new engines.", True)
                 self._emit(self.finished, status, changed)
             except Exception as error:
                 self._emit(self.finished, str(error), False)
@@ -161,7 +168,9 @@ class SetupOperation(QObject):
             try:
                 from wordcel.scripts.setup_morphology import install
                 install(self.morphology, lambda text: self._emit(self.progress, text), self.cancelled)
-                self._emit(self.finished, "Base-form model installed.", True)
+                from wordcel.optional_runtimes import restart_needed
+                status = "Word-form support installed. Restart Wordcel to use it." if restart_needed() else "Base-form model installed."
+                self._emit(self.finished, status, True)
             except Exception as error:
                 self._emit(self.finished, str(error), False)
             return
@@ -1326,6 +1335,8 @@ class SetupDialog(SettingsNavigation, QDialog):
     def operation_busy(self, resource):
         from wordcel.gui.resource_jobs import jobs
         registered = jobs.snapshot()
+        if registered and (resource == "all" or "all" in registered):
+            return True
         if resource in registered:
             return True
         resource = setup_resource(resource)

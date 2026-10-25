@@ -151,6 +151,7 @@ class DataPanel(QWidget):
                 self.job_rows[key] = row
                 self.job_layout.addWidget(row)
             self.job_rows[key].label.setText(title)
+        self.set_busy()
 
     def refresh(self):
         if self._task is not None:

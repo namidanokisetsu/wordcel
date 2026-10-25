@@ -319,10 +319,22 @@ retain one public app release and its commit history; remove older app release
 pages/assets and tags.
 
 Desktop releases contain the Windows setup EXE and two macOS DMGs, for Apple
-silicon and Intel. Bundles include Python and inference libraries; user
-dictionaries and model weights are downloaded separately. Windows upgrades
+silicon and Intel. Bundles include Python and core libraries; Paddle and
+Stanza/Torch engines are installed explicitly alongside their model downloads.
+`packaging/optional_runtimes.py` records exact upstream wheel URLs and SHA256s
+from the build environment, analyzes their imports, then removes their owned
+files from the app bundle. Shared core dependencies stay bundled. Engine setup
+verifies downloads and native imports before publishing an immutable directory;
+inference only activates installed packages. Windows upgrades
 preserve settings/data; uninstall offers removal, also available unattended
 through `/REMOVEUSERDATA=1`.
+
+Storage exports/imports installed resources without settings or download caches.
+Archives are platform-specific; optional engines also require the same build's
+manifest. Import checks paths and hashes before publishing, preserves existing
+resources and rolls back new entries on failure. Transfer jobs exclude setup
+and removal jobs. Run core and optional-engine packaging checks separately;
+the latter uses engine imports and small tensors, without downloading models.
 
 macOS releases reuse one self-signed identity; PR builds are ad-hoc signed.
 Create the release identity with OpenSSL 3 and

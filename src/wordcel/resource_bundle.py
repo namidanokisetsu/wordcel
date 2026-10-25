@@ -182,6 +182,11 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                         raise ValueError("Resource checksum mismatch.")
                     if item.get("executable"):
                         output_path.chmod(output_path.stat().st_mode | 0o111)
+                if root == "data" and relative.startswith("engines/"):
+                    feature = target.name.split("-", 1)[0]
+                    if (not (stage / "site").is_dir() or
+                            json.loads((stage / "complete.json").read_text(encoding="utf-8")) != config["features"][feature]):
+                        raise ValueError("Incomplete engine archive.")
                 if target.exists():
                     for item in unit["files"]:
                         existing = target / item["path"] if unit["directory"] else target

@@ -14,9 +14,17 @@ Wordcel starts with fresh settings and data. Existing Meikipop data and Anki
 notes, tags and note types stay unchanged. New Anki exports default to the
 `wordcel` tag and use your selected note type and field mapping.
 
-The installer bundles the app and its libraries, not dictionary packs or model
-weights. For offline use, install the desired resources beforehand. Windows OCR
-uses installed Windows language packs; system speech uses installed voices.
+The installer includes the app and core libraries. Paddle OCR and optional
+word-form support download their engines with their models during setup.
+Once installed, these features work offline. Windows OCR uses installed Windows
+language packs; system speech uses installed voices.
+
+For another offline computer, use **Settings > Storage > Export resources**,
+then carry the archive and installer on USB. Install Wordcel and use **Import
+resources**. Use the same Wordcel build, operating system and processor type.
+The archive includes installed dictionaries, models and optional engines, but
+not settings, linked external resources, Windows language packs or system voices.
+Import preserves existing resources; remove a conflicting resource before importing.
 
 On macOS, allow **Screen Recording**, **Input Monitoring** and **Accessibility**
 in System Settings → Privacy & Security, then reopen the app. If permissions

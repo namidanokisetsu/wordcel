@@ -17,6 +17,8 @@ class ResourceJobs(QObject):
 
     def claim(self, keys, owner, cancelled, title):
         with self._lock:
+            if self._jobs and ("all" in keys or "all" in self._jobs):
+                return False
             if any(key in self._jobs for key in keys):
                 return False
             for key in keys:
