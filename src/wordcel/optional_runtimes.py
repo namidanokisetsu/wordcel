@@ -60,12 +60,17 @@ def require(feature):
     if not ready(feature):
         raise RuntimeError("Download this feature in Settings before using it.")
     # A newly installed Torch must precede Paddle's incompatible Windows OpenMP DLL.
-    if feature == "stanza" and sys.platform == "win32" and "paddle" in sys.modules and "stanza" not in _active:
-        from wordcel.ocr.turkish_paddle import _openmp
-        if _openmp is None:
-            raise RuntimeError("Restart Wordcel to use the newly installed word-form engine.")
+    if feature == "stanza" and restart_needed():
+        raise RuntimeError("Restart Wordcel to use the newly installed word-form engine.")
     activate()
     _active.add(feature)
+
+
+def restart_needed():
+    if sys.platform == "win32" and "paddle" in sys.modules and "stanza" not in _active:
+        from wordcel.ocr.turkish_paddle import _openmp
+        return _openmp is None
+    return False
 
 
 def _cancel(cancelled):
@@ -131,6 +136,26 @@ def file_hash(path):
         return hashlib.file_digest(source, "sha256").hexdigest()
 
 
+def validate(feature, site, cancelled=None):
+    from wordcel.scripts.setup_morphology import _run
+    _run(["--check-engine", feature, "--engine-directory", str(site)], cancelled)
+
+
+def check_engine(feature):
+    if feature == "paddle":
+        import paddle
+        import paddleocr
+        from paddlex.utils.deps import require_extra
+        require_extra("ocr-core")
+        if paddle.ones([1]).item() != 1:
+            raise RuntimeError("Paddle engine validation failed.")
+    else:
+        import stanza
+        import torch
+        if torch.ones(1).item() != 1:
+            raise RuntimeError("Word-form engine validation failed.")
+
+
 def install(feature, progress=None, cancelled=None):
     if not getattr(sys, "frozen", False):
         return
@@ -155,8 +180,16 @@ def install(feature, progress=None, cancelled=None):
                 progress("Installing " + wheel["name"] + "…")
                 extract_wheel(archive, site, cancelled)
             _cancel(cancelled)
+            progress("Checking engine…")
+            validate(feature, site, cancelled)
             (stage / "complete.json").write_text(json.dumps(manifest()["features"][feature]), encoding="utf-8")
+            previous = Path(temporary) / "previous"
             if root.exists():
-                root.rename(Path(temporary) / "previous")
-            stage.rename(root)
+                root.rename(previous)
+            try:
+                stage.rename(root)
+            except OSError:
+                if previous.exists():
+                    previous.rename(root)
+                raise
         activate()

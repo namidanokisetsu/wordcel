@@ -28,6 +28,9 @@ CloseApplicationsFilter=wordcel.exe,wordcel-cli.exe
 [Files]
 Source: "..\dist\wordcel\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Tasks]
 Name: "desktopicon"; Description: "Desktop shortcut"; Flags: unchecked
 

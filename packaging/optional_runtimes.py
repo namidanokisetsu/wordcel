@@ -36,8 +36,8 @@ def dependencies(requirements):
 def prepare(root):
     import tomllib
     project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    core = dependencies(value for value in project["dependencies"]
-                        if Requirement(value).marker is None or Requirement(value).marker.evaluate())
+    core = dependencies(["setuptools", *(value for value in project["dependencies"]
+                        if Requirement(value).marker is None or Requirement(value).marker.evaluate())])
     groups = {"stanza": ["stanza", "torch"]}
     if sys.platform == "win32":
         groups["paddle"] = ["paddleocr", "paddlex[ocr-core]", "paddlepaddle"]
@@ -47,10 +47,18 @@ def prepare(root):
     folder = root / "build" / "optional-runtimes"
     folder.mkdir(parents=True, exist_ok=True)
     report = folder / "wheels.json"
-    subprocess.run([sys.executable, "-m", "pip", "install", "--dry-run", "--ignore-installed", "--no-deps",
-                    "--only-binary=:all:", "--disable-pip-version-check", "--report", str(report),
-                    "--extra-index-url", "https://download.pytorch.org/whl/cpu",
-                    *(f"{name}=={package.version}" for name, package in sorted(packages.items()))], check=True)
+    resolved = json.loads(report.read_text(encoding="utf-8")) if report.exists() else {}
+    previous = {canonicalize_name(item["metadata"]["name"]): item["metadata"]["version"]
+                for item in resolved.get("install", ())}
+    environment = resolved.get("environment", {})
+    if (previous != {name: package.version for name, package in packages.items()}
+            or environment.get("sys_platform") != sys.platform
+            or environment.get("platform_machine", "").lower() != platform.machine().lower()
+            or environment.get("python_version") != f"{sys.version_info.major}.{sys.version_info.minor}"):
+        subprocess.run([sys.executable, "-m", "pip", "install", "--dry-run", "--ignore-installed", "--no-deps",
+                        "--only-binary=:all:", "--disable-pip-version-check", "--report", str(report),
+                        "--extra-index-url", "https://download.pytorch.org/whl/cpu",
+                        *(f"{name}=={package.version}" for name, package in sorted(packages.items()))], check=True)
     wheels = {}
     for item in json.loads(report.read_text(encoding="utf-8"))["install"]:
         download = item["download_info"]

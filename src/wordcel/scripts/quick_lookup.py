@@ -25,10 +25,19 @@ def main(argv=None):
     parser.add_argument("--check-runtime", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--check-optional-runtimes", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--setup-engine", choices=("paddle", "stanza"), help=argparse.SUPPRESS)
+    parser.add_argument("--check-engine", choices=("paddle", "stanza"), help=argparse.SUPPRESS)
+    parser.add_argument("--engine-directory", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.onnx_dir and args.setup_ocr != "paddle":
         parser.error("--onnx-dir requires --setup-ocr paddle")
     background = args.background or (not args.text and sys.platform != "darwin")
+
+    if args.check_engine:
+        if args.engine_directory:
+            sys.path.append(str(args.engine_directory.resolve()))
+        from wordcel.optional_runtimes import check_engine
+        check_engine(args.check_engine)
+        return 0
 
     if args.setup_engine:
         from wordcel.optional_runtimes import install
