@@ -33,6 +33,12 @@ class FirstRunTests(unittest.TestCase):
         readiness = patch("wordcel.dictionary.translation.model_installed", return_value=False)
         self.model_installed = readiness.start()
         self.addCleanup(readiness.stop)
+        for target, value in (("wordcel.gui.resources.ocr_ready", False),
+                              ("wordcel.utils.stroke_order_font.font_ready", False),
+                              ("wordcel.ocr.windows_native.supported_languages", ())):
+            mocked = patch(target, return_value=value)
+            mocked.start()
+            self.addCleanup(mocked.stop)
         self.wizard = LanguageSuggestion(self.window)
         self.addCleanup(self.window.deleteLater)
 
@@ -90,6 +96,24 @@ class FirstRunTests(unittest.TestCase):
         self.assertTrue({"ja", "tr", "en", "fr", "ru", "yi"} <= codes)
         self.assertIn("zh-hant", LANGUAGE_NAMES)
         self.assertNotIn("zh-hant", codes)
+
+    def test_initial_language_search_matches_code_english_and_native_name(self):
+        picker = FirstLanguage(self.settings)
+        self.addCleanup(picker.deleteLater)
+        for query in ("ja", "Japanese", "日本語"):
+            with self.subTest(query=query):
+                picker.language.setEditText(query)
+                picker.language.lineEdit().textEdited.emit(query)
+                self.assertFalse(picker.continue_button.isEnabled())
+                matches = picker.language.matches
+                index = next(matches.index(i, 0) for i in range(matches.rowCount())
+                             if matches.index(i, 0).data(256) == "ja")
+                picker.language.completer().activated[str].emit(index.data())
+                self.assertEqual(picker.language.selected_code(), "ja")
+                self.assertTrue(picker.continue_button.isEnabled())
+        picker.language.setEditText("not a language")
+        picker.accept()
+        self.assertFalse(self.settings.allKeys())
 
     def test_selected_language_survives_window_and_settings_without_extra_profiles(self):
         from wordcel.gui.quick_lookup import QuickLookupWindow
@@ -225,6 +249,36 @@ class FirstRunTests(unittest.TestCase):
         tasks = self.wizard.selected_tasks()
         self.assertEqual([(task.kind, task.value) for task in tasks], [("translation", "quality")])
 
+    def test_setup_reuses_installed_windows_ocr_without_a_model_download(self):
+        with patch("wordcel.ocr.windows_native.supported_languages", return_value=("tr",)), \
+                patch("wordcel.gui.resources.ocr_ready", side_effect=lambda provider, *_: provider == "windows"):
+            wizard = LanguageSuggestion(self.window, "tr")
+            self.addCleanup(wizard.deleteLater)
+            self.assertEqual(wizard.ocr.currentData(), "windows")
+            for task, check in wizard.choices:
+                check.setChecked(task.kind == "ocr")
+            self.assertFalse(wizard.selected_tasks())
+            with patch("wordcel.gui.language_setup.LanguageSetup") as setup:
+                wizard.accept()
+            setup.assert_not_called()
+            self.assertEqual(self.settings.value("profiles/tr/ocr_provider"), "windows")
+            wizard.ocr.setCurrentIndex(wizard.ocr.findData("paddle"))
+            self.assertEqual([(task.kind, task.value) for task in wizard.selected_tasks()], [("ocr", "paddle")])
+
+    def test_setup_can_skip_ocr_and_translation_and_offers_japanese_font(self):
+        for task, check in self.wizard.choices:
+            check.setChecked(task.kind in {"ocr", "translation", "fonts"})
+        self.wizard.ocr.setCurrentIndex(self.wizard.ocr.findData(None))
+        self.wizard.translation.setCurrentIndex(self.wizard.translation.findData(None))
+        self.assertEqual([(task.kind, task.value) for task in self.wizard.selected_tasks()], [("fonts", "ja")])
+        task, check = next((task, check) for task, check in self.wizard.choices if task.kind == "fonts")
+        self.assertIn("Stroke-order", check.text())
+        from wordcel.gui.language_setup import install_task
+        with patch("wordcel.scripts.setup_stroke_order_font.install", return_value="font") as install:
+            stop, progress = threading.Event(), Mock()
+            self.assertEqual(install_task(task, self.directory.name, progress, stop), "font")
+        install.assert_called_once_with(progress, stop)
+
     def test_setup_starts_once_with_only_selected_resources(self):
         with patch("wordcel.gui.language_setup.LanguageSetup") as setup:
             self.wizard.accept()
@@ -260,11 +314,11 @@ class FirstRunTests(unittest.TestCase):
     def test_language_plan_uses_supported_models_and_native_mac_ocr(self):
         from wordcel.gui.language_setup import language_plan
         japanese = language_plan("ja", platform="win32")
-        self.assertEqual([task.kind for task in japanese], ["dictionary"] * 4 + ["ocr", "translation"])
+        self.assertEqual([task.kind for task in japanese], ["dictionary"] * 4 + ["ocr", "fonts", "translation"])
         self.assertEqual(japanese[-1].value, "lightweight")
         with patch("wordcel.ocr.macos_vision.supported_languages", return_value={"tr"}):
             turkish = language_plan("tr", platform="darwin")
-        self.assertEqual([task.kind for task in turkish], ["dictionary", "translation"])
+        self.assertEqual([task.kind for task in turkish], ["dictionary", "ocr", "translation"])
 
     def test_cancelled_language_setup_does_not_start_downloads(self):
         from wordcel.gui.language_setup import LanguageSetup, language_plan

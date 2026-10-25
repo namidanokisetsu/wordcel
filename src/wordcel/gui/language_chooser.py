@@ -1,11 +1,40 @@
 """Language search accepts native names, English names and language codes."""
-from PyQt6.QtCore import QLocale, Qt
-from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout
+from PyQt6.QtCore import QLocale, QSortFilterProxyModel, Qt
+from PyQt6.QtWidgets import QComboBox, QCompleter, QDialog, QDialogButtonBox, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout
 
 
 def language_search_text(code, label):
     english = QLocale.languageToString(QLocale(code).language())
     return f"{code} {label} {english}".casefold()
+
+
+class LanguageComboBox(QComboBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setEditable(True)
+        self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.matches = QSortFilterProxyModel(self)
+        self.matches.setSourceModel(self.model())
+        self.matches.setFilterRole(Qt.ItemDataRole.UserRole + 1)
+        self.matches.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer = QCompleter(self.matches, self)
+        completer.setCompletionMode(QCompleter.CompletionMode.UnfilteredPopupCompletion)
+        self.setCompleter(completer)
+        completer.activated[str].connect(self._select_completion)
+        self.lineEdit().textEdited.connect(lambda text: self.matches.setFilterFixedString(text.strip()))
+
+    def _select_completion(self, text):
+        index = self.findText(text)
+        if index >= 0:
+            self.setCurrentIndex(index)
+            self.setEditText(self.itemText(index))
+
+    def add_language(self, code, label):
+        self.addItem(f"{label} ({code})", code)
+        self.setItemData(self.count() - 1, language_search_text(code, label), Qt.ItemDataRole.UserRole + 1)
+
+    def selected_code(self):
+        return self.currentData() if self.currentText() == self.itemText(self.currentIndex()) else None
 
 
 class LanguageChooser(QDialog):

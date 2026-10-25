@@ -19,8 +19,10 @@ def language_plan(language, translation="lightweight", platform=None):
     from wordcel.language.support import STANZA_LANGUAGES, TRANSLATION_LANGUAGES, default_ocr_provider
     tasks = [SetupTask("dictionary", item.title, item) for item in recommendations(language)]
     provider = default_ocr_provider(language, platform)
-    if provider and provider != "vision":
+    if provider:
         tasks.append(SetupTask("ocr", "Screen recognition", provider))
+    if language == "ja":
+        tasks.append(SetupTask("fonts", "Stroke-order font", "ja"))
     if language not in {"ja", "tr"} and language in STANZA_LANGUAGES:
         tasks.append(SetupTask("morphology", "Word-form support", language))
     if language in TRANSLATION_LANGUAGES:
@@ -49,6 +51,9 @@ def install_task(task, directory, progress, cancelled):
             from wordcel.scripts.setup_morphology import install
             install(task.value, progress, cancelled)
         return ""
+    if task.kind == "fonts":
+        from wordcel.scripts.setup_stroke_order_font import install
+        return install(progress, cancelled)
     from wordcel.scripts.translation_server import install_model
     from wordcel.gui.resources import translation_ready
     if not translation_ready(task.value):

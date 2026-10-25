@@ -29,17 +29,18 @@ class FirstLanguage(QDialog):
     def __init__(self, settings, imported=()):
         super().__init__()
         from wordcel.gui.quick_lookup import language_name
+        from wordcel.gui.language_chooser import LanguageComboBox
         from wordcel.language.profiles import configured_profiles
         from wordcel.language.support import profile_languages
         self.settings = settings
         self.setWindowTitle("Wordcel Setup")
         self.setMinimumWidth(360)
         layout = QVBoxLayout(self)
-        self.language = QComboBox()
+        self.language = LanguageComboBox()
         self.language.addItem("Choose a language…", None)
         for code in sorted(profile_languages(imported, configured_profiles(settings)),
                            key=lambda code: language_name(code).casefold()):
-            self.language.addItem(language_name(code), code)
+            self.language.add_language(code, language_name(code))
         form = QFormLayout()
         form.addRow("Lookup language", self.language)
         layout.addLayout(form)
@@ -51,10 +52,10 @@ class FirstLanguage(QDialog):
         self.continue_button.clicked.connect(self.accept)
         buttons.addWidget(self.continue_button)
         layout.addLayout(buttons)
-        self.language.currentIndexChanged.connect(lambda: self.continue_button.setEnabled(self.language.currentData() is not None))
+        self.language.currentTextChanged.connect(lambda: self.continue_button.setEnabled(self.language.selected_code() is not None))
 
     def accept(self):
-        code = self.language.currentData()
+        code = self.language.selected_code()
         if code is None:
             return
         from wordcel.language.profiles import default_partner
@@ -72,6 +73,12 @@ class LanguageSuggestion(QDialog):
         self.language = language or window.preferred_foreign
         self.operation = None
         self.completed_tasks = []
+        from wordcel.dictionary.library import Library
+        library = Library(window.directory)
+        try:
+            self.installed_packs = tuple(meta for _, meta, _ in library.packs if meta["language"] == self.language)
+        finally:
+            library.close()
         from wordcel.gui.quick_lookup import language_name
         from wordcel.gui.language_setup import language_plan
         self.setWindowTitle(language_name(self.language))
@@ -79,16 +86,22 @@ class LanguageSuggestion(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("Choose what to download."))
         self.choices = []
+        resource_rows = {}
         for task in language_plan(self.language):
             check = QCheckBox(task.label)
             check.setChecked(True)
-            layout.addWidget(check)
+            if task.kind in {"ocr", "translation"}:
+                row = QHBoxLayout()
+                row.addWidget(check)
+                layout.addLayout(row)
+                resource_rows[task.kind] = row
+            else:
+                layout.addWidget(check)
             self.choices.append((task, check))
-        form = QFormLayout()
-        layout.addLayout(form)
-        self.translation = QComboBox()
+        self.translation = QComboBox(self)
         self.translation.addItem("Lightweight (1.9 GB)", "lightweight")
         self.translation.addItem("Quality (8 GB)", "quality")
+        self.translation.addItem("No translation download", None)
         self.translation.setToolTip("Downloaded models are shared by all languages")
         from wordcel.gui.resources import translation_ready
         from wordcel.dictionary.translation import load_profile_settings
@@ -102,12 +115,36 @@ class LanguageSuggestion(QDialog):
             selected = preferred
         self.translation.setCurrentIndex(self.translation.findData(selected))
         self.translation.currentIndexChanged.connect(self.refresh_choices)
-        form.addRow("Translation model", self.translation)
-        form.setRowVisible(self.translation, any(task.kind == "translation" for task, check in self.choices))
+        if "translation" in resource_rows:
+            resource_rows["translation"].addWidget(self.translation, 1)
+        else:
+            self.translation.hide()
         self.translation.setEnabled(any(task.kind == "translation" for task, check in self.choices))
+        from wordcel.gui.resources import ocr_ready
+        from wordcel.language.support import default_ocr_provider, ocr_supported
+        self.ocr = QComboBox(self)
+        self.ocr.addItem("No OCR download", None)
+        providers = (("windows", "Windows OCR (local)"), ("vision", "Apple Vision (local)"),
+                     ("meikiocr", "MeikiOCR (local)"), ("paddle", "PaddleOCR (local)"),
+                     ("screenai", "Chrome Screen AI (local)"))
+        available = [provider for provider, label in providers if ocr_supported(self.language, provider)]
+        for provider, label in providers:
+            if provider in available:
+                self.ocr.addItem(label, provider)
+        saved = window.settings.value(f"profiles/{self.language}/ocr_provider", "")
+        installed = [provider for provider in available if ocr_ready(provider, window.settings.value("screenai_directory", ""))]
+        selected = saved if saved in available else next(iter(installed), default_ocr_provider(self.language))
+        self.ocr.setCurrentIndex(max(0, self.ocr.findData(selected)))
+        if "ocr" in resource_rows:
+            resource_rows["ocr"].addWidget(self.ocr, 1)
+        else:
+            self.ocr.hide()
+        self.ocr.currentIndexChanged.connect(self.refresh_choices)
         for task, check in self.choices:
             if task.kind == "translation":
                 check.toggled.connect(self.translation.setEnabled)
+            elif task.kind == "ocr":
+                check.toggled.connect(self.ocr.setEnabled)
         self.bar = QProgressBar()
         self.bar.hide()
         layout.addWidget(self.bar)
@@ -129,18 +166,36 @@ class LanguageSuggestion(QDialog):
 
     def selected_tasks(self):
         from dataclasses import replace
-        from wordcel.gui.resources import translation_ready
-        tasks = [replace(task, value=self.translation.currentData()) if task.kind == "translation" else task
+        tasks = [replace(task, value=self.translation.currentData() if task.kind == "translation" else self.ocr.currentData())
+                 if task.kind in {"translation", "ocr"} else task
                  for task, check in self.choices if check.isChecked()]
-        return [task for task in tasks if task not in self.completed_tasks
-                and not (task.kind == "translation" and translation_ready(task.value))]
+        return [task for task in tasks if task.value is not None and not self.task_ready(task)]
+
+    def task_ready(self, task):
+        if task in self.completed_tasks:
+            return True
+        if task.kind == "translation":
+            from wordcel.gui.resources import translation_ready
+            return task.value is not None and translation_ready(task.value)
+        if task.kind == "ocr":
+            from wordcel.gui.resources import ocr_ready
+            return task.value is not None and ocr_ready(task.value, self.window.settings.value("screenai_directory", ""))
+        if task.kind == "fonts":
+            from wordcel.utils.stroke_order_font import font_ready
+            return font_ready()
+        if task.kind == "dictionary":
+            return any(task.value.matches(meta) for meta in self.installed_packs)
+        if task.kind == "morphology":
+            from wordcel.language.stanza_analyzer import model_status
+            return model_status(task.value) == "Installed"
+        return False
 
     def refresh_choices(self):
         from dataclasses import replace
-        from wordcel.gui.resources import translation_ready
         for task, check in self.choices:
-            selected = replace(task, value=self.translation.currentData()) if task.kind == "translation" else task
-            installed = selected in self.completed_tasks or (task.kind == "translation" and translation_ready(selected.value))
+            selected = replace(task, value=self.translation.currentData() if task.kind == "translation" else self.ocr.currentData()) \
+                if task.kind in {"translation", "ocr"} else task
+            installed = self.task_ready(selected)
             check.setText(task.label + (" ✓" if installed else ""))
             check.setEnabled(self.operation is None and not installed)
 
@@ -157,9 +212,14 @@ class LanguageSuggestion(QDialog):
         from wordcel.gui.language_setup import LanguageSetup
         from wordcel.gui.resources import translation_ready
         if any(task.kind == "translation" and check.isChecked() for task, check in self.choices):
-            if translation_ready(self.translation.currentData()):
+            if self.translation.currentData() is not None and translation_ready(self.translation.currentData()):
                 self.use_translation(self.translation.currentData())
                 self.window.refresh_library()
+        if self.ocr.currentData() is not None and any(task.kind == "ocr" and check.isChecked() for task, check in self.choices):
+            from wordcel.gui.resources import ocr_ready
+            if ocr_ready(self.ocr.currentData(), self.window.settings.value("screenai_directory", "")):
+                self.window.settings.setValue(f"profiles/{self.language}/ocr_provider", self.ocr.currentData())
+                self.window.scan_settings_changed.emit()
         tasks = self.selected_tasks()
         if not tasks:
             super().accept()
@@ -170,6 +230,7 @@ class LanguageSuggestion(QDialog):
         self.bar.show()
         self.install.setEnabled(False)
         self.translation.setEnabled(False)
+        self.ocr.setEnabled(False)
         for task, check in self.choices:
             check.setEnabled(False)
         self.later.setText("Stop downloads")
@@ -205,6 +266,10 @@ class LanguageSuggestion(QDialog):
         self.refresh_choices()
         self.translation.setEnabled(any(task.kind == "translation" and check.isChecked()
                                         for task, check in self.choices))
+        self.ocr.setEnabled(any(task.kind == "ocr" and check.isChecked() for task, check in self.choices))
+        if any(task.kind == "fonts" for task, value in completed) and hasattr(self.window, "reload_appearance"):
+            self.window._render_identity = None
+            self.window.reload_appearance()
         self.later.setText("Later")
         self.status.setText("\n".join(errors) if errors else "Installed items were kept." if cancelled else "Ready.")
         if not errors and not cancelled:
