@@ -19,6 +19,11 @@ class RecommendedDictionary:
     website: str
     pack_title: str = ""
 
+    @property
+    def identity(self):
+        import hashlib
+        return hashlib.sha256((self.language + ":" + self.url).encode()).hexdigest()
+
     def matches(self, metadata):
         return metadata["language"] == self.language and metadata["title"].startswith(self.pack_title or self.title)
 
@@ -65,4 +70,5 @@ def install_recommended(dictionary, directory, progress, cancelled):
                 output.write(chunk)
                 progress(download_progress(dictionary.title, total, size))
         return import_yomitan(archive, directory, language=dictionary.language,
-                             progress=progress, cancelled=cancelled.is_set)
+                             progress=progress, cancelled=cancelled.is_set,
+                             resource_id=dictionary.identity, source=dictionary.website)

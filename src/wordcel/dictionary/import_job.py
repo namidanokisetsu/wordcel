@@ -37,7 +37,7 @@ def import_batch(paths, directory, language, progress, cancelled):
     return "\n".join([status, *warnings, *errors]), bool(imported)
 
 
-def _worker(paths, directory, language, recommended, messages, cancelled):
+def _worker(paths, directory, language, recommended, messages, cancelled, update=None):
     last_update = 0
 
     def progress(text):
@@ -52,7 +52,15 @@ def _worker(paths, directory, language, recommended, messages, cancelled):
             pass
 
     try:
-        if recommended is not None:
+        if update is not None:
+            if isinstance(update, tuple) and len(update) == 2 and isinstance(update[0], str):
+                from .updates import replace_dictionary
+                replace_dictionary(update[0], directory, update[1], progress, cancelled.is_set)
+                result = ("Dictionary replaced.", True)
+            else:
+                from .updates import update_batch
+                result = update_batch(update, directory, progress, cancelled)
+        elif recommended is not None:
             from .catalog import install_recommended
             install_recommended(recommended, directory, progress, cancelled)
             result = ("Dictionary installed.", True)
@@ -63,10 +71,10 @@ def _worker(paths, directory, language, recommended, messages, cancelled):
     messages.put(("finished", result))
 
 
-def background_import(paths, directory, language, recommended, progress, cancelled):
+def background_import(paths, directory, language, recommended, progress, cancelled, *, update=None):
     context = multiprocessing.get_context("spawn")
     messages, child_cancelled = context.Queue(maxsize=32), context.Event()
-    process = context.Process(target=_worker, args=(paths, directory, language, recommended, messages, child_cancelled))
+    process = context.Process(target=_worker, args=(paths, directory, language, recommended, messages, child_cancelled, update))
     process.start()
     result = None
     try:

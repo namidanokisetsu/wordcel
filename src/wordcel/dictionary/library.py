@@ -68,7 +68,20 @@ class Entry:
         return StructuredContentConverter().extract_glosses(list(self.definitions))
 
 
-def import_yomitan(archive, directory=None, language=None, progress=None, cancelled=None, warnings=None):
+def resource_identity(metadata):
+    if metadata.get("resource_id"):
+        return metadata["resource_id"]
+    from .catalog import recommendations
+    for recommended in recommendations(metadata["language"]):
+        index_url = metadata.get("index_url", "")
+        if recommended.matches(metadata) and (not index_url or index_url == recommended.url.removesuffix(".zip") + ".json"):
+            return recommended.identity
+    source = metadata.get("index_url") or metadata["title"]
+    return hashlib.sha256((metadata["language"] + ":" + source).encode()).hexdigest()
+
+
+def import_yomitan(archive, directory=None, language=None, progress=None, cancelled=None, warnings=None,
+                  resource_id=None, source=None, expected_language=None, expected_metadata=None):
     """Read one bank at a time, then atomically publish a complete pack.
 
     Existing packs stay readable during imports. The archive hash makes reimport
@@ -92,6 +105,9 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
             raise ValueError("Dictionary ZIP has no index.json.")
         index = json.loads(zf.read("index.json"))
         source_language = language_code(language or index.get("sourceLanguage") or "ja")
+        if expected_language and (source_language != expected_language or
+                                 index.get("sourceLanguage", expected_language) != expected_language):
+            raise ValueError("Replacement dictionary must use the same language.")
         title = index.get("title")
         if not isinstance(title, str) or not title.strip():
             raise ValueError("Dictionary index has no title.")
@@ -104,6 +120,8 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
         if destination.exists():
             with closing(sqlite3.connect(destination)) as existing:
                 existing_metadata = dict(existing.execute("SELECT key,value FROM metadata"))
+            if resource_id and resource_identity(existing_metadata) != resource_id:
+                raise ValueError("This ZIP is already installed as another dictionary.")
             from .media import IMAGE_SUFFIXES, assets_ready
             has_images = any(Path(name).suffix.lower() in IMAGE_SUFFIXES for name in zf.namelist())
             media_ready = assets_ready(existing_metadata, directory, destination.stem)
@@ -223,6 +241,13 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                     pitch_count += 1
             if not (count or redirects or frequency_count or kanji_count or pitch_count):
                 raise ValueError("Dictionary contains no usable definitions, forms, frequencies, pitch or kanji.")
+            if expected_metadata:
+                for kind, value in (("entries", count), ("forms", redirects), ("frequencies", frequency_count),
+                                    ("kanji", kanji_count), ("pitches", pitch_count)):
+                    if int(expected_metadata.get(kind, 0)) > 0 and not value:
+                        raise ValueError("Replacement is missing the installed dictionary's " + kind + ".")
+                if expected_metadata.get("target_language", "") != str(index.get("targetLanguage", "")):
+                    raise ValueError("Replacement dictionary must use the same definition language.")
             if progress:
                 progress(f"Indexing {title} · {last_percent}%")
             db.executescript("""
@@ -250,6 +275,9 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                             revision=str(index.get("revision", "")), sha256=sha,
                             entries=str(count), forms=str(redirects),
                             frequencies=str(frequency_count), kanji=str(kanji_count), pitches=str(pitch_count))
+            metadata.update(index_url=str(index.get("indexUrl", "")), download_url=str(index.get("downloadUrl", "")),
+                            source=str(source or index.get("url", "")), publisher=str(index.get("author", "")))
+            metadata["resource_id"] = resource_id or resource_identity(metadata)
             metadata["checksum_warnings"] = json.dumps(sorted(zf.checksum_warnings))
             metadata.update(media_version="1", images=str(len(images.imported)),
                             image_files=json.dumps(sorted(image[0] for image in images.imported.values())),
@@ -305,6 +333,7 @@ class Library:
         self.packs = []
         self.errors = []
         self.revision = 0
+        self.preferences = None
         self.refresh()
 
     def close(self):
@@ -324,6 +353,7 @@ class Library:
             preferences = {}
         if not isinstance(preferences, dict):
             preferences = {}
+        preferences = self.preferences if self.preferences is not None else preferences
         disabled = preferences.get("disabled", [])
         order = preferences.get("order", [])
         disabled = disabled if isinstance(disabled, list) else []
@@ -339,7 +369,8 @@ class Library:
                 metadata = dict(db.execute("SELECT key,value FROM metadata"))
                 if metadata.get("schema_version") != "3":
                     raise ValueError("Unsupported dictionary pack; reimport its ZIP")
-                identity = (metadata["language"], metadata["title"])
+                metadata["resource_id"] = resource_identity(metadata)
+                identity = metadata["resource_id"]
                 previous = selected.get(identity)
                 if previous:
                     previous_time = int(previous[1].get("imported_at_ns", previous[0].stat().st_mtime_ns))
@@ -348,14 +379,15 @@ class Library:
                         continue
                     previous[2].close()
                     self.packs.remove(previous)
-                metadata["enabled"] = path.name not in disabled
+                metadata["enabled"] = path.name not in disabled and identity not in disabled
                 selected[identity] = (path, metadata, db)
                 self.packs.append(selected[identity])
             except (OSError, sqlite3.Error, ValueError, KeyError) as error:
                 if db:
                     db.close()
                 self.errors.append(f"{path.name}: {error}")
-        self.packs.sort(key=lambda p: (order.index(p[0].name) if p[0].name in order else len(order), p[1]["title"]))
+        self.packs.sort(key=lambda p: (next((order.index(key) for key in (p[1]["resource_id"], p[0].name)
+                                           if key in order), len(order)), p[1]["title"]))
         self._signature = self._inventory_signature()
         self._next_inventory_check = monotonic() + 2
 
@@ -373,6 +405,11 @@ class Library:
             except FileNotFoundError:
                 pass
         return tuple(sorted(signature))
+
+    def set_preferences(self, preferences):
+        if self.preferences != preferences:
+            self.preferences = preferences
+            self.refresh()
 
     def refresh_if_changed(self):
         if _changes.get(self._identity, 0) != self._change_revision:
@@ -610,7 +647,7 @@ def remove_dictionary(directory, filename, refresh, cancelled):
     def identity(path):
         with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
             metadata = dict(db.execute("SELECT key,value FROM metadata"))
-            return metadata["language"], metadata["title"]
+            return resource_identity(metadata)
     selected = identity(target)
     paths = []
     for path in root.glob("*.sqlite3"):
