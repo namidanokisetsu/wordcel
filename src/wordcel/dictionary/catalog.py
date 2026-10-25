@@ -28,9 +28,9 @@ def recommendations(language):
     if language not in DICTIONARY_LANGUAGES:
         return ()
     if language == "ja":
-        return (RecommendedDictionary("Jitendex", "ja",
-                "https://github.com/stephenmk/stephenmk.github.io/releases/latest/download/jitendex-yomitan.zip",
-                "https://jitendex.org/pages/downloads.html", "Jitendex"),
+        return (RecommendedDictionary("JMdict", "ja",
+                "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download/JMdict_english.zip",
+                "https://github.com/yomidevs/jmdict-yomitan", "JMdict ["),
                 RecommendedDictionary("Kanji · KANJIDIC", "ja",
                 "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download/KANJIDIC_english.zip",
                 "https://github.com/yomidevs/jmdict-yomitan", "KANJIDIC"),
