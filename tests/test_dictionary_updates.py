@@ -51,7 +51,7 @@ class DictionaryUpdateTests(unittest.TestCase):
         self.library.refresh_if_changed()
         second.refresh_if_changed()
         self.assertEqual(self.library.lookup("cat", "en")[0].glosses(), ["release-b"])
-        self.assertEqual(second.lookup("cat", "en"), [])
+        self.assertFalse(second.lookup("cat", "en"))
         self.assertEqual(self.library.packs[0][1]["resource_id"], self.identity)
         self.assertEqual(len(self.library.packs), 1)
         restarted = Library(self.directory)

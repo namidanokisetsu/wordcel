@@ -40,6 +40,13 @@ class SettingsNavigation:
         selected = selected or self.profile.currentData()
         old_item = self.navigation.currentItem()
         old_page = old_item.data(0, Qt.ItemDataRole.UserRole)[1] if old_item and old_item.data(0, Qt.ItemDataRole.UserRole) else 0
+        old_group = self.navigation.topLevelItem(2)
+        expanded = {}
+        if old_group:
+            for index in range(old_group.childCount()):
+                entry = old_group.child(index)
+                expanded[entry.data(0, Qt.ItemDataRole.UserRole)[0]] = entry.isExpanded()
+        group_expanded = old_group.isExpanded() if old_group else True
         with QSignalBlocker(self.profile), QSignalBlocker(self.initial_profile), QSignalBlocker(self.navigation):
             self.profile.clear()
             self.initial_profile.clear()
@@ -56,11 +63,13 @@ class SettingsNavigation:
             add = QToolButton()
             add.setText("+")
             add.setToolTip("New profile")
+            add.setAccessibleName("New profile")
             add.clicked.connect(self.choose_profile)
             toolbar.addWidget(add)
             self.profile_menu_button = QToolButton()
             self.profile_menu_button.setText("\u22ef")
             self.profile_menu_button.setToolTip("Profile actions")
+            self.profile_menu_button.setAccessibleName("Profile actions")
             self.profile_menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
             menu = QMenu(self.profile_menu_button)
             self.profile_actions = {}
@@ -88,10 +97,10 @@ class SettingsNavigation:
                     item.setData(0, Qt.ItemDataRole.UserRole, (identity, index))
                     if identity == selected and index == old_page:
                         selected_item = item
-                entry.setExpanded(identity == selected)
+                entry.setExpanded(expanded.get(identity, identity == selected))
                 if identity == selected and selected_item is None:
                     selected_item = entry
-            group.setExpanded(True)
+            group.setExpanded(group_expanded)
             self.profile.setCurrentIndex(max(0, self.profile.findData(selected)))
             self.initial_profile.setCurrentIndex(max(0, self.initial_profile.findData(self.settings.value("initial_profile", ""))))
             if old_page == self.tabs.indexOf(self.app_tab):
