@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
 
 from meikipop.config.config import config
 from meikipop.dictionary.search import SearchEngine, SearchResult
-from meikipop.gui.popup_style import DIVIDER_WIDTH, PANE_PADDING, expanded_geometry, frame_stylesheet, popup_position, surface_colors
+from meikipop.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, expanded_geometry, frame_stylesheet, popup_position, surface_colors
 from meikipop.gui.action_icons import action_button, action_icon
 from meikipop.gui.ruby import RubyBrowser, TAG_PREFIX, ruby_html
 from meikipop.gui.gloss_content import normalize_definitions
@@ -922,10 +922,11 @@ class QuickLookupWindow(QDialog):
         self._result_screenshot = None
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        self.frame = QFrame()
+        from meikipop.gui.translation_view import TranslationFrame
+        self.frame = TranslationFrame()
         outer.addWidget(self.frame)
         layout = QVBoxLayout(self.frame)
-        layout.setContentsMargins(6, PANE_PADDING, 6, PANE_PADDING)
+        layout.setContentsMargins(FRAME_PADDING, PANE_PADDING, FRAME_PADDING, PANE_PADDING)
         layout.setSpacing(3)
         self.actions_row = QWidget()
         toolbar = QHBoxLayout(self.actions_row)
@@ -1045,6 +1046,8 @@ class QuickLookupWindow(QDialog):
         self.browser.word_selected.connect(self.lookup_word)
         from meikipop.gui.translation_view import TranslationPanel
         self.translation_panel = TranslationPanel(self.settings)
+        self.frame.panel = self.translation_panel
+        self.translation_panel.splitter.splitterMoved.connect(lambda *_: self.frame.update())
         from meikipop.gui.copy_feedback import CopyFeedback
         self.copy_feedback = CopyFeedback(self.frame)
         self.translation_panel.copied.connect(self.copy_feedback.show_confirmation)
@@ -2330,7 +2333,8 @@ class QuickLookupWindow(QDialog):
     def _place_actions(self):
         if self._shutting_down:
             return
-        self.frame.layout().setContentsMargins(6, 0 if self._translation_view else PANE_PADDING, 6, PANE_PADDING)
+        self.frame.layout().setContentsMargins(FRAME_PADDING, 0 if self._translation_view else PANE_PADDING,
+                                              FRAME_PADDING, PANE_PADDING)
         self._sync_headword_actions()
         self.mode_row.hide()
         for name, button in self._popup_actions.items():

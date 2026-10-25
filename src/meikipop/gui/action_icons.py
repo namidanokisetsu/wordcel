@@ -28,12 +28,13 @@ _SHAPES = {
 @lru_cache(maxsize=None)
 def _shape(name):
     shape = _SHAPES[name]
-    if name in ("audio", "audio_sentence"):
-        renderer = QSvgRenderer(QByteArray(
-            f'<svg xmlns="http://www.w3.org/2000/svg"><g id="shape">{shape}</g></svg>'.encode()))
-        center = renderer.boundsOnElement("shape").center()
-        shape = f'<g transform="translate({12 - center.x()} {12 - center.y()})">{shape}</g>'
-    return shape
+    renderer = QSvgRenderer(QByteArray(
+        f'<svg xmlns="http://www.w3.org/2000/svg"><g id="shape">{shape}</g></svg>'.encode()))
+    bounds = renderer.boundsOnElement("shape")
+    center = bounds.center()
+    scale = 20 / max(bounds.width(), bounds.height())
+    return (f'<g transform="translate(12 12) scale({scale}) '
+            f'translate({-center.x()} {-center.y()})" vector-effect="non-scaling-stroke">{shape}</g>')
 
 
 def action_icon(name, color):

@@ -3,6 +3,7 @@
 from PyQt6.QtGui import QColor
 
 PANE_PADDING = 4
+FRAME_PADDING = 6
 DIVIDER_WIDTH = 2
 
 
