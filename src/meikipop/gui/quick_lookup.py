@@ -1060,7 +1060,7 @@ class QuickLookupWindow(QDialog):
             f"profiles/{initial_profile}/selection_lookup", False, bool))
         from meikipop.dictionary.library import default_library_path
         self.browser.library_root = directory or default_library_path()
-        self.browser.section_scroll.set_enabled(self.settings.value(f"profiles/{initial_profile}/snap_scrolling", False, bool))
+        self.browser.section_scroll.set_enabled(self.settings.value(f"profiles/{initial_profile}/snap_scrolling", True, bool))
         self.browser.setOpenLinks(False)
         self.browser.setOpenExternalLinks(False)
         self.browser.setAccessibleName("Dictionary results")
@@ -1268,7 +1268,7 @@ class QuickLookupWindow(QDialog):
     def reload_appearance(self, render=True):
         from meikipop.gui.profile_appearance import load_appearance
         load_appearance(self.settings, self.preferred_foreign)
-        self.browser.section_scroll.set_enabled(self.settings.value(f"profiles/{self.preferred_foreign}/snap_scrolling", False, bool))
+        self.browser.section_scroll.set_enabled(self.settings.value(f"profiles/{self.preferred_foreign}/snap_scrolling", True, bool))
         self.apply_style()
         if hasattr(self, "_popup_shortcuts"):
             self.reload_popup_shortcuts()
@@ -2389,7 +2389,7 @@ class QuickLookupWindow(QDialog):
         self._sync_headword_actions()
         self.mode_row.hide()
         for name, button in self._popup_actions.items():
-            visible = self.settings.value(f"profiles/{self.preferred_foreign}/buttons/{name}", True, bool)
+            visible = self.settings.value(f"profiles/{self.preferred_foreign}/buttons/{name}", name != "audio_sentence", bool)
             if name == "anki":
                 visible = visible and self.settings.value(f"profiles/{self.preferred_foreign}/anki/enabled", False, bool)
             if name == "back":

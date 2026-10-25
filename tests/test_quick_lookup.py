@@ -882,6 +882,8 @@ class QuickLookupTests(unittest.TestCase):
         self.settings.setValue("profiles/ja/target", "en")
         for profile in ("ja", "tr", "id"):
             self.settings.setValue(f"profiles/{profile}/audio_autoplay_mode", "off")
+            self.settings.setValue(f"profiles/{profile}/snap_scrolling", False)
+            self.settings.setValue(f"profiles/{profile}/buttons/audio_sentence", True)
         self.model_status_patch = patch("meikipop.language.stanza_analyzer.model_status", return_value="Model needed")
         self.model_status = self.model_status_patch.start()
         self.addCleanup(self.model_status_patch.stop)

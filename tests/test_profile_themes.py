@@ -38,17 +38,18 @@ class ProfileThemeTests(unittest.TestCase):
                 widget.save()
                 widget.reload()
                 self.assertEqual(widget.controls['font_size_sentence'].value(), 22)
-                for control in widget.action_controls.values():
-                    self.assertTrue(control.isChecked())
-                widget.action_controls['audio_sentence'].setChecked(False)
+                for name, control in widget.action_controls.items():
+                    self.assertEqual(control.isChecked(), name != "audio_sentence")
+                widget.action_controls['audio_sentence'].setChecked(True)
                 widget.action_controls['close'].setChecked(False)
                 widget.reload()
-                self.assertFalse(widget.action_controls['audio_sentence'].isChecked())
+                self.assertTrue(widget.action_controls['audio_sentence'].isChecked())
                 self.assertFalse(widget.action_controls['close'].isChecked())
                 self.assertTrue(widget.action_controls['audio'].isChecked())
                 profile[0] = 'tr'
                 widget.reload()
-                self.assertTrue(all(control.isChecked() for control in widget.action_controls.values()))
+                for name, control in widget.action_controls.items():
+                    self.assertEqual(control.isChecked(), name != "audio_sentence")
             finally:
                 widget.deleteLater()
 
@@ -222,7 +223,7 @@ class ProfileThemeTests(unittest.TestCase):
                 self.assertEqual(widget.controls['background_opacity'].value(), 98)
                 self.assertEqual(widget.preview_definitions.value(), 1)
                 self.assertFalse(widget.pinned_sentence.isChecked())
-                self.assertFalse(widget.snap_scrolling.isChecked())
+                self.assertTrue(widget.snap_scrolling.isChecked())
                 self.assertEqual([section.toggle.text() for section in
                                   (widget.general_section, widget.preview_section, widget.pinned_section)],
                                  ['General', 'Preview', 'Pinned'])

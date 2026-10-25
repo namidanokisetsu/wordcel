@@ -177,7 +177,7 @@ class ProfileAppearance(QWidget):
         self.preview_pitch.setChecked(self.settings.value(prefix + "preview_pitch", True, bool))
         self.preview_grammar.setChecked(self.settings.value(prefix + "preview_grammar", False, bool))
         for name, control in self.action_controls.items():
-            control.setChecked(self.settings.value(prefix + "buttons/" + name, True, bool))
+            control.setChecked(self.settings.value(prefix + "buttons/" + name, name != "audio_sentence", bool))
         for name in ("pinned_frequency", "pinned_pitch", "pinned_grammar"):
             getattr(self, name).setChecked(self.settings.value(prefix + name, True, bool))
         self.preview_definitions.setValue(self.settings.value(prefix + "preview_definitions", 1, int))
@@ -190,7 +190,7 @@ class ProfileAppearance(QWidget):
         self.theme.blockSignals(False)
         self.compact_preview.setChecked(self.settings.value(f"profiles/{self.profile()}/compact_preview", True, bool))
         self.pinned_sentence.setChecked(self.settings.value(f"profiles/{self.profile()}/pinned_sentence", False, bool))
-        self.snap_scrolling.setChecked(self.settings.value(f"profiles/{self.profile()}/snap_scrolling", False, bool))
+        self.snap_scrolling.setChecked(self.settings.value(f"profiles/{self.profile()}/snap_scrolling", True, bool))
         self.side_button_scrolling.setChecked(self.settings.value(f"profiles/{self.profile()}/side_button_scrolling", True, bool))
         self.font.setCurrentFont(QFont(self.settings.value(f"profiles/{self.profile()}/font_family",
                                                          _configured_font or default_family(self.profile()))))
