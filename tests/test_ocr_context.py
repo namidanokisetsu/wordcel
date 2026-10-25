@@ -5,6 +5,18 @@ from wordcel.ocr.interface import BoundingBox, Paragraph, Word
 
 
 class ContextTests(unittest.TestCase):
+    def test_rtl_words_keep_logical_offsets_and_marks_beside_numbers(self):
+        for language, word in (("ar", "كِـتاب"), ("he", "סֵפֶר")):
+            text = word + " 123"
+            box = BoundingBox(.8, .5, .3, .5)
+            paragraph = Paragraph(text, [Word(word, " ", box, 0),
+                Word("123", "", BoundingBox(.2, .5, .3, .5), len(word) + 1)],
+                BoundingBox(.5, .5, 1, .5), False)
+            hit = hit_paragraphs([paragraph], (.8, .5), language)
+            self.assertEqual((hit.query, hit.start, hit.end), (word, 0, len(word)))
+            self.assertEqual(hit.text[hit.start:hit.end], word)
+            self.assertEqual(hit.sentence, (text, 0, len(word)))
+
     def test_japanese_sentence_includes_closing_quote_and_word_span(self):
         text = '前です。「猫が好きです！」次です。'
         start = text.index('猫')

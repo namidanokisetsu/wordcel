@@ -11,6 +11,54 @@ from wordcel.dictionary.search import SearchEngine
 
 
 class LibraryTests(unittest.TestCase):
+    def test_arabic_vocalization_recovery_preserves_exact_readings_letters_and_offsets(self):
+        self.pack("Arabic", [self.row("كتاب", ["book"], "كِتَاب"),
+                             self.row("كتب", ["wrote"], "كَتَبَ"),
+                             self.row("أكل", ["ate"]), self.row("على", ["on"]),
+                             self.row("كتبوا", [["كتب", ["plural"]]])], language="ar")
+        engine = SearchEngine(self.directory)
+        try:
+            with patch.object(engine, "_lemma_lookup", side_effect=AssertionError("Dictionary first")):
+                for text, expected in (("كِـتاب", "كتاب"), ("كـتاب", "كتاب"), ("كُتُب", "كتب"),
+                                       ("كَتَبُوا", "كتب")):
+                    original = "١٢، " + text + "."
+                    result = engine.search(text, source="ar", morphology=True,
+                                           context=(original, 4, 4 + len(text)))
+                    self.assertEqual(result.entries[0].term, expected)
+                    self.assertIn("spelling", result.entries[0].route)
+                    self.assertEqual((result.text, result.matched_length), (text, len(text)))
+                self.assertEqual(engine.search("كِتَاب", source="ar").entries[0].route, "exact")
+            for text in ("اكل", "علي", "والكتاب", "الكتاب"):
+                self.assertFalse(engine.search(text, source="ar").entries)
+        finally:
+            engine.close()
+
+    def test_unspaced_prefix_budget_is_configurable_and_does_not_cross_punctuation(self):
+        word = "中" * 28
+        self.pack("Chinese", [self.row(word, ["long headword"]), self.row("中文", ["Chinese"]),
+                              self.row("中文。", ["punctuated entry"])], language="zh")
+        engine = SearchEngine(self.directory)
+        try:
+            self.assertEqual(engine.search(word + "人", source="zh", max_lookup_length=30).matched_length, 28)
+            self.assertFalse(engine.search(word + "人", source="zh", max_lookup_length=25).entries)
+            self.assertEqual(engine.search("中文。人", source="zh").entries[0].term, "中文")
+            self.assertFalse(engine.search("中。文", source="zh").entries)
+        finally:
+            engine.close()
+
+    def test_han_detection_respects_pair_and_keeps_dictionary_languages_separate(self):
+        for language in ("ja", "cmn", "zh", "yue", "zh-hant"):
+            self.pack(language, [self.row("中文", [language])], language=language)
+        engine = SearchEngine(self.directory)
+        try:
+            for language in ("ja", "cmn", "zh", "yue", "zh-hant"):
+                result = engine.search("中文", foreign=language, pair=(language, "en"))
+                self.assertEqual((result.source, result.entries[0].language), (language, language))
+            self.assertEqual(engine.detect("中文", "cmn"), "cmn")
+            self.assertEqual(engine.detect("かな中文", "cmn"), "ja")
+        finally:
+            engine.close()
+
     def test_manual_japanese_search_accepts_scripts_and_romaji(self):
         self.pack("Japanese", [self.row("猫", ["cat"], "ねこ"),
                                self.row("食べる", ["eat"], "たべる", "v1"),

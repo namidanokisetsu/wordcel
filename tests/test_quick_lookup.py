@@ -58,6 +58,28 @@ class FakeEngine:
 
 class QuickLookupTests(unittest.TestCase):
     def test_input_click_looks_up_japanese_suffix_and_selects_only_match(self):
+    def test_input_click_starts_chinese_lookup_at_cursor_with_utf16_offsets(self):
+        text = "𠮷 学习中文。"
+        self.window.search.setText(text)
+        self.window._result = SearchResult(text, "cmn", "en")
+        start = text.index("文")
+        with patch.object(self.window.worker, "request") as request:
+            self.window._lookup_input_position(len(text[:start].encode("utf-16-le")) // 2)
+        self.assertEqual(request.call_args.args[1], "文。")
+        self.assertEqual(request.call_args.kwargs["context"], (text, start, len(text)))
+        self.window.deliver(self.window.revision, SearchResult("文。", "cmn", "en",
+            (entry("文", language="cmn"),), matched_length=1))
+        self.assertEqual(self.window.search.selectedText(), "文")
+        self.assertEqual(self.window.search.text(), text)
+        self.assertEqual(self.window._context, text)
+
+    def test_input_click_on_punctuation_does_not_jump_to_next_word(self):
+        self.window.search.setText("one. two")
+        self.window._result = SearchResult("one", "en", "ja")
+        with patch.object(self.window.worker, "request") as request:
+            self.window._lookup_input_position(3)
+        request.assert_not_called()
+
         text = "𠮷 突然現れる無人島のゲーム"
         self.window.search.setText(text)
         start = text.index("無")

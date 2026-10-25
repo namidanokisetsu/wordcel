@@ -8,11 +8,63 @@ import zipfile
 
 from wordcel.dictionary.library import import_yomitan
 from wordcel.dictionary.search import SearchEngine
-from wordcel.language.analyzer import Token
+from wordcel.language.analyzer import Token, WordAnalysis
 from wordcel.language.stanza_analyzer import StanzaAnalyzer, setup_models
 
 
 class MorphologyTests(unittest.TestCase):
+    def test_single_token_fallback_is_dictionary_bound_across_representative_languages(self):
+        for language, surface, lemma in (("ru", "книгами", "книга"), ("uk", "книгами", "книга"),
+                                         ("ko", "책을", "책"), ("de", "Bücher", "Buch")):
+            with self.subTest(language=language):
+                self.pack(language, [(lemma, ["book"], "")])
+                analyzer = Mock()
+                analyzer.analyze.return_value = (Token(0, len(surface), lemma),)
+                self.engine._analyzer = (language, analyzer)
+                result = self.engine.search(surface, source=language, morphology=True)
+                self.assertEqual([(e.term, e.route) for e in result.entries], [(lemma, "lemma")])
+                analyzer.analyze.return_value = (Token(0, len(surface), "missing lemma"),)
+                self.engine.cache.clear()
+                self.assertFalse(self.engine.search(surface, source=language, morphology=True).entries)
+
+    def test_expanded_tokens_keep_all_words_and_one_original_source_span(self):
+        analyzer = StanzaAnalyzer.__new__(StanzaAnalyzer)
+        words = [SimpleNamespace(text=text, lemma=lemma, upos=pos) for text, lemma, pos in
+                 (("و", "و", "CCONJ"), ("الكتاب", "كتاب", "NOUN"))]
+        token = SimpleNamespace(start_char=3, end_char=10, text="والكتاب", words=words)
+        analyzer.pipeline = Mock(return_value=SimpleNamespace(sentences=[SimpleNamespace(tokens=[token])]))
+        result = analyzer.analyze("في والكتاب")
+        self.assertEqual([(t.start, t.end) for t in result], [(3, 10)])
+        self.assertEqual([(w.text, w.lemma, w.pos) for w in result[0].words],
+                         [("و", "و", "CCONJ"), ("الكتاب", "كتاب", "NOUN")])
+        self.assertEqual(analyzer.analyze("في والكتاب"), result)
+        analyzer.pipeline.assert_called_once()
+
+    def test_multiword_expansions_find_later_lemmas_without_replacing_exact_forms(self):
+        for language, surface, words, expected in (
+            ("ar", "والكتاب", ("و", "كتاب"), "كتاب"),
+            ("fr", "du", ("de", "le"), "le"),
+            ("es", "del", ("de", "el"), "el"),
+            ("he", "בספר", ("ב", "ספר"), "ספר"),
+        ):
+            with self.subTest(language=language):
+                self.pack(language, [(expected, ["fixture definition"], "")])
+                original = "… " + surface + "."
+                analyzer = Mock()
+                analyzer.analyze.return_value = (Token(2, 2 + len(surface), words[0], words=tuple(
+                    WordAnalysis(word, word) for word in words)),)
+                self.engine._analyzer = (language, analyzer)
+                result = self.engine.search(surface, source=language, morphology=True,
+                                            context=(original, 2, 2 + len(surface)))
+                self.assertEqual([(e.term, e.route) for e in result.entries], [(expected, "lemma")])
+                self.assertEqual((result.text, result.matched_length), (surface, len(surface)))
+                # A partial selection must not acquire lemmas from the whole token.
+                self.assertFalse(self.engine.search(surface[:-1], source=language, morphology=True,
+                    context=(original, 2, 1 + len(surface))).entries)
+                self.pack(language, [(surface, ["exact entry"], ""), (expected, ["lemma entry"], "")])
+                with patch.object(self.engine, "_lemma_lookup", side_effect=AssertionError("Exact first")):
+                    self.assertEqual(self.engine.search(surface, source=language, morphology=True).entries[0].term, surface)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

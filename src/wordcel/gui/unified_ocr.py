@@ -213,7 +213,7 @@ class ScanWorker(threading.Thread):
                     engine.refresh_if_changed()
                     morphology = bool(options[1]) if len(options) > 1 else False
                     analysis = {"morphology": True, "context": (hit.text, hit.start, hit.end)} if morphology else {}
-                    if language == "ja":
+                    if get_profile(language).word_mode == "unspaced":
                         analysis["max_lookup_length"] = config.max_lookup_length
                     result = engine.search(hit.query, source=language, foreign=language, **analysis)
                     hit = _matched_hit(hit, result, language)
@@ -307,7 +307,7 @@ class HitWorker(threading.Thread):
                         continue
                     mark("hit_lookup_begin", frame.request.revision)
                     options = {"morphology": True, "context": (hit.text, hit.start, hit.end)} if morphology else {}
-                    if frame.language == "ja":
+                    if get_profile(frame.language).word_mode == "unspaced":
                         options["max_lookup_length"] = config.max_lookup_length
                     result = engine.search(hit.query, source=frame.language, foreign=frame.language, **options)
                     hit = _matched_hit(hit, result, frame.language)

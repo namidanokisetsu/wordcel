@@ -90,6 +90,11 @@ Japanese word forms work through bundled rules; Turkish uses bundled Zeyrek.
 Other supported languages offer an optional **Download word-form support**
 action. OCR and translation coverage depend on the selected provider/model;
 Settings shows the available choices for your language.
+Dictionary availability does not guarantee inflected forms or screen recognition.
+Point at a word's first character for Chinese and Japanese lookup.
+Both Chinese scripts and readings depend on the installed dictionary.
+Arabic lookup retains exact readings before trying spelling without vowel marks
+or tatweel; attached forms still need dictionary entries or word-form support.
 
 **Appearance** controls fonts, themes and readings, with separate options for
 preview and pinned results. Scrolling is continuous by default; enable

@@ -60,8 +60,16 @@ Turkish uses Zeyrek 0.1.3, accent
 recovery and precomputed lexicon rankings; exact entries and imported forms
 retain precedence. Full morpheme paths remain attached to their analyses.
 Turkish lookup never starts Stanza. Other supported languages can install an
-optional Stanza fallback; Russian and Persian also have bounded spelling
-recovery. Imports stay lazy and runtime analysis stays offline.
+optional Stanza fallback. Expanded tokens retain every word and
+one original source span; fallback tests their joined lemmas and, for a single
+expanded token, its individual lemmas. Exact entries and imported forms precede it.
+Russian and Persian retain their spelling recovery. Arabic recovery removes
+tatweel and ordinary vowel marks only after exact headword/reading lookup fails;
+hamza, madda and distinct letters remain separate. Imports stay lazy and runtime
+analysis stays offline.
+Unspaced lookup starts at the pointed character, including Chinese and Japanese.
+Non-Japanese prefix scanning reuses `max_lookup_length` and stops at source gaps;
+combining marks stay attached. Full exact matches precede prefix scanning.
 Activating Turkish prepares a shared analyzer in the background; parsing is
 serialized on lookup workers. Missing definitions retain analyses separately
 from dictionary entries. Disclosure edits batch layout updates, and Paddle

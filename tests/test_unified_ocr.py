@@ -32,6 +32,39 @@ def recognized():
 
 
 class ScanWorkerTests(unittest.TestCase):
+    def test_chinese_ocr_lookup_starts_at_the_pointed_character(self):
+        import json
+        from pathlib import Path
+        import zipfile
+        from wordcel.dictionary.library import import_yomitan
+        from wordcel.ocr.context import fragment_paragraphs, hit_paragraphs
+
+        text = "学习中文。"
+        with tempfile.TemporaryDirectory() as folder:
+            archive = Path(folder) / "dictionary.zip"
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("index.json", json.dumps({"title": "Chinese", "format": 3, "sourceLanguage": "cmn"}))
+                bundle.writestr("term_bank_1.json", json.dumps([
+                    ["中文", "zhōngwén", "", "", 0, ["Chinese"], -1, ""],
+                    ["文", "wén", "", "", 0, ["writing"], -1, ""]]))
+            library = Path(folder) / "library"
+            import_yomitan(archive, library)
+            paragraphs = fragment_paragraphs([(text, [(text, (0, 0, 100, 20))])], 100, 20, "cmn")
+            sink = SimpleNamespace(emit=Mock())
+            worker = HitWorker(sink, library)
+            worker.queue = Queue()
+            frame = SimpleNamespace(language="cmn", request=SimpleNamespace(revision=1))
+            for generation, point in enumerate(((.5, .5), (.7, .5)), 1):
+                worker.queue.put((generation, frame, hit_paragraphs(paragraphs, point, "cmn"), False))
+            worker.queue.put(None)
+            worker.run()
+            self.assertEqual(len(sink.emit.call_args_list), 2)
+            for call, term, reading, start in zip(sink.emit.call_args_list, ("中文", "文"), ("zhōngwén", "wén"), (2, 3)):
+                _, result, (_, hit), error = call.args
+                self.assertEqual(error, "")
+                self.assertEqual([(e.term, e.reading) for e in result.entries], [(term, reading)])
+                self.assertEqual((hit.text, hit.start, hit.end, hit.sentence), (text, start, 4, (text, start, 4)))
+
     def make_worker(self, jobs):
         sink = SimpleNamespace(emit=Mock())
         worker = ScanWorker(sink)
@@ -380,10 +413,7 @@ class ScanWorkerTests(unittest.TestCase):
                 delivered = sink.emit.call_args.args[2][1]
                 self.assertEqual((delivered.query, delivered.text, delivered.start, delivered.end),
                                  (text, text, 0, expected_end))
-                if language == "ja":
-                    self.assertEqual(engine.search.call_args.kwargs["max_lookup_length"], 100)
-                else:
-                    self.assertNotIn("max_lookup_length", engine.search.call_args.kwargs)
+                self.assertEqual(engine.search.call_args.kwargs["max_lookup_length"], 100)
 
 
 class FakeWindow(QWidget):

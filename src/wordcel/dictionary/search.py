@@ -63,7 +63,11 @@ class SearchEngine:
             return "ja"
         languages = self.languages() if languages is None else languages
         if JAPANESE.search(text):
-            return "zh" if foreign.startswith("zh") or "ja" not in languages and "zh" in languages else "ja"
+            if foreign in {"cmn", "yue"} or foreign.startswith("zh"):
+                return foreign
+            if "ja" in languages:
+                return "ja"
+            return next((code for code in languages if code in {"cmn", "yue"} or code.startswith("zh")), "ja")
         for pattern, codes in ((r"[\uac00-\ud7af]", ("ko",)),
                                (r"[\u0400-\u04ff]", ("ru", "uk", "bg")),
                                (r"[\u0600-\u06ff]", ("ar", "fa", "ur")),
@@ -173,9 +177,11 @@ class SearchEngine:
                     entries = self.library.lookup(text, source)
                     if not entries and source == "fa":
                         entries = self._persian_lookup(text)
+                    if not entries and source == "ar":
+                        entries = self._arabic_lookup(text)
                     matched_length = len(text) if entries else 0
                     if not entries and get_profile(source).word_mode == "unspaced":
-                        entries, matched_length = self._prefix_lookup(text, source)
+                        entries, matched_length = self._prefix_lookup(text, source, max_lookup_length)
                 if not entries and morphology and source != "ja":
                     entries = self._lemma_lookup(text, source, context)
                     matched_length = len(text) if entries else 0
@@ -244,6 +250,8 @@ class SearchEngine:
                     raise FileNotFoundError("models not installed")
                 self._analyzer = (language, StanzaAnalyzer(language=language))
             original, start, end = context or (text, 0, len(text))
+            if original[start:end] != text:
+                return ()
             tokens = [token for token in self._analyzer[1].analyze(original)
                       if start <= token.start < token.end <= end]
         except Exception as error:
@@ -257,13 +265,19 @@ class SearchEngine:
         candidate = original[start:end]
         for token in reversed(tokens):
             if token.lemma and token.lemma != "_":
-                lemma = token.lemma
+                lemma = " ".join(word.lemma for word in token.words) if token.words else token.lemma
                 candidate = candidate[:token.start-start] + lemma + candidate[token.end-start:]
-        if candidate == text:
-            return ()
-        entries = self.library.lookup(candidate, language, tolerant=False)
-        return tuple(replace(entry, route="lemma", inflection=("lemma",))
-                     for entry in entries)
+        candidates = [candidate]
+        # Expanded clitics share their parent token's span, never invented subspans.
+        if len(tokens) == 1 and len(tokens[0].words) > 1:
+            candidates.extend(word.lemma for word in tokens[0].words)
+        entries = {}
+        for candidate in dict.fromkeys(candidates):
+            if not candidate or candidate in {text, "_"}:
+                continue
+            for entry in self.library.lookup(candidate, language, tolerant=False):
+                entries.setdefault(entry.id, replace(entry, route="lemma", inflection=("lemma",)))
+        return tuple(entries.values())
 
     def _turkish_lookup(self, text, context):
         from wordcel.language.turkish_analyzer import TurkishAnalyzer, grammar_labels
@@ -300,10 +314,29 @@ class SearchEngine:
                              for entry in entries)
         return ()
 
-    def _prefix_lookup(self, text, language):
+    def _arabic_lookup(self, text):
+        # Keep hamza, madda and letter distinctions; only remove vocalization/elongation.
+        candidates = (text.replace("\u0640", ""), re.sub(r"[\u0640\u064b-\u0652]", "", text))
+        for candidate in dict.fromkeys(candidates):
+            if candidate == text:
+                continue
+            entries = self.library.lookup(candidate, "ar", tolerant=False)
+            if entries:
+                return tuple(replace(entry, route="form spelling" if entry.route == "form" else "spelling")
+                             for entry in entries)
+        return ()
+
+    def _prefix_lookup(self, text, language, max_lookup_length):
         from wordcel.language.profiles import get_profile
         # Only complete source clusters may end a prefix; Thai tone marks stay attached.
-        lengths = [end for _, end in get_profile(language).word_spans(text) if end < len(text) and end <= 25]
+        spans = get_profile(language).word_spans(text)
+        lengths, previous = [], 0
+        for start, end in spans:
+            if start != previous or end > max_lookup_length:
+                break
+            if end < len(text):
+                lengths.append(end)
+            previous = end
         for length in reversed(lengths):
             entries = self.library.lookup(text[:length], language, tolerant=False)
             if entries:

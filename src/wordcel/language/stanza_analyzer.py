@@ -3,7 +3,7 @@ from importlib.metadata import PackageNotFoundError, version
 import json
 from pathlib import Path
 
-from .analyzer import Token
+from .analyzer import Token, WordAnalysis
 
 STANZA_VERSION = "1.14.0"
 RESOURCES_VERSION = "1.14.0"
@@ -103,12 +103,12 @@ class StanzaAnalyzer:
         seen = set()
         for sentence in doc.sentences:
             for token in sentence.tokens:
-                # A multiword expansion has only one selectable original span.
-                word = token.words[0]
-                if word.upos == "PUNCT":
+                words = tuple(WordAnalysis(word.text, word.lemma if word.lemma not in {None, "", "_"} else word.text, word.upos)
+                              for word in token.words if word.upos != "PUNCT")
+                if not words:
                     continue
                 start, end = token.start_char, token.end_char
                 if (start, end) not in seen:
-                    tokens.append(Token(start, end, word.lemma or token.text, word.upos))
+                    tokens.append(Token(start, end, words[0].lemma, words[0].pos, words))
                     seen.add((start, end))
         return tuple(tokens)

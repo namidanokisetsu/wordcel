@@ -154,8 +154,7 @@ class LookupWorker(QObject):
                             options.update(cancelled=cancelled, request_id=revision, romaji=not translate,
                                            translation_progress=lambda result: self._emit(self.progress, revision, result),
                                            translation_state=lambda value: self._emit(self.translation_state, revision, value))
-                            if source in ("ja", "auto"):
-                                options["max_lookup_length"] = config.max_lookup_length
+                            options["max_lookup_length"] = config.max_lookup_length
                         result = engine.search(text, source=source, foreign=foreign, translate=translate, **options)
                         mark("lookup_done", revision)
                         self._emit(self.completed, revision, result)
@@ -1603,7 +1602,7 @@ class QuickLookupWindow(QDialog):
         start = len(raw.encode("utf-16-le")[:position * 2].decode("utf-16-le"))
         profile = get_profile(self._result.source if self._result else self.preferred_foreign)
         for left, right in profile.word_spans(raw):
-            if right > start:
+            if left <= start < right:
                 end = len(raw) if profile.word_mode == "unspaced" else right
                 self.submit(lookup_span=(left, end))
                 return
