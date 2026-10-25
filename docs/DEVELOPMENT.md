@@ -322,6 +322,8 @@ Routine reinstalls are local Windows test builds with source commits pushed to
 GitHub. Public releases follow user testing and an explicit release request;
 retain one public app release and its commit history; remove older app release
 pages/assets and tags.
+Windows setup skips the license, welcome, destination and confirmation pages;
+license notices remain bundled with the app.
 
 Desktop releases contain the Windows setup EXE and two macOS DMGs, for Apple
 silicon and Intel. Bundles include Python and core libraries; Paddle and
