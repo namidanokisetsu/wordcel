@@ -256,7 +256,8 @@ class FirstRunTests(unittest.TestCase):
         self.assertEqual([(task.kind, task.value) for task in tasks], [("translation", "quality")])
 
     def test_setup_reuses_installed_windows_ocr_without_a_model_download(self):
-        with patch("wordcel.ocr.windows_native.supported_languages", return_value=("tr",)), \
+        with patch("sys.platform", "win32"), \
+                patch("wordcel.ocr.windows_native.supported_languages", return_value=("tr",)), \
                 patch("wordcel.gui.resources.ocr_ready", side_effect=lambda provider, *_: provider == "windows"):
             wizard = LanguageSuggestion(self.window, "tr")
             self.addCleanup(wizard.deleteLater)
