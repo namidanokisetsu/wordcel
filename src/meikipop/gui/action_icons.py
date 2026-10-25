@@ -1,7 +1,7 @@
 """Small monochrome action icons drawn locally for the shared popup."""
 from functools import lru_cache
-from PyQt6.QtCore import QByteArray, QSize, Qt
-from PyQt6.QtGui import QIcon, QPainter, QPixmap
+from PyQt6.QtCore import QByteArray, QRectF, QSize, Qt
+from PyQt6.QtGui import QIcon, QIconEngine, QPainter, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QToolButton
 
@@ -14,8 +14,7 @@ _SHAPES = {
     "swap": '<path d="M3 8h17m-4-4 4 4-4 4M21 16H4m4-4-4 4 4 4"/>',
     "anki": '<circle cx="12" cy="12" r="10"/><path d="M7 12h10M12 7v10"/>',
     "anki_saved": '<circle cx="12" cy="12" r="10"/><path d="m7 12 3 3 7-7"/>',
-    "audio": '<path d="M3 9h4l5-4v14l-5-4H3ZM16 8c3 2 3 6 0 8M19 5c5 4 5 10 0 14"/>',
-    "audio_sentence": '<path d="M3 9h4l5-4v14l-5-4H3ZM16 8c3 2 3 6 0 8M19 5c5 4 5 10 0 14"/>',
+    "audio": '<path d="M2 9h4l6-7v20l-6-7H2ZM16 7c4 2.5 4 7.5 0 10M18.25 2c5 5 5 15 0 20"/>',
     "back": '<path d="m14 5-7 7 7 7M7 12h13"/>',
     "close": '<path d="m6 6 12 12M18 6 6 18"/>',
     "copy": '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V4H4v12h4"/>',
@@ -27,7 +26,7 @@ _SHAPES = {
 
 @lru_cache(maxsize=None)
 def _shape(name):
-    shape = _SHAPES[name]
+    shape = _SHAPES["audio" if name == "audio_sentence" else name]
     renderer = QSvgRenderer(QByteArray(
         f'<svg xmlns="http://www.w3.org/2000/svg"><g id="shape">{shape}</g></svg>'.encode()))
     bounds = renderer.boundsOnElement("shape")
@@ -38,17 +37,44 @@ def _shape(name):
             f'translate({-center.x()} {-center.y()})" stroke-width="{1.6 / scale}">{shape}</g>')
 
 
-def action_icon(name, color):
-    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">'
+class ActionIconEngine(QIconEngine):
+    def __init__(self, name, color):
+        super().__init__()
+        self.name, self.color = name, color
+        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">'
            f'<g fill="none" stroke="{color}" stroke-width="1.6" stroke-linecap="round" '
            f'stroke-linejoin="round">{_shape(name)}</g></svg>')
-    pixmap = QPixmap(48, 48)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    QSvgRenderer(QByteArray(svg.encode())).render(painter)
-    painter.end()
-    pixmap.setDevicePixelRatio(2)
-    return QIcon(pixmap)
+        self.renderer = QSvgRenderer(QByteArray(svg.encode()))
+
+    def clone(self):
+        return ActionIconEngine(self.name, self.color)
+
+    def isNull(self):
+        return not self.renderer.isValid()
+
+    def paint(self, painter, rect, mode, state):
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if mode == QIcon.Mode.Disabled:
+            painter.setOpacity(painter.opacity() * .45)
+        self.renderer.render(painter, QRectF(rect))
+        painter.restore()
+
+    def pixmap(self, size, mode, state):
+        return self.scaledPixmap(size, mode, state, 1)
+
+    def scaledPixmap(self, size, mode, state, scale):
+        pixmap = QPixmap(size * scale)
+        pixmap.setDevicePixelRatio(scale)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        self.paint(painter, QRectF(0, 0, size.width(), size.height()), mode, state)
+        painter.end()
+        return pixmap
+
+
+def action_icon(name, color):
+    return QIcon(ActionIconEngine(name, color))
 
 
 def action_button(name, description, color):

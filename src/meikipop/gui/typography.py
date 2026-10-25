@@ -24,4 +24,6 @@ def document_font(family, size, language):
     if family:
         font.setFamilies(list(dict.fromkeys((family, *document_families(language)))))
     font.setPixelSize(size)
+    font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias | QFont.StyleStrategy.PreferOutline)
+    font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     return font
