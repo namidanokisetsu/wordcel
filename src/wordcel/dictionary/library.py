@@ -13,6 +13,7 @@ import threading
 from time import monotonic, time_ns
 import unicodedata
 import zipfile
+from functools import lru_cache
 from wordcel.utils.timing import mark
 
 _changes = {}
@@ -105,6 +106,13 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
             raise ValueError("Dictionary ZIP has no index.json.")
         index = json.loads(zf.read("index.json"))
         source_language = language_code(language or index.get("sourceLanguage") or "ja")
+        from wordcel.language.profiles import get_profile
+        lookup_key = lru_cache(maxsize=16384)(get_profile(source_language).lookup_key)
+
+        @lru_cache(maxsize=1024)
+        def form_labels(labels):
+            return json.dumps(labels, ensure_ascii=False)
+
         if expected_language and (source_language != expected_language or
                                  index.get("sourceLanguage", expected_language) != expected_language):
             raise ValueError("Replacement dictionary must use the same language.")
@@ -194,16 +202,17 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                         raise ValueError(f"Invalid dictionary entry in {name}")
                     term, reading, definitions = row[0], row[1], row[5]
                     images.prepare(definitions)
-                    canonical = key(term, source_language)
+                    canonical = lookup_key(term)
                     if not canonical:
                         continue
+                    term_folded = folded(term)
                     regular = []
                     for definition in definitions:
                         if isinstance(definition, list):
                             if definition and isinstance(definition[0], str):
                                 labels = definition[1] if len(definition) > 1 and isinstance(definition[1], list) else []
-                                forms.append((canonical, folded(term), key(definition[0], source_language),
-                                              json.dumps([s for s in labels if isinstance(s, str)], ensure_ascii=False)))
+                                forms.append((canonical, term_folded, lookup_key(definition[0]),
+                                              form_labels(tuple(s for s in labels if isinstance(s, str)))))
                                 redirects += 1
                         else:
                             regular.append(definition)
@@ -212,8 +221,8 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                     plain_gloss = " ".join(extract_glosses(regular))
                     regular = tagged_definitions(regular, row[2], tag_labels)
                     count += 1
-                    terms.append((count, term, reading, canonical, key(reading, source_language),
-                                  folded(term), float(row[4] or 0), str(row[3] or ""),
+                    terms.append((count, term, reading, canonical, lookup_key(reading),
+                                  term_folded, float(row[4] or 0), str(row[3] or ""),
                                   json.dumps(regular, ensure_ascii=False, separators=(",", ":"))))
                     glosses.append((count, plain_gloss))
                 db.executemany("INSERT INTO terms VALUES(?,?,?,?,?,?,?,?,?)", terms)
