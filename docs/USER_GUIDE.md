@@ -93,6 +93,9 @@ recommended packs or use **Import ZIPs** for Yomitan dictionaries. Enable and
 reorder them there. For a bundle containing several dictionary ZIPs, extract
 the outer archive first. Japanese recommendations include definitions, kanji,
 frequency and pitch accent; available features depend on the installed packs.
+Select a supported Wiktionary pack to toggle **Show grammar sections** and
+**Show etymology** per profile. These hide the sections from the popup;
+Anki exports retain the full definitions.
 **Data** lists shared models first, then dictionaries and models for each language.
 Download, repair, open or remove them there; dictionary checkboxes enable or disable
 packs. Built-in resources and linked external files are labeled separately.

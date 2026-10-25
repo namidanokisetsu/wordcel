@@ -217,11 +217,12 @@ class _GlossConverter(StructuredContentConverter):
 
     def __init__(self, expanded=False, limit=360, preview=False, generic_source=False, term="",
                  details_expanded=(), detail_prefix="", definitions=(), definition_furigana=False, preview_definitions=1,
-                 grammar=True):
+                 grammar=True, hidden_sections=()):
         super().__init__()
         self.preview_definitions = preview_definitions
         self.definition_furigana = definition_furigana
         self.grammar = grammar
+        self.hidden_sections = hidden_sections
         self.colors = surface_colors(config.color_background, config.color_foreground)
         self.expanded = expanded
         self.preview = preview
@@ -245,6 +246,9 @@ class _GlossConverter(StructuredContentConverter):
         index_details(definitions)
 
     def _details_to_html(self, node):
+        from wordcel.dictionary.wiktionary_sections import section_kind
+        if section_kind(node) in self.hidden_sections:
+            return ""
         if self.preview:
             self.clipped = True
             return ""
@@ -563,7 +567,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                   definition_furigana=False, collapsed=(), kanji_details=(),
                   preview_frequency=True, preview_pitch=True, preview_definitions=1,
                   pinned_frequency=True, pinned_pitch=True, grammar=None, separate_headwords=False,
-                  headword_actions=0):
+                  headword_actions=0, hidden_sections=None):
     """Share lexical headings while preserving the configured dictionary order."""
     preview_definitions = max(0, min(50, preview_definitions))
     maximum = preview_definitions if preview else 0
@@ -644,7 +648,9 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
             generic_source = source in ("Turkish Bilingual", "Turkish Monolingual", "Turkish Etymology")
             normalized = [normalize_definitions(entry.definitions, source) for entry in entries]
             limit = 240 if result.source == "ja" and not full else None
-            converter = _GlossConverter(expanded=full, limit=limit,
+            from wordcel.dictionary.wiktionary_sections import is_wiktionary
+            hidden_details = (hidden_sections or {}).get(source, ()) if is_wiktionary(source) else ()
+            converter = _GlossConverter(expanded=full, limit=limit, hidden_sections=hidden_details,
                                         preview=preview, preview_definitions=preview_definitions,
                                         generic_source=generic_source, term=term,
                                         details_expanded=details_expanded, detail_prefix=f"{group_index}:{index}",
@@ -1921,7 +1927,13 @@ class QuickLookupWindow(QDialog):
             preserve_scroll, self._preserve_scroll = self._preserve_scroll, False
             compact = self.compact_preview()
             prefix = f"profiles/{self.active_profile}/"
+            from wordcel.dictionary.wiktionary_sections import SECTIONS
+            hidden_sections = {}
+            for kind in SECTIONS:
+                for source in self.dictionary_display_titles("hidden_" + kind):
+                    hidden_sections.setdefault(source, set()).add(kind)
             preview_options = dict(
+                hidden_sections=hidden_sections,
                 preview_frequency=self.settings.value(prefix + "preview_frequency", True, bool),
                 preview_pitch=self.settings.value(prefix + "preview_pitch", True, bool),
                 preview_definitions=self.settings.value(prefix + "preview_definitions", 1, int),

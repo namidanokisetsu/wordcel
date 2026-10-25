@@ -202,10 +202,14 @@ from wordcel.gui.settings_navigation import SettingsNavigation
 
 class SetupDialog(SettingsNavigation, QDialog):
     dictionaries_changed = pyqtSignal()
+    sections_ready = pyqtSignal(str, object)
 
     def __init__(self, directory, settings, apply_shortcut, parent=None):
         super().__init__(parent)
         self.directory = Path(directory or default_library_path())
+        self._section_capabilities = {}
+        self._section_scans = set()
+        self.sections_ready.connect(self._sections_ready)
         self.settings = settings
         from wordcel.config.profiles import migrate
         migrate(settings, directory)
@@ -265,6 +269,14 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.dictionary_display.currentIndexChanged.connect(self.save_dictionary_display)
         self.packs.currentItemChanged.connect(self.update_dictionary_display)
         dictionary_layout.addWidget(self.dictionary_display)
+        from wordcel.dictionary.wiktionary_sections import SECTIONS
+        self.section_controls = {}
+        for kind, label in SECTIONS.items():
+            control = QCheckBox(label)
+            control.hide()
+            control.toggled.connect(lambda checked, kind=kind: self.save_dictionary_section(kind, checked))
+            self.section_controls[kind] = control
+            dictionary_layout.addWidget(control)
         actions = QHBoxLayout()
         self.import_button = QPushButton("Import ZIPs…")
         self.import_button.clicked.connect(self.choose_dictionaries)
@@ -759,7 +771,12 @@ class SetupDialog(SettingsNavigation, QDialog):
             self._imported_languages = tuple(dict.fromkeys(metadata["language"] for _, metadata, _ in packs))
             library.set_preferences(dictionary_preferences(self.settings, self.profile.currentData()))
             packs = list(library.packs)
+            from wordcel.dictionary.wiktionary_sections import is_wiktionary
+            section_paths = []
             for path, metadata, _ in packs:
+                if is_wiktionary(metadata["title"]) and path.name not in self._section_scans:
+                    self._section_scans.add(path.name)
+                    section_paths.append(path)
                 item = QListWidgetItem(metadata["title"])
                 item.setToolTip(f'{int(metadata.get("entries", 0)):,} entries')
                 item.setData(Qt.ItemDataRole.UserRole, path.name)
@@ -779,9 +796,46 @@ class SetupDialog(SettingsNavigation, QDialog):
         finally:
             del blocker
             library.close()
+        if section_paths:
+            threading.Thread(target=self._scan_sections, args=(section_paths,),
+                             name="dictionary-sections", daemon=True).start()
         self.update_dictionary_display()
         self.update_translation_languages()
         self.remove_profile_button.setEnabled(self.operation is None and self.profile.count() > 1)
+
+    def _scan_sections(self, paths):
+        import sqlite3
+        from wordcel.dictionary.wiktionary_sections import pack_sections
+        for path in paths:
+            try:
+                stat = path.stat()
+                sections = pack_sections(path.resolve(), stat.st_mtime_ns, stat.st_size)
+            except (OSError, sqlite3.Error, ValueError):
+                sections = frozenset()
+            try:
+                self.sections_ready.emit(path.name, sections)
+            except RuntimeError:
+                return
+
+    def _sections_ready(self, filename, sections):
+        self._section_capabilities[filename] = sections
+        self.update_dictionary_display()
+
+    def save_dictionary_section(self, kind, shown):
+        item = self.packs.currentItem()
+        if self._loading or item is None or not self.section_controls[kind].isEnabled():
+            return
+        profile = self.profile.currentData()
+        source = item.data(Qt.ItemDataRole.UserRole + 4)
+        key = f"profiles/{profile}/hidden_{kind}_dictionaries"
+        sources = set(self.settings.value(key, [], type=list))
+        sources.discard(source)
+        if not shown:
+            sources.add(source)
+        self.settings.setValue(key, sorted(sources))
+        parent = self.parent()
+        if parent is not None and parent.active_profile == profile:
+            parent._render(static=True, preserve_scroll=True)
 
     def update_dictionary_display(self, *_):
         item = self.packs.currentItem()
@@ -789,6 +843,15 @@ class SetupDialog(SettingsNavigation, QDialog):
                  and item.data(Qt.ItemDataRole.UserRole + 3))
         self.dictionary_display.setEnabled(bool(valid))
         self.dictionary_display.setVisible(bool(valid))
+        capabilities = self._section_capabilities.get(item.data(Qt.ItemDataRole.UserRole), ()) if valid else ()
+        for kind, control in self.section_controls.items():
+            available = kind in capabilities
+            control.setVisible(available)
+            control.setEnabled(available)
+            hidden = self.settings.value(
+                f"profiles/{self.profile.currentData()}/hidden_{kind}_dictionaries", [], type=list)
+            with QSignalBlocker(control):
+                control.setChecked(not valid or item.data(Qt.ItemDataRole.UserRole + 4) not in hidden)
         mode = "expanded"
         if valid:
             source = item.data(Qt.ItemDataRole.UserRole + 4)

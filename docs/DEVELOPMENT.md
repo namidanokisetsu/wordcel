@@ -102,7 +102,10 @@ Automatic popup fitting stays separate from the user's chosen reading size.
 Pinning batches content and layout changes and completes fitting before repainting.
 Nested document updates leave inherited paint suppression to the parent window.
 Preview defaults to one definition without grammar labels; pinned results have no definition cutoff.
-Dictionary display preferences only control whether a section starts collapsed.
+Dictionary display preferences control whether a dictionary starts collapsed.
+Wiktionary section visibility is separate and stored per profile and resource ID.
+Settings detects supported wty disclosure markers on a cached background scan;
+the popup filters only those markers, retaining detail IDs and full Anki exports.
 Popup actions share the first visible sentence or headword line, reserving their
 measured width. Taller actions align to the line top and reserve space below it;
 smaller actions center on the line. Pinning preserves the text baseline. Icon actions use
