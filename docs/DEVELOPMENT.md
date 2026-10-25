@@ -113,8 +113,10 @@ Sentence links use the full captured context, never the compact display text. Pr
 pin; their mouse release never activates links exposed by the pinned layout.
 Lookup autoplay runs on new lookup results, never on translation completion,
 history restoration or rendering. Pin autoplay follows its separate preference.
-Manual input stays in dictionary lookup, retaining available suggestions;
-translation requires an explicit action, including after a dictionary miss.
+Manual input stays in dictionary lookup, retaining available suggestions.
+Clicking its text reuses language spans and Japanese prefix lookup, selecting
+the returned match with UTF-16 input offsets while retaining the full sentence.
+Translation requires an explicit action, including after a dictionary miss.
 Windows OCR popups over a fullscreen source expand without activation and reject
 mouse activation, keeping the source foreground and its taskbar hidden. The
 existing Windows input hook routes unmodified arrows, Page Up/Down and Home/End

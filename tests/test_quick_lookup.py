@@ -57,6 +57,29 @@ class FakeEngine:
 
 
 class QuickLookupTests(unittest.TestCase):
+    def test_input_click_looks_up_japanese_suffix_and_selects_only_match(self):
+        text = "𠮷 突然現れる無人島のゲーム"
+        self.window.search.setText(text)
+        start = text.index("無")
+        with patch.object(self.window.worker, "request") as request:
+            self.window._lookup_input_position(len(text[:start].encode("utf-16-le")) // 2)
+        self.assertEqual(request.call_args.args[1], "無人島のゲーム")
+        self.assertEqual(request.call_args.kwargs["context"], (text, start, len(text)))
+        self.assertFalse(request.call_args.kwargs["exact_only"])
+        self.window.deliver(self.window.revision,
+                            SearchResult("無人島のゲーム", "ja", "en", (entry("無人島"),), matched_length=3))
+        self.assertEqual(self.window.search.text(), text)
+        self.assertEqual(self.window.search.selectedText(), "無人島")
+        self.assertEqual(self.window._context, text)
+
+    def test_input_click_uses_whole_spaced_word(self):
+        self.window.search.setText("a beautiful sea")
+        self.window._result = SearchResult("a", "en", "ja")
+        with patch.object(self.window.worker, "request") as request:
+            self.window._lookup_input_position(5)
+        self.assertEqual(request.call_args.args[1], "beautiful")
+        self.assertEqual(request.call_args.kwargs["context"], ("a beautiful sea", 2, 11))
+
     def test_small_heading_actions_center_on_text_and_clear_the_next_block(self):
         for size in (10, 14, 18):
             with self.subTest(size=size):

@@ -816,6 +816,21 @@ class LocalDictionaryBrowser(RubyBrowser):
         return None
 
 
+class LookupInput(QLineEdit):
+    position_clicked = pyqtSignal(int)
+
+    def mousePressEvent(self, event):
+        self._lookup_press = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        if (event.button() == Qt.MouseButton.LeftButton and not self.hasSelectedText()
+                and not event.modifiers()
+                and (event.position().toPoint() - self._lookup_press).manhattanLength() < QApplication.startDragDistance()):
+            self.position_clicked.emit(self.cursorPositionAt(event.position().toPoint()))
+
+
 class QuickLookupWindow(QDialog):
     dictionaries_changed = pyqtSignal()
     mode_changed = pyqtSignal(str)
@@ -985,7 +1000,9 @@ class QuickLookupWindow(QDialog):
         self.translate.setEnabled(False)
         self.translate.clicked.connect(self._translate_clicked)
         self.translate_sentence = self.translate
-        self.search = QLineEdit()
+        self.search = LookupInput()
+        self.search.position_clicked.connect(self._lookup_input_position)
+        self.search.selectionChanged.connect(lambda: setattr(self, "_input_lookup", None))
         self.search.setPlaceholderText("Search")
         self.search.setAccessibleName("Search text")
         self.search.textEdited.connect(lambda _: setattr(self, "_selection_lookup", False))
@@ -1572,7 +1589,19 @@ class QuickLookupWindow(QDialog):
             self.browser.clear()
             self._close_kanji()
 
-    def submit(self, translate=None, *, context=False, remember=False, selection=False, translation_text=None):
+    def _lookup_input_position(self, position):
+        from meikipop.language.profiles import get_profile
+        raw = self.search.text()
+        start = len(raw.encode("utf-16-le")[:position * 2].decode("utf-16-le"))
+        profile = get_profile(self._result.source if self._result else self.preferred_foreign)
+        for left, right in profile.word_spans(raw):
+            if right > start:
+                end = len(raw) if profile.word_mode == "unspaced" else right
+                self.submit(lookup_span=(left, end))
+                return
+
+    def submit(self, translate=None, *, context=False, remember=False, selection=False, translation_text=None,
+               lookup_span=None):
         if not translate:
             self._leave_translation()
         input_text = self.search.text().strip()
@@ -1584,6 +1613,12 @@ class QuickLookupWindow(QDialog):
             text = translation_text.strip()
             sentence = text
         lookup_context = None
+        if lookup_span is not None:
+            start, end = lookup_span
+            raw = self.search.text()
+            text = raw[start:end].strip()
+            sentence = input_text
+            lookup_context = (raw, start, end)
         if selected:
             raw = self.search.text()
             # QLineEdit uses UTF-16 positions; analysis uses Python character offsets.
@@ -1595,10 +1630,11 @@ class QuickLookupWindow(QDialog):
         self.debounce.stop()
         if not text:
             return
-        exact_only = translate is None and not selected and is_sentence(text)
+        exact_only = translate is None and not selected and lookup_span is None and is_sentence(text)
         if translate is None:
             translate = False
         self._invalidate()
+        self._input_lookup = (self.revision, self.search.text(), lookup_span[0]) if lookup_span is not None else None
         self._last_request_translate = bool(translate)
         self._translation_model_state = ""
         self._translation_previous = self._result
@@ -1693,6 +1729,13 @@ class QuickLookupWindow(QDialog):
             else:
                 result = replace(base, message=result.message)
         self._display(result, remember=self._remember_request)
+        input_lookup = getattr(self, "_input_lookup", None)
+        if (not self._peek and input_lookup and input_lookup[:2] == (revision, self.search.text())
+                and result.matched_length):
+            raw, start = input_lookup[1:]
+            offset = len(raw[:start].encode("utf-16-le")) // 2
+            length = len(raw[start:start + result.matched_length].encode("utf-16-le")) // 2
+            self.search.setSelection(offset, length)
         if not self._last_request_translate:
             self._autoplay_lookup()
         if self._last_request_translate and self._translation_base is not None:
