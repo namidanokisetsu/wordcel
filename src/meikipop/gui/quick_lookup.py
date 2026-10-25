@@ -1759,6 +1759,7 @@ class QuickLookupWindow(QDialog):
     def _translation_state_changed(self, revision, state):
         if revision == self.revision and self._translation_busy:
             self._translation_model_state = state
+            self.translation_browser.set_loading_state(state)
             self.translate.setToolTip("Cancel translation\n" + state)
 
     def _translation_progress(self, revision, result):

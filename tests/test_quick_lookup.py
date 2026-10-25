@@ -588,6 +588,25 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(self.settings.value('cursor_close_margin', type=int), 48)
         dialog.hide()
 
+    def test_lookup_translation_shows_startup_and_completion_in_output_pane(self):
+        self.window.translation_worker = Mock()
+        self.window.show_entries((entry(),), "cat", peek=True)
+        self.window.set_context("The cat sleeps.")
+        self.window.pin.setChecked(True)
+        self.window.translate.click()
+        revision = self.window.revision
+        view = self.window.translation_browser
+        self.window._translation_state_changed(revision, "Starting Hy-MT2-7B Q8_0")
+        self.assertTrue(view.loading.text().startswith("Starting model"))
+        self.assertTrue(view.loading_timer.isActive())
+        document = view.document()
+        self.window._translation_state_changed(revision, "Hy-MT2-7B Q8_0")
+        self.assertTrue(view.loading.text().startswith("Translating"))
+        self.assertIs(view.document(), document)
+        self.window.deliver(revision, SearchResult("The cat sleeps.", "en", "ja", translation="A translation"))
+        self.assertEqual(view.toPlainText(), "A translation")
+        self.assertFalse(view.loading_timer.isActive())
+
     def test_translation_loading_animates_without_rebuilding_content(self):
         self.window._show_translation("猫", "ja", "en")
         self.window._set_translation_busy(True)

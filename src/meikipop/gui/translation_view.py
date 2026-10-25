@@ -44,6 +44,7 @@ class TranslationView(RubyBrowser):
         self.loading_timer.setInterval(350)
         self.loading_timer.timeout.connect(self._animate_loading)
         self._loading_frame = 0
+        self._loading_state = "Translating"
         self.verticalScrollBar().valueChanged.connect(self._position_loading)
 
     def set_busy(self, busy):
@@ -52,13 +53,19 @@ class TranslationView(RubyBrowser):
         self.loading.setVisible(busy)
         if busy:
             self._loading_frame = 0
+            self._loading_state = "Translating"
             self._animate_loading()
             self.loading_timer.start()
         else:
             self.loading_timer.stop()
 
+    def set_loading_state(self, state):
+        self._loading_state = "Starting model" if state.startswith("Starting ") else "Translating"
+        if self.loading_timer.isActive():
+            self._animate_loading()
+
     def _animate_loading(self):
-        self.loading.setText("." * (self._loading_frame % 3 + 1))
+        self.loading.setText(self._loading_state + "." * (self._loading_frame % 3 + 1))
         self._loading_frame += 1
         self._position_loading()
 
@@ -68,7 +75,7 @@ class TranslationView(RubyBrowser):
         rect = self.cursorRect(cursor)
         metrics = self.loading.fontMetrics()
         bounds = self.viewport().rect()
-        width = min(bounds.width(), metrics.horizontalAdvance("..."))
+        width = min(bounds.width(), metrics.horizontalAdvance(self._loading_state + "..."))
         height = min(bounds.height(), metrics.height())
         self.loading.setGeometry(max(bounds.left(), min(rect.left(), bounds.right() + 1 - width)),
                                  max(bounds.top(), min(rect.bottom() + 1, bounds.bottom() + 1 - height)),
