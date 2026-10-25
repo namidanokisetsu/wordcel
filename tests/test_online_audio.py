@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from meikipop.audio.online import OnlineAudio
+from wordcel.audio.online import OnlineAudio
 
 
 class OnlineAudioTests(unittest.TestCase):
@@ -79,12 +79,12 @@ class OnlineAudioTests(unittest.TestCase):
     def test_failure_cache_recovers_earlier_than_a_genuine_miss(self):
         import requests
         client = OnlineAudio()
-        with patch("meikipop.audio.online.monotonic", return_value=100), patch.object(client, "_fetch", side_effect=requests.Timeout):
+        with patch("wordcel.audio.online.monotonic", return_value=100), patch.object(client, "_fetch", side_effect=requests.Timeout):
             self.assertIsNone(client.lookup("ev", "tr", "tur"))
-        with patch("meikipop.audio.online.monotonic", return_value=111), patch.object(client, "_fetch", return_value={}) as fetch:
+        with patch("wordcel.audio.online.monotonic", return_value=111), patch.object(client, "_fetch", return_value={}) as fetch:
             self.assertIsNone(client.lookup("ev", "tr", "tur"))
             fetch.assert_called_once()
-        with patch("meikipop.audio.online.monotonic", return_value=122), patch.object(client, "_fetch") as fetch:
+        with patch("wordcel.audio.online.monotonic", return_value=122), patch.object(client, "_fetch") as fetch:
             self.assertIsNone(client.lookup("ev", "tr", "tur"))
             fetch.assert_not_called()
 
@@ -103,7 +103,7 @@ class OnlineAudioTests(unittest.TestCase):
         from time import monotonic
         client = OnlineAudio()
         options = dict(cancelled=lambda: False, deadline=monotonic() + 10, audio=True)
-        with patch("meikipop.audio.online.requests.get") as get:
+        with patch("wordcel.audio.online.requests.get") as get:
             with self.assertRaises(ValueError):
                 client._fetch("https://example.com/audio", **options)
             get.assert_not_called()

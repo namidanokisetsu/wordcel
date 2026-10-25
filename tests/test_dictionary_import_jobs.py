@@ -7,7 +7,7 @@ import tempfile
 import unittest
 import zipfile
 
-from meikipop.dictionary.library import import_yomitan
+from wordcel.dictionary.library import import_yomitan
 
 
 class DictionaryChecksumTests(unittest.TestCase):

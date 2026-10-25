@@ -9,8 +9,8 @@ from PyQt6.QtCore import QSettings
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication
 
-from meikipop.gui.dictionary_manager import SetupDialog
-from meikipop.gui.popup_shortcuts import native_chord, popup_bindings
+from wordcel.gui.dictionary_manager import SetupDialog
+from wordcel.gui.popup_shortcuts import native_chord, popup_bindings
 
 
 class PopupShortcutTests(unittest.TestCase):

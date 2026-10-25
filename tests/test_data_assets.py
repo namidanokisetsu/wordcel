@@ -6,8 +6,8 @@ import unittest
 from unittest.mock import Mock, patch
 import zipfile
 
-from meikipop.data_assets import DataAsset, cleanup_removed_data, inventory, remove_asset, remove_language_data
-from meikipop.dictionary.library import Library, import_yomitan
+from wordcel.data_assets import DataAsset, cleanup_removed_data, inventory, remove_asset, remove_language_data
+from wordcel.dictionary.library import Library, import_yomitan
 
 
 class DataAssetTests(unittest.TestCase):
@@ -33,7 +33,7 @@ class DataAssetTests(unittest.TestCase):
         return import_yomitan(archive, self.library)
 
     def test_inventory_separates_shared_models_and_all_installed_languages(self):
-        from meikipop.scripts.translation_server import MODELS
+        from wordcel.scripts.translation_server import MODELS
         model = self.write(self.data / "translation/models" / MODELS["lightweight"]["file"])
         self.write(self.data / "languages/tr/paddle/3.7.0/model.bin")
         self.write(self.data / "languages/ru/stanza/1.14.0/model.pt")
@@ -67,27 +67,27 @@ class DataAssetTests(unittest.TestCase):
     def test_removal_rejects_inventory_paths_outside_owned_roots(self):
         external = self.write(self.root / "external.bin")
         asset = DataAsset("fixture", "Fixture", paths=(external,))
-        with patch("meikipop.data_assets.inventory", return_value=(asset,)), self.assertRaises(ValueError):
+        with patch("wordcel.data_assets.inventory", return_value=(asset,)), self.assertRaises(ValueError):
             remove_asset("fixture", self.library, Mock(), threading.Event(), **self.roots)
         self.assertTrue(external.exists())
 
     def test_removing_shared_model_stops_owned_translation_and_preserves_other_files(self):
-        from meikipop.scripts.translation_server import MODELS
+        from wordcel.scripts.translation_server import MODELS
         selected = self.write(self.data / "translation/models" / MODELS["lightweight"]["file"])
         other = self.write(self.data / "translation/models" / MODELS["quality"]["file"])
-        with patch("meikipop.scripts.translation_server.shutdown_server") as shutdown:
+        with patch("wordcel.scripts.translation_server.shutdown_server") as shutdown:
             remove_asset("translation:lightweight", self.library, Mock(), threading.Event(), **self.roots)
         shutdown.assert_called_once_with()
         self.assertFalse(selected.exists())
         self.assertTrue(other.exists())
 
     def test_cancellation_and_invalid_keys_cannot_remove_external_files(self):
-        from meikipop.scripts.translation_server import MODELS
+        from wordcel.scripts.translation_server import MODELS
         selected = self.write(self.data / "translation/models" / MODELS["lightweight"]["file"])
         external = self.write(self.root / "outside.sqlite3")
         cancelled = threading.Event()
         cancelled.set()
-        with patch("meikipop.scripts.translation_server.shutdown_server"), self.assertRaises(InterruptedError):
+        with patch("wordcel.scripts.translation_server.shutdown_server"), self.assertRaises(InterruptedError):
             remove_asset("translation:lightweight", self.library, Mock(), cancelled, **self.roots)
         with self.assertRaises(ValueError):
             remove_asset("dictionary:../outside.sqlite3", self.library, Mock(), threading.Event(), **self.roots)
@@ -104,9 +104,9 @@ class DataAssetTests(unittest.TestCase):
         self.assertTrue(external.exists())
 
     def test_locked_files_are_uninstalled_and_collected_after_restart(self):
-        unrelated = self.write(self.data / ".meikipop-removed-not-a-job/keep.bin")
+        unrelated = self.write(self.data / ".wordcel-removed-not-a-job/keep.bin")
         source = self.write(self.data / "screen_ai/component/chrome_screen_ai.dll")
-        with patch("meikipop.data_assets.shutil.rmtree", side_effect=PermissionError("mapped file")):
+        with patch("wordcel.data_assets.shutil.rmtree", side_effect=PermissionError("mapped file")):
             remove_asset("ocr:screenai", self.library, Mock(), threading.Event(), **self.roots)
         self.assertFalse(source.exists())
         pending = [asset for asset in inventory(self.library, **self.roots) if asset.kind == "pending"]

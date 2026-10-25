@@ -6,8 +6,8 @@ import unittest
 from unittest.mock import Mock, patch
 import zipfile
 
-from meikipop.dictionary.library import Library, folded, import_yomitan, remove_dictionary, save_preferences
-from meikipop.dictionary.search import SearchEngine
+from wordcel.dictionary.library import Library, folded, import_yomitan, remove_dictionary, save_preferences
+from wordcel.dictionary.search import SearchEngine
 
 
 class LibraryTests(unittest.TestCase):
@@ -341,7 +341,7 @@ class LibraryTests(unittest.TestCase):
 
     def test_new_revision_wins_when_windows_timestamps_tie(self):
         from unittest.mock import patch
-        with patch("meikipop.dictionary.library.time_ns", return_value=100):
+        with patch("wordcel.dictionary.library.time_ns", return_value=100):
             self.pack("Words", [self.row("car", ["old"])])
             self.pack("Words", [self.row("car", ["new"])], revision="2")
         self.library = Library(self.directory)

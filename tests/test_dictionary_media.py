@@ -9,8 +9,8 @@ import zipfile
 
 from PIL import Image
 
-from meikipop.dictionary.library import Library, import_yomitan, remove_dictionary
-from meikipop.dictionary.media import resolve_image
+from wordcel.dictionary.library import Library, import_yomitan, remove_dictionary
+from wordcel.dictionary.media import resolve_image
 
 
 class DictionaryMediaTests(unittest.TestCase):
@@ -47,7 +47,7 @@ class DictionaryMediaTests(unittest.TestCase):
                 self.assertEqual(decoded.size, (400, 200))
             html = entry.glosses()[0]
             self.assertIn('width="320" height="160"', html)
-            self.assertIn('src="meikipop-image:', html)
+            self.assertIn('src="wordcel-image:', html)
         import sqlite3
         with closing(sqlite3.connect(pack)) as db:
             db.execute("DELETE FROM metadata WHERE key='media_version'")
@@ -69,7 +69,7 @@ class DictionaryMediaTests(unittest.TestCase):
                     self.assertNotIn("<img", entry.glosses()[0])
                 self.assertFalse(pack.with_suffix(".assets").exists())
         for uri in ("file:///C:/private.png", "https://example.test/image.png",
-                    "meikipop-image:/../outside.png"):
+                    "wordcel-image:/../outside.png"):
             self.assertIsNone(resolve_image(self.library, uri))
 
     def test_cancellation_after_image_decode_discards_staged_pack_and_assets(self):

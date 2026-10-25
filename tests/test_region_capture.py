@@ -2,7 +2,7 @@ import threading
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
-from meikipop.utils.capture import CaptureRequest, RegionCapture, _screen_geometry
+from wordcel.utils.capture import CaptureRequest, RegionCapture, _screen_geometry
 
 
 class RegionTests(unittest.TestCase):
@@ -44,7 +44,7 @@ class RegionTests(unittest.TestCase):
                 frames.append(capture.capture(request))
             finally:
                 capture.close()
-        with patch("mss.mss", return_value=backend), patch("meikipop.utils.capture.windows_screen_geometry", return_value=(0, 0, 2, 2)):
+        with patch("mss.mss", return_value=backend), patch("wordcel.utils.capture.windows_screen_geometry", return_value=(0, 0, 2, 2)):
             worker = threading.Thread(target=run)
             worker.start()
             worker.join(2)

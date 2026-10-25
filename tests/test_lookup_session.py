@@ -1,6 +1,6 @@
 import unittest
 
-from meikipop.gui.lookup_session import LookupSession, popup_mode
+from wordcel.gui.lookup_session import LookupSession, popup_mode
 
 
 class LookupSessionTests(unittest.TestCase):

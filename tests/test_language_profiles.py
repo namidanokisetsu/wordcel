@@ -2,7 +2,7 @@ import sys
 import subprocess
 import unittest
 
-from meikipop.language.profiles import get_profile
+from wordcel.language.profiles import get_profile
 
 
 class LanguageProfileTests(unittest.TestCase):
@@ -10,7 +10,7 @@ class LanguageProfileTests(unittest.TestCase):
         import tempfile
         from pathlib import Path
         from PyQt6.QtCore import QSettings
-        from meikipop.language.profiles import configured_profiles
+        from wordcel.language.profiles import configured_profiles
         with tempfile.TemporaryDirectory() as folder:
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             self.assertEqual(configured_profiles(settings), ())
@@ -33,8 +33,8 @@ class LanguageProfileTests(unittest.TestCase):
         from pathlib import Path
         import tempfile
         import zipfile
-        from meikipop.dictionary.library import Library, import_yomitan
-        from meikipop.ocr.context import fragment_paragraphs, hit_paragraphs
+        from wordcel.dictionary.library import Library, import_yomitan
+        from wordcel.ocr.context import fragment_paragraphs, hit_paragraphs
 
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -91,7 +91,7 @@ class LanguageProfileTests(unittest.TestCase):
         self.assertEqual(get_profile("ko").word_mode, "spaced")
 
     def test_mandarin_retains_native_character_positions_for_prefix_lookup(self):
-        from meikipop.ocr.context import fragment_paragraphs, hit_paragraphs
+        from wordcel.ocr.context import fragment_paragraphs, hit_paragraphs
 
         text = "学习中文。"
         fragments = [(char, (index * 20, 0, (index + 1) * 20, 20))
@@ -103,7 +103,7 @@ class LanguageProfileTests(unittest.TestCase):
         self.assertEqual(hit.text[hit.start:hit.end], "中")
 
     def test_thai_cursor_prefix_keeps_combining_marks_at_the_source_position(self):
-        from meikipop.ocr.context import fragment_paragraphs, hit_paragraphs
+        from wordcel.ocr.context import fragment_paragraphs, hit_paragraphs
 
         text = "อ่านหนังสือ"
         spans = get_profile("th").word_spans(text)
@@ -117,8 +117,8 @@ class LanguageProfileTests(unittest.TestCase):
         self.assertEqual(hit.text[hit.start:hit.end], "นั")
 
     def test_japanese_combining_dakuten_stays_with_its_character_during_interpolation(self):
-        from meikipop.ocr.context import hit_paragraphs
-        from meikipop.ocr.interface import BoundingBox, Paragraph, Word
+        from wordcel.ocr.context import hit_paragraphs
+        from wordcel.ocr.interface import BoundingBox, Paragraph, Word
 
         text = "か\u3099本"
         word = Word(text, "", BoundingBox(.5, .5, 1, 1))
@@ -155,7 +155,7 @@ class LanguageProfileTests(unittest.TestCase):
         self.assertEqual([text[a:b] for a,b in profile.word_spans(text)], ["café", "Привет", "مرحبا"])
         self.assertEqual(profile.lookup_key("CAFÉ"), "café")
         self.assertIs(get_profile("zz"), profile)
-        check = subprocess.run([sys.executable, "-c", "import sys; from meikipop.language.profiles import get_profile; get_profile('tr'); assert not {'spacy', 'zeyrek', 'stanza'} & sys.modules.keys()"], capture_output=True, text=True)
+        check = subprocess.run([sys.executable, "-c", "import sys; from wordcel.language.profiles import get_profile; get_profile('tr'); assert not {'spacy', 'zeyrek', 'stanza'} & sys.modules.keys()"], capture_output=True, text=True)
         self.assertEqual(check.returncode, 0, check.stderr)
 
 

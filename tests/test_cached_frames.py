@@ -8,11 +8,11 @@ import unittest
 from unittest.mock import Mock, patch
 from PyQt6.QtCore import QPoint
 from PyQt6.QtWidgets import QApplication
-from meikipop.gui.unified_ocr import ScanWorker, HitWorker, UnifiedOCR
-from meikipop.ocr.frames import RecognizedFrame
-from meikipop.utils.capture import CaptureRequest, PixelFrame
-from meikipop.dictionary.search import SearchResult
-from meikipop.dictionary.library import Entry
+from wordcel.gui.unified_ocr import ScanWorker, HitWorker, UnifiedOCR
+from wordcel.ocr.frames import RecognizedFrame
+from wordcel.utils.capture import CaptureRequest, PixelFrame
+from wordcel.dictionary.search import SearchResult
+from wordcel.dictionary.library import Entry
 from test_unified_ocr import recognized, FakeWindow
 
 
@@ -36,10 +36,10 @@ class CachedFrameTests(unittest.TestCase):
         book = Entry("book", "kitap", "", "Fixture", "tr", ("book",))
         engine = Mock()
         engine.search.return_value = SearchResult("kitap", "tr", "en", (book,))
-        with patch("meikipop.dictionary.search.SearchEngine", return_value=engine), \
-                patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(80, 100)), \
+        with patch("wordcel.dictionary.search.SearchEngine", return_value=engine), \
+                patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(80, 100)), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
-                patch("meikipop.ocr.boundaries.expanded_crop", return_value=(0, 0, 600, 300)), \
+                patch("wordcel.ocr.boundaries.expanded_crop", return_value=(0, 0, 600, 300)), \
                 patch.object(controller, "_request_capture") as capture:
             hit_worker.start()
             try:
@@ -76,7 +76,7 @@ class CachedFrameTests(unittest.TestCase):
         scan = ScanWorker(Mock(), frames=sink)
         hit_worker = HitWorker(SimpleNamespace(emit=lambda *args: results.put(args)))
         controller.hit_worker = hit_worker
-        with patch.object(scan, "provider", return_value=provider), patch("meikipop.dictionary.search.SearchEngine", return_value=engine):
+        with patch.object(scan, "provider", return_value=provider), patch("wordcel.dictionary.search.SearchEngine", return_value=engine):
             scan.start()
             hit_worker.start()
             try:
@@ -106,7 +106,7 @@ class CachedFrameTests(unittest.TestCase):
 
     def test_worker_frame_freezes_provider_words_and_offsets(self):
         from dataclasses import replace
-        from meikipop.ocr.frames import RecognizedFrame
+        from wordcel.ocr.frames import RecognizedFrame
         paragraphs = recognized()
         frozen = tuple(replace(p, words=tuple(p.words)) for p in paragraphs)
         paragraphs[0].words.clear()
@@ -117,7 +117,7 @@ class CachedFrameTests(unittest.TestCase):
 
     def test_latest_pointer_and_frame_validity_replace_distance_rejection(self):
         from dataclasses import replace
-        from meikipop.ocr.context import hit_paragraphs
+        from wordcel.ocr.context import hit_paragraphs
         window = FakeWindow()
         controller = UnifiedOCR(window)
         controller.enabled = controller.holding = True
@@ -128,7 +128,7 @@ class CachedFrameTests(unittest.TestCase):
         frame = RecognizedFrame(request, tuple(recognized()), "tr", (), 1, monotonic())
         controller.hit_worker = SimpleNamespace(queue=Queue(), stop=Mock(), join=Mock())
         try:
-            with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(280, 100)), \
+            with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(280, 100)), \
                     patch.object(QApplication, "activeWindow", return_value=None):
                 controller.accept_frame(controller.generation, frame, "")
                 job = controller.hit_worker.queue.get_nowait()

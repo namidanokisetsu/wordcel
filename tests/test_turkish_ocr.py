@@ -3,14 +3,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from meikipop.ocr.turkish_paddle import LocalOCR, hit_word
+from wordcel.ocr.turkish_paddle import LocalOCR, hit_word
 
 
 class OCRTests(unittest.TestCase):
     def test_windows_uses_compatible_openmp_without_importing_torch(self):
         from types import SimpleNamespace
         from unittest.mock import Mock
-        from meikipop.ocr import turkish_paddle
+        from wordcel.ocr import turkish_paddle
         loader = Mock()
         with patch.object(turkish_paddle, "_openmp", None), \
                 patch.object(turkish_paddle.sys, "platform", "win32"), \
@@ -23,7 +23,7 @@ class OCRTests(unittest.TestCase):
         loader.assert_called_once_with(str(Path("runtime/torch/lib/libiomp5md.dll")))
 
     def test_optional_torch_absence_and_other_platforms_keep_paddle_available(self):
-        from meikipop.ocr import turkish_paddle
+        from wordcel.ocr import turkish_paddle
         with patch.object(turkish_paddle, "_openmp", None), \
                 patch.object(turkish_paddle.sys, "platform", "win32"), \
                 patch.object(turkish_paddle, "find_spec", return_value=None):
@@ -36,7 +36,7 @@ class OCRTests(unittest.TestCase):
     def test_pointer_moves_reuse_recognition_but_changed_pixels_invalidate(self):
         import numpy as np
         from unittest.mock import Mock
-        from meikipop.ocr.scan_cache import ScanCache
+        from wordcel.ocr.scan_cache import ScanCache
         ocr = LocalOCR.__new__(LocalOCR)
         ocr.scan_cache = ScanCache()
         ocr.engine = Mock()
@@ -46,7 +46,7 @@ class OCRTests(unittest.TestCase):
         self.assertEqual(ocr.lookup_point(pixels, (15, 10)), ("kitap yaz", 0))
         self.assertEqual(ocr.lookup_point(pixels.copy(), (55, 10)), ("kitap yaz", 6))
         self.assertIsNone(ocr.lookup_point(pixels, (75, 25)))
-        from meikipop.pipeline import REUSE_LAST_VALUE
+        from wordcel.pipeline import REUSE_LAST_VALUE
         self.assertEqual(ocr.lookup_point(REUSE_LAST_VALUE, (55, 10)), ("kitap yaz", 6))
         self.assertEqual(ocr.engine.predict.call_count, 1)
         pixels[0, 0, 0] = 1
@@ -61,7 +61,7 @@ class OCRTests(unittest.TestCase):
         self.assertIsNone(hit_word(result, (75, 25)))
 
     def test_missing_models_fail_before_paddle_import_or_download(self):
-        with tempfile.TemporaryDirectory() as temporary, patch("meikipop.ocr.turkish_paddle.model_root", return_value=Path(temporary)):
+        with tempfile.TemporaryDirectory() as temporary, patch("wordcel.ocr.turkish_paddle.model_root", return_value=Path(temporary)):
             with self.assertRaisesRegex(RuntimeError, "Settings"):
                 LocalOCR()
 
@@ -76,14 +76,14 @@ class OCRTests(unittest.TestCase):
     def test_unified_provider_converts_rgb_to_contiguous_bgr_once(self):
         from PIL import Image
         from unittest.mock import Mock
-        from meikipop.gui.unified_ocr import ScanWorker
-        from meikipop.ocr.context import hit_paragraphs
+        from wordcel.gui.unified_ocr import ScanWorker
+        from wordcel.ocr.context import hit_paragraphs
         provider = Mock()
         provider.recognize.return_value = [dict(rec_texts=['araç'], text_word=[['ara', 'ç']],
                                                text_word_boxes=[[[0,0,30,20],[30,0,40,20]]])]
         image = Image.new('RGB', (80, 40), (250, 30, 5))
-        with patch('meikipop.gui.unified_ocr.sys.platform', 'win32'), \
-                patch('meikipop.ocr.turkish_paddle.LocalOCR', return_value=provider):
+        with patch('wordcel.gui.unified_ocr.sys.platform', 'win32'), \
+                patch('wordcel.ocr.turkish_paddle.LocalOCR', return_value=provider):
             paragraphs = ScanWorker.provider('tr')(image)
         pixels = provider.recognize.call_args.args[0]
         self.assertEqual(pixels[0, 0].tolist(), [5, 30, 250])

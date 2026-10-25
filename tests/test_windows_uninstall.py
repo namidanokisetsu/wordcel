@@ -17,19 +17,19 @@ class WindowsUninstallTests(unittest.TestCase):
             self.skipTest("Inno Setup 6 is not installed")
         import winreg
         repository = Path(__file__).resolve().parents[1]
-        key = "Software\\Meikipop-UninstallTest-" + uuid.uuid4().hex
-        with tempfile.TemporaryDirectory(prefix="meikipop-uninstall-") as folder:
+        key = "Software\\wordcel-UninstallTest-" + uuid.uuid4().hex
+        with tempfile.TemporaryDirectory(prefix="wordcel-uninstall-") as folder:
             root = Path(folder).resolve()
-            code = (repository / "packaging/meikipop.iss").read_text().split("[Code]", 1)[1]
-            code = code.replace("Software\\Meikipop'", key + "'")
-            code = code.replace("{localappdata}\\meikipop", str(root / "local"))
-            code = code.replace("{userappdata}\\meikipop", str(root / "roaming"))
+            code = (repository / "packaging/wordcel.iss").read_text().split("[Code]", 1)[1]
+            code = code.replace("Software\\wordcel'", key + "'")
+            code = code.replace("{localappdata}\\wordcel", str(root / "local"))
+            code = code.replace("{userappdata}\\wordcel", str(root / "roaming"))
             fixture = root / "fixture.txt"
             fixture.write_text("application file")
             script = root / "test.iss"
             script.write_text(f'''[Setup]
 AppId={key.split(chr(92))[-1]}
-AppName=Meikipop uninstall test
+AppName=Wordcel uninstall test
 AppVersion=1
 DefaultDirName={root / "app"}
 PrivilegesRequired=lowest

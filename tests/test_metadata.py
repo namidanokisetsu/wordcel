@@ -3,7 +3,7 @@ import json
 import unittest
 import zipfile
 
-from meikipop.dictionary.metadata import Frequency, frequency_rows, harmonic_rank, kanji_rows
+from wordcel.dictionary.metadata import Frequency, frequency_rows, harmonic_rank, kanji_rows
 
 
 def archive_for(files):

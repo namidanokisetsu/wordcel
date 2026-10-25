@@ -1,7 +1,7 @@
 import unittest
 
-from meikipop.ocr.context import ContextHit, hit_paragraphs, sentence_at, paddle_paragraphs, paddle_lines
-from meikipop.ocr.interface import BoundingBox, Paragraph, Word
+from wordcel.ocr.context import ContextHit, hit_paragraphs, sentence_at, paddle_paragraphs, paddle_lines
+from wordcel.ocr.interface import BoundingBox, Paragraph, Word
 
 
 class ContextTests(unittest.TestCase):

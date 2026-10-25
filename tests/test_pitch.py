@@ -5,8 +5,8 @@ import tempfile
 import unittest
 import zipfile
 
-from meikipop.dictionary.library import Library, import_yomitan, save_preferences
-from meikipop.dictionary.pitch import (PITCH_DATA, PITCH_OBJECT, PITCH_PREFIX, Pitch, install_pitch_renderer,
+from wordcel.dictionary.library import Library, import_yomitan, save_preferences
+from wordcel.dictionary.pitch import (PITCH_DATA, PITCH_OBJECT, PITCH_PREFIX, Pitch, install_pitch_renderer,
                                       levels, morae, nasal_mora, pitch_category, pitch_format, pitch_payload,
                                       render_pitches)
 
@@ -117,7 +117,7 @@ class PitchPainterTests(unittest.TestCase):
         from unittest.mock import patch
         from PyQt6.QtCore import QRectF
         from PyQt6.QtGui import QColor, QFont, QImage, QPainter, QTextCharFormat, QTextDocument, QTextFormat
-        from meikipop.config.config import config
+        from wordcel.config.config import config
         document = QTextDocument()
         document.setDefaultFont(QFont("Yu Gothic UI"))
         font = QFont(document.defaultFont())

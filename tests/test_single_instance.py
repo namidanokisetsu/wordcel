@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import Mock
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
-from meikipop.gui.single_instance import SingleInstance
+from wordcel.gui.single_instance import SingleInstance
 
 
 class SingleInstanceTests(unittest.TestCase):

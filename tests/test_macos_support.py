@@ -7,8 +7,8 @@ from unittest.mock import Mock, patch
 
 from PIL import Image
 
-from meikipop.ocr import macos_vision
-from meikipop.utils.macos import require_screen_capture_permission
+from wordcel.ocr import macos_vision
+from wordcel.utils.macos import require_screen_capture_permission
 
 
 def observation(text, ranges=None, box=((0.1, 0.2), (0.8, 0.1))):
@@ -141,14 +141,14 @@ class VisionBridgeTests(unittest.TestCase):
 
     def test_screen_capture_permission_check_never_requests_access(self):
         quartz = SimpleNamespace(CGPreflightScreenCaptureAccess=lambda: False)
-        with patch("meikipop.utils.macos.sys.platform", "darwin"), patch.dict(sys.modules, {"Quartz": quartz}):
+        with patch("wordcel.utils.macos.sys.platform", "darwin"), patch.dict(sys.modules, {"Quartz": quartz}):
             with self.assertRaisesRegex(RuntimeError, "Screen Recording"):
                 require_screen_capture_permission()
 
     def test_user_can_explicitly_request_screen_capture_permission(self):
         request = Mock(return_value=True)
         quartz = SimpleNamespace(CGPreflightScreenCaptureAccess=lambda: False, CGRequestScreenCaptureAccess=request)
-        with patch("meikipop.utils.macos.sys.platform", "darwin"), patch.dict(sys.modules, {"Quartz": quartz}):
+        with patch("wordcel.utils.macos.sys.platform", "darwin"), patch.dict(sys.modules, {"Quartz": quartz}):
             require_screen_capture_permission(request_access=True)
         request.assert_called_once_with()
 
@@ -159,11 +159,11 @@ class MacBundleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Initialize platform-dependent stdlib imports before mocking Darwin.
-        from meikipop.scripts import translation_server
+        from wordcel.scripts import translation_server
         cls.server = translation_server
 
     def test_runtime_check_validates_native_libraries_without_permissions(self):
-        from meikipop.scripts.quick_lookup import main
+        from wordcel.scripts.quick_lookup import main
 
         quartz = SimpleNamespace(CGPreflightScreenCaptureAccess=Mock())
         modules = {"ctranslate2": None, "sentencepiece": None,
@@ -173,7 +173,7 @@ class MacBundleTests(unittest.TestCase):
         quartz.CGPreflightScreenCaptureAccess.assert_not_called()
 
     def test_runtime_check_fails_if_native_vision_was_not_bundled(self):
-        from meikipop.scripts.quick_lookup import main
+        from wordcel.scripts.quick_lookup import main
 
         modules = {"Vision": SimpleNamespace(VNRecognizeTextRequest=None),
                    "Quartz": SimpleNamespace(CGPreflightScreenCaptureAccess=Mock())}
@@ -182,9 +182,9 @@ class MacBundleTests(unittest.TestCase):
 
     def test_bundle_targets_unified_ui_and_preserves_dictionary_resources(self):
         root = Path(__file__).resolve().parents[1]
-        spec = (root / "meikipop.macos.spec").read_text(encoding="utf-8")
-        self.assertIn("src/meikipop/scripts/quick_lookup.py", spec)
-        self.assertIn("src/meikipop/scripts/deconjugator.json", spec)
+        spec = (root / "wordcel.macos.spec").read_text(encoding="utf-8")
+        self.assertIn("src/wordcel/scripts/quick_lookup.py", spec)
+        self.assertIn("src/wordcel/scripts/deconjugator.json", spec)
         self.assertIn("'Vision'", spec)
         workflow = (root / ".github/workflows/build-macos.yml").read_text(encoding="utf-8")
         self.assertIn("runner: macos-15-intel", workflow)
@@ -199,9 +199,9 @@ class NativeVisionSmokeTests(unittest.TestCase):
 
         image = Image.new("RGB", (900, 180), "white")
         font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", 72)
-        ImageDraw.Draw(image).text((30, 35), "MEIKIPOP 123", font=font, fill="black")
+        ImageDraw.Draw(image).text((30, 35), "WORDCEL 123", font=font, fill="black")
         result = macos_vision.recognize(image, "en")
-        self.assertIn("MEIKIPOP", " ".join(paragraph.full_text.upper() for paragraph in result))
+        self.assertIn("WORDCEL", " ".join(paragraph.full_text.upper() for paragraph in result))
 
 
 if __name__ == "__main__":

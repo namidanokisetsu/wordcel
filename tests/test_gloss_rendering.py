@@ -7,11 +7,11 @@ from unittest.mock import patch
 from PyQt6.QtGui import QTextCursor, QTextTable
 from PyQt6.QtWidgets import QApplication
 
-from meikipop.config.config import config
-from meikipop.dictionary.library import Entry
-from meikipop.dictionary.search import SearchResult
-from meikipop.gui.popup_style import surface_colors
-from meikipop.gui.quick_lookup import LocalDictionaryBrowser, render_result
+from wordcel.config.config import config
+from wordcel.dictionary.library import Entry
+from wordcel.dictionary.search import SearchResult
+from wordcel.gui.popup_style import surface_colors
+from wordcel.gui.quick_lookup import LocalDictionaryBrowser, render_result
 
 
 class GlossRenderingTests(unittest.TestCase):

@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from time import monotonic
 import unittest
 from unittest.mock import Mock
-from meikipop.dictionary.translation_stream import events, read_translation
+from wordcel.dictionary.translation_stream import events, read_translation
 
 
 def event(text, finish=None):
@@ -48,7 +48,7 @@ class StreamTests(unittest.TestCase):
                 read_translation(io.BytesIO(sse(payload)), threading.Event(), Mock())
 
     def test_loopback_stream_cancels_a_blocked_read_without_retry(self):
-        from meikipop.dictionary.translation import LocalTranslator, TranslationSettings
+        from wordcel.dictionary.translation import LocalTranslator, TranslationSettings
         ready, release = threading.Event(), threading.Event()
         requests, errors = [], []
         class Handler(BaseHTTPRequestHandler):

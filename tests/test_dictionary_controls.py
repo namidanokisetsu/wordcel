@@ -7,9 +7,9 @@ from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
-from meikipop.dictionary.library import Entry
-from meikipop.dictionary.search import SearchResult
-from meikipop.gui.quick_lookup import LocalDictionaryBrowser, render_result
+from wordcel.dictionary.library import Entry
+from wordcel.dictionary.search import SearchResult
+from wordcel.gui.quick_lookup import LocalDictionaryBrowser, render_result
 
 
 class DictionaryControlTests(unittest.TestCase):

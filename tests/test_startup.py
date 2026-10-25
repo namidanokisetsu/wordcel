@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from meikipop.utils import startup
+from wordcel.utils import startup
 
 
 class _Key:
@@ -35,13 +35,13 @@ class StartupTests(unittest.TestCase):
     def test_enable_query_and_disable(self):
         with patch.object(startup.sys, "platform", "win32"), patch.dict(sys.modules, {"winreg": self.winreg}):
             startup.set_startup_enabled(True)
-            self.assertIn("meikipop", self.values)
+            self.assertIn("wordcel", self.values)
             self.assertTrue(startup.is_startup_enabled())
             startup.set_startup_enabled(False)
             self.assertFalse(self.values)
 
     def test_packaged_command_quotes_executable(self):
-        with patch.object(startup.sys, "executable", r"C:\Program Files\meikipop\meikipop.exe"), \
+        with patch.object(startup.sys, "executable", r"C:\Program Files\wordcel\wordcel.exe"), \
                 patch.object(startup.sys, "frozen", True, create=True):
             self.assertEqual(
                 startup.startup_command(),

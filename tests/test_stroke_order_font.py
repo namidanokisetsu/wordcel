@@ -10,8 +10,8 @@ from unittest.mock import Mock, patch
 import zipfile
 
 from PyQt6.QtWidgets import QApplication
-from meikipop.scripts import setup_stroke_order_font as setup
-from meikipop.utils import stroke_order_font as font
+from wordcel.scripts import setup_stroke_order_font as setup
+from wordcel.utils import stroke_order_font as font
 
 
 class StrokeOrderFontTests(unittest.TestCase):

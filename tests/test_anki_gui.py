@@ -12,18 +12,18 @@ from unittest.mock import patch
 from PyQt6.QtCore import QCoreApplication, QEvent, QPoint, QRect, QSettings
 from PyQt6.QtWidgets import QApplication
 
-from meikipop.anki import AnkiSettings, load_settings
-from meikipop.dictionary.library import Entry
-from meikipop.dictionary.kanji import KanjiEntry
-from meikipop.gui.anki import AnkiSettingsPanel, export_note
-from meikipop.gui.quick_lookup import QuickLookupWindow
+from wordcel.anki import AnkiSettings, load_settings
+from wordcel.dictionary.library import Entry
+from wordcel.dictionary.kanji import KanjiEntry
+from wordcel.gui.anki import AnkiSettingsPanel, export_note
+from wordcel.gui.quick_lookup import QuickLookupWindow
 from test_quick_lookup import FakeEngine
 
 
 class AnkiGuiTests(unittest.TestCase):
     def test_card_glossary_uses_ruby_and_compact_left_aligned_definitions(self):
-        from meikipop.gui.anki import _AnkiGlossConverter
-        from meikipop.anki import note_values
+        from wordcel.gui.anki import _AnkiGlossConverter
+        from wordcel.anki import note_values
         definition = {"type": "structured-content", "content": {
             "tag": "ul", "content": [{"tag": "li", "content": {
                 "tag": "ruby", "content": ["猫", {"tag": "rt", "content": "ねこ"}]}}]}}
@@ -43,7 +43,7 @@ class AnkiGuiTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.settings = QSettings(str(Path(self.temp.name) / "settings.ini"), QSettings.Format.IniFormat)
         self.widgets = []
-        self.existing_patch = patch("meikipop.anki.AnkiClient.existing_notes", return_value={})
+        self.existing_patch = patch("wordcel.anki.AnkiClient.existing_notes", return_value={})
         self.existing_patch.start()
 
     def tearDown(self):
@@ -78,7 +78,7 @@ class AnkiGuiTests(unittest.TestCase):
     def test_settings_offline_load_and_async_mapping_are_profile_specific(self):
         panel = AnkiSettingsPanel(self.settings)
         self.widgets.append(panel)
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             panel.load("ja")
             client.assert_not_called()
             self.assertTrue(panel.options.isHidden())
@@ -106,7 +106,7 @@ class AnkiGuiTests(unittest.TestCase):
         panel = AnkiSettingsPanel(self.settings)
         self.widgets.append(panel)
         panel.load("ja")
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.catalog.return_value = (["Default", "Japanese"], ["Cloze", "Basic"])
             client.return_value.names.return_value = ["Front", "Back"]
             panel.show()
@@ -124,7 +124,7 @@ class AnkiGuiTests(unittest.TestCase):
         panel = AnkiSettingsPanel(self.settings)
         self.widgets.append(panel)
         panel.load("ja")
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.catalog.return_value = (["Japanese", "Other", "New"], ["Basic"])
             client.return_value.names.return_value = ["Front", "Back"]
             panel.refresh()
@@ -156,8 +156,8 @@ class AnkiGuiTests(unittest.TestCase):
         options = AnkiSettings(True, fields={"Front": "expression", "Back": "glossary", "Image": "picture",
                                             "Sentence": "sentence_furigana"})
         screenshot = Mock()
-        with patch("meikipop.gui.anki.AnkiClient") as client, patch("meikipop.gui.anki._AnkiGlossConverter") as converter, \
-                patch("meikipop.dictionary.library.Library") as library:
+        with patch("wordcel.gui.anki.AnkiClient") as client, patch("wordcel.gui.anki._AnkiGlossConverter") as converter, \
+                patch("wordcel.dictionary.library.Library") as library:
             client.return_value.check.side_effect = ValueError("duplicate")
             with self.assertRaisesRegex(ValueError, "duplicate"):
                 export_note([entry], "cat here", "", options, screenshot=screenshot)
@@ -171,7 +171,7 @@ class AnkiGuiTests(unittest.TestCase):
         panel = AnkiSettingsPanel(self.settings)
         self.widgets.append(panel)
         panel.load("ja")
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.catalog.side_effect = ValueError("Open Anki and check AnkiConnect.")
             panel.enabled.setChecked(True)
             self.wait_until(lambda: panel._task is None)
@@ -189,7 +189,7 @@ class AnkiGuiTests(unittest.TestCase):
         panel = AnkiSettingsPanel(self.settings)
         self.widgets.append(panel)
         gate = threading.Event()
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.catalog.side_effect = [
                 (["Old"], ["Basic"]), (["Turkish"], ["Basic"])]
             client.return_value.names.side_effect = lambda *_args, **_kwargs: (gate.wait(2), ["Front", "Back"])[1]
@@ -206,7 +206,7 @@ class AnkiGuiTests(unittest.TestCase):
         panel = AnkiSettingsPanel(self.settings)
         self.widgets.append(panel)
         gate = threading.Event()
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.catalog.side_effect = lambda: (gate.wait(2), (["Old"], ["Basic"]))[1]
             panel.load("ja")
             panel.refresh()
@@ -227,7 +227,7 @@ class AnkiGuiTests(unittest.TestCase):
         return window
 
     def test_hover_continues_after_outside_click_during_and_after_anki_save(self):
-        from meikipop.gui.unified_ocr import UnifiedOCR
+        from wordcel.gui.unified_ocr import UnifiedOCR
         window = self.anki_window()
         with patch.object(UnifiedOCR, 'reload_settings'):
             controller = UnifiedOCR(window)
@@ -245,9 +245,9 @@ class AnkiGuiTests(unittest.TestCase):
         cat = Entry('1', 'cat', '', 'Words', 'ja', ('cat',))
         dog = Entry('2', 'dog', '', 'Words', 'ja', ('dog',))
         try:
-            with patch('meikipop.gui.unified_ocr.QCursor.pos', return_value=QPoint(100, 100)), \
+            with patch('wordcel.gui.unified_ocr.QCursor.pos', return_value=QPoint(100, 100)), \
                     patch.object(controller, '_request_capture') as capture, \
-                    patch('meikipop.gui.anki.export_note', side_effect=save) as export:
+                    patch('wordcel.gui.anki.export_note', side_effect=save) as export:
                 window.show_entries([cat], 'cat', peek=True)
                 controller._update_hover(QPoint(100, 100))
                 window.pin.setChecked(True)
@@ -283,12 +283,12 @@ class AnkiGuiTests(unittest.TestCase):
 
     def test_existing_word_shows_saved_state_and_opens_all_matching_notes(self):
         window = self.anki_window()
-        with patch("meikipop.anki.AnkiClient.existing_notes", return_value={"cat": (123, 456)}):
+        with patch("wordcel.anki.AnkiClient.existing_notes", return_value={"cat": (123, 456)}):
             window.show_entries([Entry("1", "cat", "", "Words", "ja", ("cat",))], "cat")
             self.wait_until(lambda: window._anki_check_task is None)
         self.assertEqual(window.anki_button.property("action_name"), "anki_saved")
         self.assertEqual(window.anki_button.toolTip(), "Show in Anki")
-        with patch("meikipop.anki.AnkiClient") as client:
+        with patch("wordcel.anki.AnkiClient") as client:
             window.anki_button.click()
             self.wait_until(lambda: window._anki_browse_task is None)
             client.return_value.call.assert_called_once_with("guiBrowse", query="nid:123,456")
@@ -297,12 +297,12 @@ class AnkiGuiTests(unittest.TestCase):
     def test_existing_word_can_still_be_mined_when_duplicates_are_allowed(self):
         window = self.anki_window()
         self.settings.setValue("profiles/ja/anki/duplicate_action", "allow")
-        with patch("meikipop.anki.AnkiClient.existing_notes", return_value={"cat": (123,)}):
+        with patch("wordcel.anki.AnkiClient.existing_notes", return_value={"cat": (123,)}):
             window.show_entries([Entry("1", "cat", "", "Words", "ja", ("cat",))], "cat")
             self.wait_until(lambda: window._anki_check_task is None)
         self.assertEqual(window.anki_button.property("action_name"), "anki_saved")
         self.assertEqual(window.anki_button.toolTip(), "Add another note")
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.add.return_value = 456
             window.anki_button.click()
             self.wait_until(lambda: window._anki_task is None)
@@ -316,7 +316,7 @@ class AnkiGuiTests(unittest.TestCase):
                 gate.wait(2)
                 return {"cat": (123,)}
             return {}
-        with patch("meikipop.anki.AnkiClient.existing_notes", side_effect=find) as check:
+        with patch("wordcel.anki.AnkiClient.existing_notes", side_effect=find) as check:
             window.show_entries([Entry("1", "cat", "", "Words", "ja", ("cat",))], "cat")
             window.show_entries([Entry("2", "dog", "", "Words", "ja", ("dog",))], "dog")
             gate.set()
@@ -340,8 +340,8 @@ class AnkiGuiTests(unittest.TestCase):
             saved.set()
             return 123
 
-        with patch('meikipop.anki.AnkiClient.existing_notes', side_effect=find), \
-                patch('meikipop.gui.anki.export_note', side_effect=add):
+        with patch('wordcel.anki.AnkiClient.existing_notes', side_effect=find), \
+                patch('wordcel.gui.anki.export_note', side_effect=add):
             window.show_entries([word], 'cat')
             self.assertTrue(started.wait(1))
             window.add_to_anki()
@@ -352,11 +352,11 @@ class AnkiGuiTests(unittest.TestCase):
             gate.set()
             self.wait_until(lambda: window._anki_check_task is None)
             self.assertEqual(window.anki_button.toolTip(), 'Show in Anki')
-        with patch('meikipop.anki.AnkiClient.existing_notes', side_effect=ValueError('offline')):
+        with patch('wordcel.anki.AnkiClient.existing_notes', side_effect=ValueError('offline')):
             window.show_entries([word], 'cat')
             self.wait_until(lambda: window._anki_check_task is None)
             self.assertEqual(window.anki_button.property('action_name'), 'anki_saved')
-            with patch('meikipop.anki.AnkiClient.call') as call:
+            with patch('wordcel.anki.AnkiClient.call') as call:
                 window.add_to_anki()
                 self.wait_until(lambda: window._anki_browse_task is None)
                 call.assert_called_once_with('guiBrowse', query='nid:123')
@@ -387,7 +387,7 @@ class AnkiGuiTests(unittest.TestCase):
             threads.append(threading.get_ident())
             gate.wait(2)
             return 123
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.add.side_effect = add
             window.anki_button.click()
             self.assertIsNotNone(window._anki_task)
@@ -398,7 +398,7 @@ class AnkiGuiTests(unittest.TestCase):
             window.browser.setHtml("changed selection")
             gate.set()
             self.wait_until(lambda: window._anki_task is None)
-            with patch("meikipop.anki.AnkiClient") as browser_client:
+            with patch("wordcel.anki.AnkiClient") as browser_client:
                 window.add_to_anki()
                 self.wait_until(lambda: window._anki_browse_task is None)
                 browser_client.return_value.call.assert_called_once_with("guiBrowse", query="nid:123")
@@ -420,7 +420,7 @@ class AnkiGuiTests(unittest.TestCase):
         window = self.anki_window()
         window.show_entries([Entry("1", "cat", "", "Words", "ja", ("cat",))], "cat")
         gate = threading.Event()
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.add.side_effect = lambda _: (gate.wait(2), 123)[1]
             window.add_to_anki()
             window.show_entries([Entry("2", "dog", "", "Words", "ja", ("dog",))], "dog")
@@ -440,7 +440,7 @@ class AnkiGuiTests(unittest.TestCase):
         first = window._headword_rows[("same", "one")][1]
         second = window._headword_rows[("same", "two")][1]
         self.assertTrue(window.anki_button.isHidden())
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.add.side_effect = (123, 456)
             second.click()
             self.wait_until(lambda: window._anki_task is None)
@@ -453,7 +453,7 @@ class AnkiGuiTests(unittest.TestCase):
             first.click()
             self.wait_until(lambda: window._anki_task is None)
             self.assertEqual(first.toolTip(), "Show in Anki")
-            with patch("meikipop.anki.AnkiClient") as browser_client:
+            with patch("wordcel.anki.AnkiClient") as browser_client:
                 second.click()
                 self.wait_until(lambda: window._anki_browse_task is None)
                 browser_client.return_value.call.assert_called_once_with("guiBrowse", query="nid:123")
@@ -461,7 +461,7 @@ class AnkiGuiTests(unittest.TestCase):
     def test_save_error_is_visible_and_can_be_retried_explicitly(self):
         window = self.anki_window()
         window.show_entries([Entry("1", "cat", "", "Words", "ja", ("cat",))], "cat")
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.add.side_effect = ValueError("Open Anki.")
             window.anki_button.click()
             self.wait_until(lambda: window._anki_task is None)
@@ -479,14 +479,14 @@ class AnkiGuiTests(unittest.TestCase):
         from io import BytesIO
         from types import SimpleNamespace
         from PIL import Image
-        from meikipop.utils.capture import CaptureRequest, PixelFrame
+        from wordcel.utils.capture import CaptureRequest, PixelFrame
         request = CaptureRequest(1, "screen", (0, 0, 2, 2), (0, 0, 2, 2), 1, 1)
         snapshot = PixelFrame(request, (2, 2), bytes([255, 0, 0]) * 4, 10)
         entry = Entry("1", "cat", "", "Words", "en", ("cat",))
         clip = SimpleNamespace(key=("cat", ""), filename="cat.mp3", data=b"audio")
         options = AnkiSettings(True, fields={"Front": "expression", "Image": "picture",
                                             "Translation": "sentence_translation", "Audio": "word_audio"})
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             export_note([entry], "cat here", "", options, screenshot=snapshot,
                         translation="A <cat>", audio_clip=clip)
         values = client.return_value.add.call_args.args[0]
@@ -495,7 +495,7 @@ class AnkiGuiTests(unittest.TestCase):
         media = values["_media"]
         self.assertEqual(Image.open(BytesIO(media["picture"]["data"])).getpixel((0, 0)), (255, 0, 0))
         self.assertEqual(media["word_audio"]["data"], b"audio")
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             export_note([entry], "", "", AnkiSettings(True), screenshot=snapshot, audio_clip=clip)
         self.assertEqual(client.return_value.add.call_args.args[0]["_media"], {})
 
@@ -504,14 +504,14 @@ class AnkiGuiTests(unittest.TestCase):
         window.show_entries([Entry("1", "猫", "ねこ", "Words", "ja", ("cat",))], "猫",
                             kanji=(KanjiEntry("猫", meanings=("feline",)),))
         self.assertFalse(window._kanji_details)
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.add.return_value = 123
             window.anki_button.click()
             self.wait_until(lambda: window._anki_task is None)
         self.assertIn("feline", client.return_value.add.call_args.args[0]["kanji-details"])
 
     def test_export_kanji_uses_full_captured_data_in_word_order(self):
-        from meikipop.anki import suggest_fields
+        from wordcel.anki import suggest_fields
         self.assertEqual(suggest_fields(["Kanji"]), {"Kanji": "kanji-details"})
         entry = Entry("1", "自転車", "じてんしゃ", "Words", "ja", ("bicycle",))
         kanji = (KanjiEntry("車", "Pack", meanings=("car",)),
@@ -523,7 +523,7 @@ class AnkiGuiTests(unittest.TestCase):
                  KanjiEntry("自", "Second pack", meanings=("oneself",)),
                  KanjiEntry("猫", "Pack", meanings=("cat",)))
         options = AnkiSettings(True, fields={"Front": "expression", "Kanji": "kanji-details"})
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             export_note([entry], "", "", options, kanji=kanji)
             html = client.return_value.add.call_args.args[0]["kanji-details"]
             self.assertLess(html.index('>自</div>'), html.index('>転</div>'))
@@ -551,7 +551,7 @@ class AnkiGuiTests(unittest.TestCase):
             {"tag": "div", "data": {"content": "attribution"}, "content": "Dictionary credit"}]}
         entry = Entry("1", "cat", "", "JMdict", "ja", (definition,))
         options = AnkiSettings(True, fields={"Front": "expression", "Back": "glossary"})
-        with patch("meikipop.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client:
             export_note([entry], "", "", options)
         values = client.return_value.add.call_args.args[0]
         for field in ("glossary", "glossary-first"):
@@ -560,7 +560,7 @@ class AnkiGuiTests(unittest.TestCase):
                 self.assertIn(content, glossary)
             self.assertIn('title="noun (common) (futsuumeishi)', glossary)
             self.assertNotIn("JMdict Sense", glossary)
-            self.assertNotIn("meikipop-tag:", glossary)
+            self.assertNotIn("wordcel-tag:", glossary)
 
     def test_field_suggestions_preserve_manual_skips_until_match_is_requested(self):
         panel = AnkiSettingsPanel(self.settings)

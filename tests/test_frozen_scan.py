@@ -10,9 +10,9 @@ from unittest.mock import Mock, patch
 from PyQt6.QtCore import QPoint
 from PyQt6.QtWidgets import QApplication
 
-from meikipop.gui.unified_ocr import ScanWorker, UnifiedOCR
-from meikipop.ocr.frames import RecognizedFrame
-from meikipop.utils.capture import CaptureRequest, PixelFrame
+from wordcel.gui.unified_ocr import ScanWorker, UnifiedOCR
+from wordcel.ocr.frames import RecognizedFrame
+from wordcel.utils.capture import CaptureRequest, PixelFrame
 from test_unified_ocr import FakeWindow, recognized
 
 
@@ -34,7 +34,7 @@ class FrozenScanTests(unittest.TestCase):
         for r in (request, next_crop, new_hold):
             worker.queue.put((r.generation, r, (.2, .5), "tr", ("paddle", ""), False, None, 10))
         worker.queue.put(None)
-        with patch("meikipop.gui.unified_ocr.RegionCapture", return_value=backend), \
+        with patch("wordcel.gui.unified_ocr.RegionCapture", return_value=backend), \
                 patch.object(worker, "provider", return_value=lambda image: recognized()):
             worker.run()
         self.assertEqual(backend.capture.call_count, 2)
@@ -66,7 +66,7 @@ class FrozenScanTests(unittest.TestCase):
         self.assertTrue(controller._valid_frame(frame, point, 1000))
         self.assertFalse(controller._valid_frame(replace(frame, request=replace(request, frozen=False)), point, 1000))
         controller.frame = frame
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=point), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=point), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
                 patch.object(controller, "_request_capture") as capture:
             controller.scan()

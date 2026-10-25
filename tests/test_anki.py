@@ -6,15 +6,15 @@ from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
-from meikipop.anki import AnkiClient, AnkiSettings, endpoint_address, note_values, suggest_fields
-from meikipop.dictionary.library import Entry
-from meikipop.dictionary.pitch import Pitch
+from wordcel.anki import AnkiClient, AnkiSettings, endpoint_address, note_values, suggest_fields
+from wordcel.dictionary.library import Entry
+from wordcel.dictionary.pitch import Pitch
 
 
 class AnkiTests(unittest.TestCase):
     def test_sentence_readings_use_literal_headwords_without_full_search(self):
         from unittest.mock import Mock
-        from meikipop.anki import sentence_readings
+        from wordcel.anki import sentence_readings
         library = Mock()
         cat = Entry("1", "猫", "ねこ", "Words", "ja", ("cat",))
         museum = Entry("2", "博物館", "はくぶつかん", "Words", "ja", ("museum",))
@@ -72,7 +72,7 @@ class AnkiTests(unittest.TestCase):
         self.assertEqual(note["fields"]["Sentence"], "猫を見た。")
         self.assertIn("&lt;animal&gt;", note["fields"]["Back"])
         self.assertIn("ꜜ", note["fields"]["Pitch"])
-        self.assertNotIn("meikipop-pitch:", note["fields"]["Pitch"])
+        self.assertNotIn("wordcel-pitch:", note["fields"]["Pitch"])
         self.assertFalse(note["options"]["allowDuplicate"])
         self.assertEqual(note["options"]["duplicateScope"], "deck")
 
@@ -193,7 +193,7 @@ class AnkiTests(unittest.TestCase):
                    Entry("2", "cat", "", "Other", "en", ("feline",))]
         converter = Mock()
         converter.extract_glosses.return_value = ["first"]
-        with patch("meikipop.anki.sentence_readings") as readings, patch("meikipop.anki.render_pitches") as pitch:
+        with patch("wordcel.anki.sentence_readings") as readings, patch("wordcel.anki.render_pitches") as pitch:
             values = note_values(entries, "cat here", converter=converter, sources={"expression"})
             converter.extract_glosses.assert_not_called()
             readings.assert_not_called()
@@ -227,14 +227,14 @@ class AnkiTests(unittest.TestCase):
         self.assertEqual(len(self.requests), 1)
 
     def test_timeout_is_not_retried_and_does_not_claim_failure_to_save(self):
-        with patch("meikipop.anki.http.client.HTTPConnection") as connection:
+        with patch("wordcel.anki.http.client.HTTPConnection") as connection:
             connection.return_value.getresponse.side_effect = socket.timeout()
             with self.assertRaisesRegex(ValueError, "Check Anki before retrying"):
                 AnkiClient(self.options).call("addNote", note={})
             self.assertEqual(connection.return_value.request.call_count, 1)
 
     def test_redirect_is_not_followed(self):
-        with patch("meikipop.anki.http.client.HTTPConnection") as connection:
+        with patch("wordcel.anki.http.client.HTTPConnection") as connection:
             response = connection.return_value.getresponse.return_value
             response.status, response.read.return_value = 302, b""
             with self.assertRaises(ValueError):

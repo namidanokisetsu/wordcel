@@ -10,9 +10,9 @@ from unittest.mock import Mock, patch
 
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication, QWidget
-from meikipop.dictionary.translation import TranslationSettings, load_profile_settings, save_profile_settings
-from meikipop.gui.dictionary_manager import SetupDialog
-from meikipop.gui.resources import translation_ready
+from wordcel.dictionary.translation import TranslationSettings, load_profile_settings, save_profile_settings
+from wordcel.gui.dictionary_manager import SetupDialog
+from wordcel.gui.resources import translation_ready
 
 
 class ResourceTests(unittest.TestCase):
@@ -21,8 +21,8 @@ class ResourceTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def test_data_tab_reuses_rows_and_routes_downloads_and_dictionary_controls(self):
-        from meikipop.data_assets import DataAsset
-        from meikipop.dictionary.catalog import recommendations
+        from wordcel.data_assets import DataAsset
+        from wordcel.dictionary.catalog import recommendations
         from PyQt6.QtCore import Qt
         from PyQt6.QtWidgets import QListWidgetItem, QGroupBox
         with tempfile.TemporaryDirectory() as directory:
@@ -61,7 +61,7 @@ class ResourceTests(unittest.TestCase):
                 self.app.processEvents()
 
     def test_data_inventory_runs_off_the_gui_thread(self):
-        from meikipop.data_assets import DataAsset
+        from wordcel.data_assets import DataAsset
         with tempfile.TemporaryDirectory() as directory:
             settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
@@ -73,7 +73,7 @@ class ResourceTests(unittest.TestCase):
                 gate.wait(2)
                 return (DataAsset("fixture", "Fixture", "ja", status="Built in", removable=False),)
             try:
-                with patch("meikipop.gui.data_manager.inventory", side_effect=scan):
+                with patch("wordcel.gui.data_manager.inventory", side_effect=scan):
                     dialog.data.refresh()
                     self.assertTrue(started.wait(1))
                     self.assertFalse(dialog.data.reload.isEnabled())
@@ -98,7 +98,7 @@ class ResourceTests(unittest.TestCase):
             (root / "model.gguf").write_bytes(b"model")
             (root / "installation.json").write_text(json.dumps({
                 "executable": "server.exe", "models": {"lightweight": {"path": "model.gguf", "size": 5}}}))
-            with patch("meikipop.scripts.translation_server.translation_path", return_value=root):
+            with patch("wordcel.scripts.translation_server.translation_path", return_value=root):
                 self.assertTrue(translation_ready("lightweight"))
                 self.assertFalse(translation_ready("quality"))
                 (root / "model.gguf").write_bytes(b"partial")
@@ -109,9 +109,9 @@ class ResourceTests(unittest.TestCase):
             settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
             settings.setValue("profiles/tr/target", "en")
-            with patch("meikipop.gui.resources.ocr_ready", return_value=True), \
-                    patch("meikipop.gui.resources.translation_ready", return_value=False), \
-                    patch("meikipop.gui.dictionary_manager.SetupOperation.start"):
+            with patch("wordcel.gui.resources.ocr_ready", return_value=True), \
+                    patch("wordcel.gui.resources.translation_ready", return_value=False), \
+                    patch("wordcel.gui.dictionary_manager.SetupOperation.start"):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
                     dialog.translation_mode.setCurrentIndex(dialog.translation_mode.findData("custom"))
@@ -132,7 +132,7 @@ class ResourceTests(unittest.TestCase):
     def test_removing_recommended_dictionary_restores_download_action(self):
         import threading
         import zipfile
-        from meikipop.dictionary.library import import_yomitan, remove_dictionary
+        from wordcel.dictionary.library import import_yomitan, remove_dictionary
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             archive = root / "dictionary.zip"
@@ -142,8 +142,8 @@ class ResourceTests(unittest.TestCase):
             pack = import_yomitan(archive, root / "library")
             settings = QSettings(str(root / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profile", "tr")
-            with patch("meikipop.gui.resources.ocr_ready", return_value=False), \
-                    patch("meikipop.gui.resources.translation_ready", return_value=False):
+            with patch("wordcel.gui.resources.ocr_ready", return_value=False), \
+                    patch("wordcel.gui.resources.translation_ready", return_value=False):
                 dialog = SetupDialog(root / "library", settings, Mock())
                 try:
                     self.assertTrue(dialog.resources.dictionary_install.isHidden())
@@ -159,8 +159,8 @@ class ResourceTests(unittest.TestCase):
             settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
             for code in ("ja", "tr"):
                 save_profile_settings(settings, code, TranslationSettings(profile="quality"))
-            with patch("meikipop.gui.resources.ocr_ready", return_value=True), \
-                    patch("meikipop.gui.resources.translation_ready", side_effect=lambda name: name == "lightweight"):
+            with patch("wordcel.gui.resources.ocr_ready", return_value=True), \
+                    patch("wordcel.gui.resources.translation_ready", side_effect=lambda name: name == "lightweight"):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
                     resources = dialog.resources
@@ -190,8 +190,8 @@ class ResourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
             save_profile_settings(settings, "ja", TranslationSettings(auto_start=False))
-            with patch("meikipop.gui.resources.ocr_ready", return_value=False), \
-                    patch("meikipop.gui.resources.translation_ready", return_value=False):
+            with patch("wordcel.gui.resources.ocr_ready", return_value=False), \
+                    patch("wordcel.gui.resources.translation_ready", return_value=False):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
                     self.assertFalse(dialog.translation_advanced.isChecked())
@@ -209,8 +209,8 @@ class ResourceTests(unittest.TestCase):
             settings.setValue("profile", "gem-pro")
             settings.setValue("profiles/gem-pro/target", "en")
             settings.setValue("profiles/yi/ocr_provider", "paddle")
-            with patch("meikipop.gui.resources.ocr_ready", return_value=False), \
-                    patch("meikipop.gui.resources.translation_ready", return_value=False):
+            with patch("wordcel.gui.resources.ocr_ready", return_value=False), \
+                    patch("wordcel.gui.resources.translation_ready", return_value=False):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
                     for code in ("gem-pro", "yi"):
@@ -238,8 +238,8 @@ class ResourceTests(unittest.TestCase):
             settings.setValue("profile", "ja")
             settings.setValue("profiles/ja/target", "yi")
             save_profile_settings(settings, "ja", TranslationSettings(profile="quality"))
-            with patch("meikipop.gui.resources.ocr_ready", return_value=True), \
-                    patch("meikipop.gui.resources.translation_ready", return_value=False):
+            with patch("wordcel.gui.resources.ocr_ready", return_value=True), \
+                    patch("wordcel.gui.resources.translation_ready", return_value=False):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
                     self.assertTrue(dialog.resources.translation_section.isHidden())
@@ -256,8 +256,8 @@ class ResourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
-            with patch("meikipop.gui.resources.ocr_ready", return_value=True), \
-                    patch("meikipop.gui.resources.translation_ready", return_value=False):
+            with patch("wordcel.gui.resources.ocr_ready", return_value=True), \
+                    patch("wordcel.gui.resources.translation_ready", return_value=False):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
                     self.assertTrue(dialog.resources.base_install.isHidden())
@@ -275,21 +275,21 @@ class ResourceTests(unittest.TestCase):
                     self.app.processEvents()
 
     def test_recommended_batch_keeps_successful_imports_after_a_failure(self):
-        from meikipop.dictionary.catalog import recommendations
-        from meikipop.gui.dictionary_manager import SetupOperation
+        from wordcel.dictionary.catalog import recommendations
+        from wordcel.gui.dictionary_manager import SetupOperation
         dictionaries = recommendations("ja")
         operation = SetupOperation([], "/unused", recommended=dictionaries)
         results = []
         operation.finished.connect(lambda status, changed: results.append((status, changed)))
-        with patch("meikipop.dictionary.import_job.background_import", side_effect=[
+        with patch("wordcel.dictionary.import_job.background_import", side_effect=[
                 ("Installed", True), RuntimeError("Offline"), ("Installed", True), ("Installed", True)]) as install:
             operation._run()
         self.assertEqual(install.call_count, 4)
         self.assertEqual(results, [("Kanji · KANJIDIC: Offline", True)])
 
     def test_cancelling_recommended_batch_stops_before_next_dictionary(self):
-        from meikipop.dictionary.catalog import recommendations
-        from meikipop.gui.dictionary_manager import SetupOperation
+        from wordcel.dictionary.catalog import recommendations
+        from wordcel.gui.dictionary_manager import SetupOperation
         operation = SetupOperation([], "/unused", recommended=recommendations("ja"))
         results = []
         operation.finished.connect(lambda status, changed: results.append((status, changed)))
@@ -298,7 +298,7 @@ class ResourceTests(unittest.TestCase):
             operation.cancelled.set()
             return "Installed", True
 
-        with patch("meikipop.dictionary.import_job.background_import", side_effect=install) as download:
+        with patch("wordcel.dictionary.import_job.background_import", side_effect=install) as download:
             operation._run()
         self.assertEqual(download.call_count, 1)
         self.assertEqual(results, [("Download cancelled.", True)])
@@ -309,9 +309,9 @@ class ResourceTests(unittest.TestCase):
             settings.setValue("profile", "ja")
             settings.setValue("profiles/ja/target", "en")
             settings.setValue("profiles/tr/target", "en")
-            with patch("meikipop.utils.stroke_order_font.font_ready", return_value=False), \
-                    patch("meikipop.gui.resources.ocr_ready", return_value=True), \
-                    patch("meikipop.gui.resources.translation_ready", return_value=True):
+            with patch("wordcel.utils.stroke_order_font.font_ready", return_value=False), \
+                    patch("wordcel.gui.resources.ocr_ready", return_value=True), \
+                    patch("wordcel.gui.resources.translation_ready", return_value=True):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
                     button = dialog.resources.font_install
@@ -322,23 +322,23 @@ class ResourceTests(unittest.TestCase):
                     dialog.sync_profile("tr")
                     self.assertFalse(dialog.appearance.detail_form.isRowVisible(button))
                     dialog.sync_profile("ja")
-                    with patch("meikipop.utils.stroke_order_font.font_ready", return_value=True):
+                    with patch("wordcel.utils.stroke_order_font.font_ready", return_value=True):
                         dialog.resources.refresh()
                         self.assertFalse(dialog.appearance.detail_form.isRowVisible(button))
                 finally:
                     dialog.deleteLater()
                     self.app.processEvents()
-        from meikipop.gui.dictionary_manager import SetupOperation
+        from wordcel.gui.dictionary_manager import SetupOperation
         operation = SetupOperation([], "/unused", fonts=True)
         results = []
         operation.finished.connect(lambda status, changed: results.append((status, changed)))
-        with patch("meikipop.scripts.setup_stroke_order_font.install") as install:
+        with patch("wordcel.scripts.setup_stroke_order_font.install") as install:
             operation._run()
             self.assertIs(install.call_args.args[1], operation.cancelled)
         self.assertEqual(results, [("Stroke-order font installed.", True)])
 
     def test_font_install_completion_redraws_current_kanji_without_preference_change(self):
-        from meikipop.gui.dictionary_manager import SetupOperation
+        from wordcel.gui.dictionary_manager import SetupOperation
         with tempfile.TemporaryDirectory() as directory:
             settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
@@ -347,9 +347,9 @@ class ResourceTests(unittest.TestCase):
             parent.reload_appearance = Mock()
             parent.scan_settings_changed = Mock()
             parent._render_identity = ("existing kanji",)
-            with patch("meikipop.utils.stroke_order_font.font_ready", return_value=True), \
-                    patch("meikipop.gui.resources.ocr_ready", return_value=True), \
-                    patch("meikipop.gui.resources.translation_ready", return_value=True):
+            with patch("wordcel.utils.stroke_order_font.font_ready", return_value=True), \
+                    patch("wordcel.gui.resources.ocr_ready", return_value=True), \
+                    patch("wordcel.gui.resources.translation_ready", return_value=True):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock(), parent)
                 try:
                     parent.reload_appearance.reset_mock()

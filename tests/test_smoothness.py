@@ -2,7 +2,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from unittest.mock import Mock, patch
 from test_quick_lookup import QuickLookupTests, entry
-from meikipop.dictionary.search import SearchResult
+from wordcel.dictionary.search import SearchResult
 from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtTest import QTest
 
@@ -83,7 +83,7 @@ class PendingTests(QuickLookupTests):
         with patch.object(self.window, "_edited") as edited:
             dialog.translation_warm.click()
             edited.assert_not_called()
-        from meikipop.dictionary.translation import load_profile_settings
+        from wordcel.dictionary.translation import load_profile_settings
         self.assertTrue(load_profile_settings(self.settings, "ja").keep_warm)
         dialog.operation = Mock()
         try:

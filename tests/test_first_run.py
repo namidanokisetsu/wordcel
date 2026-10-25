@@ -11,7 +11,7 @@ import zipfile
 
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication, QWidget
-from meikipop.gui.first_run import FirstLanguage, LanguageSuggestion, complete_first_setup, needs_setup
+from wordcel.gui.first_run import FirstLanguage, LanguageSuggestion, complete_first_setup, needs_setup
 
 
 class FirstRunTests(unittest.TestCase):
@@ -30,7 +30,7 @@ class FirstRunTests(unittest.TestCase):
         self.window._setup = None
         self.window.refresh_library = Mock()
         self.window.scan_settings_changed = Mock()
-        readiness = patch("meikipop.dictionary.translation.model_installed", return_value=False)
+        readiness = patch("wordcel.dictionary.translation.model_installed", return_value=False)
         self.model_installed = readiness.start()
         self.addCleanup(readiness.stop)
         self.wizard = LanguageSuggestion(self.window)
@@ -44,8 +44,8 @@ class FirstRunTests(unittest.TestCase):
         self.assertFalse(needs_setup(self.settings))
 
     def test_installed_translation_is_shared_and_selected_without_another_download(self):
-        from meikipop.dictionary.translation import load_profile_settings, save_profile_settings, TranslationSettings
-        from meikipop.gui.language_setup import install_task, SetupTask
+        from wordcel.dictionary.translation import load_profile_settings, save_profile_settings, TranslationSettings
+        from wordcel.gui.language_setup import install_task, SetupTask
         self.model_installed.side_effect = lambda name: name == "lightweight"
         for language in ("ja", "tr"):
             self.assertEqual(load_profile_settings(self.settings, language).profile, "lightweight")
@@ -59,11 +59,11 @@ class FirstRunTests(unittest.TestCase):
                     self.assertFalse(check.isEnabled())
                     self.assertIn("✓", check.text())
             self.assertEqual(wizard.selected_tasks(), [])
-            with patch("meikipop.gui.language_setup.LanguageSetup") as setup:
+            with patch("wordcel.gui.language_setup.LanguageSetup") as setup:
                 wizard.accept()
             setup.assert_not_called()
             self.assertEqual(load_profile_settings(self.settings, language).profile, "lightweight")
-        with patch("meikipop.scripts.translation_server.install_model") as install:
+        with patch("wordcel.scripts.translation_server.install_model") as install:
             install_task(SetupTask("translation", "Local translation", "lightweight"),
                          self.directory.name, Mock(), threading.Event())
         install.assert_not_called()
@@ -80,8 +80,8 @@ class FirstRunTests(unittest.TestCase):
         self.assertEqual([task.value for task in wizard.selected_tasks() if task.kind == "translation"], ["quality"])
 
     def test_first_language_keeps_dictionary_languages_and_existing_profiles(self):
-        from meikipop.gui.quick_lookup import LANGUAGE_NAMES
-        from meikipop.language.support import DICTIONARY_LANGUAGES
+        from wordcel.gui.quick_lookup import LANGUAGE_NAMES
+        from wordcel.language.support import DICTIONARY_LANGUAGES
         self.settings.setValue("profiles/fil/target", "en")
         picker = FirstLanguage(self.settings, imported=("abc",))
         self.addCleanup(picker.deleteLater)
@@ -92,9 +92,9 @@ class FirstRunTests(unittest.TestCase):
         self.assertNotIn("zh-hant", codes)
 
     def test_selected_language_survives_window_and_settings_without_extra_profiles(self):
-        from meikipop.gui.quick_lookup import QuickLookupWindow
-        from meikipop.gui.dictionary_manager import SetupDialog
-        from meikipop.language.profiles import configured_profiles
+        from wordcel.gui.quick_lookup import QuickLookupWindow
+        from wordcel.gui.dictionary_manager import SetupDialog
+        from wordcel.language.profiles import configured_profiles
         from test_quick_lookup import FakeEngine
         for code in ("tr", "en", "fr"):
             with self.subTest(language=code):
@@ -123,7 +123,7 @@ class FirstRunTests(unittest.TestCase):
                     self.app.processEvents()
 
     def test_first_language_has_no_default_and_does_not_add_japanese(self):
-        from meikipop.language.profiles import configured_profiles
+        from wordcel.language.profiles import configured_profiles
         picker = FirstLanguage(self.settings)
         self.addCleanup(picker.deleteLater)
         self.assertIsNone(picker.language.currentData())
@@ -153,7 +153,7 @@ class FirstRunTests(unittest.TestCase):
         self.assertTrue(needs_setup(self.settings))
 
     def test_first_setup_registers_the_current_install_only_after_acceptance(self):
-        from meikipop.utils import startup
+        from wordcel.utils import startup
         values = {}
         key = Mock()
         key.__enter__ = Mock(return_value=key)
@@ -179,8 +179,8 @@ class FirstRunTests(unittest.TestCase):
 
     def test_first_setup_preserves_saved_startup_choice_and_existing_registration(self):
         with patch("sys.platform", "win32"), \
-                patch("meikipop.utils.startup.is_startup_enabled", return_value=True) as enabled, \
-                patch("meikipop.utils.startup.set_startup_enabled") as register:
+                patch("wordcel.utils.startup.is_startup_enabled", return_value=True) as enabled, \
+                patch("wordcel.utils.startup.set_startup_enabled") as register:
             self.settings.setValue("start_with_windows", False)
             complete_first_setup(self.settings)
             enabled.assert_not_called()
@@ -193,14 +193,14 @@ class FirstRunTests(unittest.TestCase):
 
     def test_failed_startup_registration_keeps_setup_usable_and_the_choice_unset(self):
         with patch("sys.platform", "win32"), \
-                patch("meikipop.utils.startup.is_startup_enabled", return_value=False), \
-                patch("meikipop.utils.startup.set_startup_enabled", side_effect=OSError("denied")), \
-                self.assertLogs("meikipop.gui.first_run", level="ERROR"):
+                patch("wordcel.utils.startup.is_startup_enabled", return_value=False), \
+                patch("wordcel.utils.startup.set_startup_enabled", side_effect=OSError("denied")), \
+                self.assertLogs("wordcel.gui.first_run", level="ERROR"):
             complete_first_setup(self.settings)
         self.assertFalse(self.settings.contains("start_with_windows"))
 
     def test_suggestion_is_shown_once_per_profile_even_after_later(self):
-        from meikipop.gui.first_run import offer_resources
+        from wordcel.gui.first_run import offer_resources
         first = offer_resources(self.window, "ja")
         first.reject()
         self.assertIsNone(offer_resources(self.window, "ja"))
@@ -212,7 +212,7 @@ class FirstRunTests(unittest.TestCase):
     def test_unchecking_everything_closes_without_downloads(self):
         for task, check in self.wizard.choices:
             check.setChecked(False)
-        with patch("meikipop.gui.language_setup.LanguageSetup") as setup:
+        with patch("wordcel.gui.language_setup.LanguageSetup") as setup:
             self.wizard.accept()
         setup.assert_not_called()
         self.assertIsNone(self.wizard.operation)
@@ -226,7 +226,7 @@ class FirstRunTests(unittest.TestCase):
         self.assertEqual([(task.kind, task.value) for task in tasks], [("translation", "quality")])
 
     def test_setup_starts_once_with_only_selected_resources(self):
-        with patch("meikipop.gui.language_setup.LanguageSetup") as setup:
+        with patch("wordcel.gui.language_setup.LanguageSetup") as setup:
             self.wizard.accept()
             self.wizard.accept()
         setup.assert_called_once()
@@ -235,7 +235,7 @@ class FirstRunTests(unittest.TestCase):
         self.wizard.operation = None
 
     def test_partial_setup_retries_only_unfinished_tasks_including_translation(self):
-        from meikipop.gui.language_setup import SetupTask
+        from wordcel.gui.language_setup import SetupTask
         translation = SetupTask("translation", "Local translation", "lightweight")
         completed = [(task, "") for task in self.wizard.selected_tasks() if task.kind != "translation"]
         self.wizard.operation = Mock(cancelled=threading.Event())
@@ -258,39 +258,39 @@ class FirstRunTests(unittest.TestCase):
         self.assertIn("quality", [task.value for task in self.wizard.selected_tasks() if task.kind == "translation"])
 
     def test_language_plan_uses_supported_models_and_native_mac_ocr(self):
-        from meikipop.gui.language_setup import language_plan
+        from wordcel.gui.language_setup import language_plan
         japanese = language_plan("ja", platform="win32")
         self.assertEqual([task.kind for task in japanese], ["dictionary"] * 4 + ["ocr", "translation"])
         self.assertEqual(japanese[-1].value, "lightweight")
-        with patch("meikipop.ocr.macos_vision.supported_languages", return_value={"tr"}):
+        with patch("wordcel.ocr.macos_vision.supported_languages", return_value={"tr"}):
             turkish = language_plan("tr", platform="darwin")
         self.assertEqual([task.kind for task in turkish], ["dictionary", "translation"])
 
     def test_cancelled_language_setup_does_not_start_downloads(self):
-        from meikipop.gui.language_setup import LanguageSetup, language_plan
+        from wordcel.gui.language_setup import LanguageSetup, language_plan
         operation = LanguageSetup(language_plan("ja"), self.directory.name)
         operation.cancelled.set()
-        with patch("meikipop.gui.language_setup.install_task") as install:
+        with patch("wordcel.gui.language_setup.install_task") as install:
             operation.run()
         install.assert_not_called()
 
 
 class ModelInstallerTests(unittest.TestCase):
     def test_frozen_failure_retains_the_cause_instead_of_bootloader_footer(self):
-        from meikipop.scripts.setup_morphology import _run
+        from wordcel.scripts.setup_morphology import _run
         output = "Traceback:\nModuleNotFoundError: No module named 'dependency'\n[PYI-10044:ERROR] Failed to execute script 'quick_lookup'\n"
-        with patch("meikipop.scripts.setup_morphology.subprocess.Popen") as popen:
+        with patch("wordcel.scripts.setup_morphology.subprocess.Popen") as popen:
             popen.return_value.communicate.return_value = (output, None)
             popen.return_value.returncode = 1
-            with self.assertLogs("meikipop.scripts.setup_morphology", level="ERROR") as captured:
+            with self.assertLogs("wordcel.scripts.setup_morphology", level="ERROR") as captured:
                 with self.assertRaisesRegex(RuntimeError, "ModuleNotFoundError: No module named 'dependency'"):
                     _run(["--setup-morphology", "tr"])
         self.assertIn("Traceback", captured.output[0])
 
     def test_model_worker_validates_loaded_models_and_returns_readable_errors(self):
-        from meikipop.scripts.quick_lookup import main
-        with patch("meikipop.language.stanza_analyzer.setup_models") as download, \
-                patch("meikipop.language.stanza_analyzer.StanzaAnalyzer") as analyzer, \
+        from wordcel.scripts.quick_lookup import main
+        with patch("wordcel.language.stanza_analyzer.setup_models") as download, \
+                patch("wordcel.language.stanza_analyzer.StanzaAnalyzer") as analyzer, \
                 patch("sys.stderr") as stderr:
             self.assertEqual(main(["--setup-morphology", "tr"]), 0)
             download.assert_called_once_with(language="tr")
@@ -300,22 +300,22 @@ class ModelInstallerTests(unittest.TestCase):
             self.assertIn("RuntimeError: Cannot load downloaded model", "".join(call.args[0] for call in stderr.write.call_args_list))
 
     def test_frozen_morphology_uses_bundled_worker(self):
-        from meikipop.scripts.setup_morphology import install
-        with patch("sys.frozen", True, create=True), patch("meikipop.scripts.setup_morphology._run") as run:
+        from wordcel.scripts.setup_morphology import install
+        with patch("sys.frozen", True, create=True), patch("wordcel.scripts.setup_morphology._run") as run:
             install("tr")
         run.assert_called_once_with(["--setup-morphology", "tr"], None)
 
     def test_cancelled_ocr_does_not_start_downloader(self):
-        from meikipop.scripts.setup_ocr import install
+        from wordcel.scripts.setup_ocr import install
         cancelled = threading.Event()
         cancelled.set()
-        with patch("meikipop.scripts.setup_morphology._run") as run:
+        with patch("wordcel.scripts.setup_morphology._run") as run:
             with self.assertRaises(InterruptedError):
                 install("paddle", Mock(), cancelled)
         run.assert_not_called()
 
     def test_component_extraction_rejects_path_escape(self):
-        from meikipop.scripts.setup_ocr import extract_component
+        from wordcel.scripts.setup_ocr import extract_component
         with tempfile.TemporaryDirectory() as folder:
             archive = Path(folder) / "component.zip"
             with zipfile.ZipFile(archive, "w") as bundle:

@@ -1,7 +1,7 @@
 import unittest
 
-from meikipop.dictionary.kanji import KanjiEntry, kanji_characters
-from meikipop.gui.kanji_panel import render_kanji, render_kanji_details, render_kanji_extra
+from wordcel.dictionary.kanji import KanjiEntry, kanji_characters
+from wordcel.gui.kanji_panel import render_kanji, render_kanji_details, render_kanji_extra
 
 
 class KanjiTests(unittest.TestCase):
@@ -129,8 +129,8 @@ class KanjiTests(unittest.TestCase):
         self.assertIn('href="kanji:%F0%A0%AE%B7" title="Expand"', html)
 
     def test_kanji_only_result_is_not_reported_as_an_empty_lookup(self):
-        from meikipop.dictionary.search import SearchResult
-        from meikipop.gui.quick_lookup import render_result
+        from wordcel.dictionary.search import SearchResult
+        from wordcel.gui.quick_lookup import render_result
         html = render_result(SearchResult("日", "ja", "en", kanji=(KanjiEntry("日", meanings=("day",)),)))
         self.assertIn("day", html)
         self.assertNotIn("No entry found", html)

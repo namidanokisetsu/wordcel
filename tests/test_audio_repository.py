@@ -4,8 +4,8 @@ import threading
 import unittest
 from pathlib import Path
 
-from meikipop.audio.repository import AudioRepository, AudioRepositoryError
-from meikipop.audio.worker import AudioRequest, AudioWorker
+from wordcel.audio.repository import AudioRepository, AudioRepositoryError
+from wordcel.audio.worker import AudioRequest, AudioWorker
 
 
 SCHEMA = """

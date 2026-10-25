@@ -9,10 +9,10 @@ import unittest
 from unittest.mock import patch
 import zipfile
 
-from meikipop.dictionary.catalog import install_recommended, recommendations
-from meikipop.dictionary.import_job import _worker
-from meikipop.dictionary.library import import_yomitan
-from meikipop.utils.progress import content_length, download_progress
+from wordcel.dictionary.catalog import install_recommended, recommendations
+from wordcel.dictionary.import_job import _worker
+from wordcel.dictionary.library import import_yomitan
+from wordcel.utils.progress import content_length, download_progress
 
 
 TERM = ["word", "", "", "", 0, ["meaning"], 0, ""]
@@ -85,7 +85,7 @@ class SetupProgressTests(unittest.TestCase):
     def test_worker_delivers_completion_even_when_updates_are_throttled(self):
         path = self.archive({"term_bank_1": [TERM]})
         messages = Queue()
-        with patch("meikipop.dictionary.import_job.monotonic", return_value=1):
+        with patch("wordcel.dictionary.import_job.monotonic", return_value=1):
             _worker([path], self.directory, "ja", None, messages, threading.Event())
         updates = []
         while not messages.empty():
@@ -100,7 +100,7 @@ class SetupProgressTests(unittest.TestCase):
                 response = io.BytesIO(payload)
                 response.headers = {"Content-Length": length} if length is not None else {}
                 messages = []
-                with patch("meikipop.dictionary.catalog.urlopen", return_value=response):
+                with patch("wordcel.dictionary.catalog.urlopen", return_value=response):
                     install_recommended(recommendations("ja")[0], self.directory, messages.append, threading.Event())
                 downloads = [text for text in messages if text.startswith("Downloading ") and " · " in text]
                 self.assertTrue(downloads)

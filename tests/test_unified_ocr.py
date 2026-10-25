@@ -14,9 +14,9 @@ from PyQt6.QtCore import QPoint, QRect, QSettings, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QCheckBox, QLineEdit, QToolButton, QWidget
 
-from meikipop.gui.unified_ocr import HitWorker, PaddleScan, ScanWorker, UnifiedOCR
-from meikipop.ocr.context import ContextHit
-from meikipop.ocr.interface import BoundingBox, Paragraph, Word
+from wordcel.gui.unified_ocr import HitWorker, PaddleScan, ScanWorker, UnifiedOCR
+from wordcel.ocr.context import ContextHit
+from wordcel.ocr.interface import BoundingBox, Paragraph, Word
 
 
 def image_bytes():
@@ -44,7 +44,7 @@ class ScanWorkerTests(unittest.TestCase):
         image = image_bytes()
         worker, sink = self.make_worker([(1, image, (0.2, 0.5), "tr"), (2, image, (0.2, 0.5), "tr"), None])
         engine = Mock()
-        with patch("meikipop.dictionary.search.SearchEngine", side_effect=[RuntimeError("fixture init"), engine]), \
+        with patch("wordcel.dictionary.search.SearchEngine", side_effect=[RuntimeError("fixture init"), engine]), \
                 patch.object(worker, "provider", return_value=lambda image: recognized()):
             worker.run()
         self.assertEqual(sink.emit.call_args_list[0].args, (1, None, None, "fixture init"))
@@ -56,7 +56,7 @@ class ScanWorkerTests(unittest.TestCase):
         image = image_bytes()
         worker, sink = self.make_worker([(1, image, (0.2, 0.5), "tr"), (2, None, (0.7, 0.5), "tr"), None])
         engine, provider = Mock(), Mock(return_value=recognized())
-        with patch("meikipop.dictionary.search.SearchEngine", return_value=engine), \
+        with patch("wordcel.dictionary.search.SearchEngine", return_value=engine), \
                 patch.object(worker, "provider", return_value=provider):
             worker.run()
         provider.assert_called_once()
@@ -68,7 +68,7 @@ class ScanWorkerTests(unittest.TestCase):
         image = image_bytes()
         worker, sink = self.make_worker([(1, image, (.2, .5), "tr"), (2, image, (.2, .5), "tr"), None])
         sink.emit.side_effect = lambda revision, *_: worker.refresh_models() if revision == 1 else None
-        with patch("meikipop.dictionary.search.SearchEngine"), \
+        with patch("wordcel.dictionary.search.SearchEngine"), \
                 patch.object(worker, "provider", return_value=Mock(return_value=recognized())) as factory:
             worker.run()
         self.assertEqual(factory.call_count, 2)
@@ -81,7 +81,7 @@ class ScanWorkerTests(unittest.TestCase):
             (2, image, (.2, .5), "en", ("paddle", "")),
             (3, image, (.7, .5), "tr", ("paddle", "")), None])
         provider, engine = Mock(return_value=recognized()), Mock()
-        with patch("meikipop.dictionary.search.SearchEngine", return_value=engine), \
+        with patch("wordcel.dictionary.search.SearchEngine", return_value=engine), \
                 patch.object(worker, "provider", return_value=provider) as factory:
             worker.run()
         factory.assert_called_once_with("tr", "paddle", "")
@@ -98,9 +98,9 @@ class ScanWorkerTests(unittest.TestCase):
                     (3, image, (.7, .5), "ja"), None])
                 provider, engine = Mock(return_value=recognized()), Mock()
                 engine.search.return_value = SimpleNamespace(entries=())
-                with patch("meikipop.dictionary.search.SearchEngine", return_value=engine), \
-                        patch("meikipop.language.support.default_ocr_provider", return_value=default), \
-                        patch("meikipop.language.support.ocr_supported", return_value=True), \
+                with patch("wordcel.dictionary.search.SearchEngine", return_value=engine), \
+                        patch("wordcel.language.support.default_ocr_provider", return_value=default), \
+                        patch("wordcel.language.support.ocr_supported", return_value=True), \
                         patch.object(worker, "provider", return_value=provider) as factory:
                     worker.run()
                 self.assertEqual(factory.call_args_list[0].args, ("ja", "meikiocr", ""))
@@ -114,7 +114,7 @@ class ScanWorkerTests(unittest.TestCase):
                 self.assertEqual(sink.emit.call_count, 3)
 
     def test_capture_precedes_slow_model_loading(self):
-        from meikipop.utils.capture import CaptureRequest, PixelFrame
+        from wordcel.utils.capture import CaptureRequest, PixelFrame
         request = CaptureRequest(1, "fixture", (0, 0, 100, 50), (0, 0, 100, 50), 1, 1, True)
         worker, _ = self.make_worker([(1, request, (.2, .5), "tr", ("paddle", "")), None])
         worker.frames = SimpleNamespace(emit=Mock())
@@ -122,7 +122,7 @@ class ScanWorkerTests(unittest.TestCase):
         capture = Mock()
         capture.capture.side_effect = lambda request: (order.append("capture") or PixelFrame(request, (100, 50), bytes(15000), 1))
         provider = Mock(return_value=recognized())
-        with patch("meikipop.gui.unified_ocr.RegionCapture", return_value=capture), \
+        with patch("wordcel.gui.unified_ocr.RegionCapture", return_value=capture), \
                 patch.object(worker, "provider", side_effect=lambda *args: (order.append("model") or provider)):
             worker.run()
         self.assertEqual(order, ["capture", "model"])
@@ -132,10 +132,10 @@ class ScanWorkerTests(unittest.TestCase):
         from dataclasses import replace
         from io import BytesIO
         from PIL import Image
-        from meikipop.anki import AnkiSettings
-        from meikipop.dictionary.library import Entry
-        from meikipop.gui.anki import export_note
-        from meikipop.utils.capture import CaptureRequest, PixelFrame
+        from wordcel.anki import AnkiSettings
+        from wordcel.dictionary.library import Entry
+        from wordcel.gui.anki import export_note
+        from wordcel.utils.capture import CaptureRequest, PixelFrame
 
         request = CaptureRequest(1, "fixture", (-20, 0, 40, 20), (-10, 5, 10, 5), 2, 1,
                                  full_snapshot=True)
@@ -156,7 +156,7 @@ class ScanWorkerTests(unittest.TestCase):
                 capture = Mock()
                 capture.capture.side_effect = snapshots
                 provider = Mock(return_value=recognized())
-                with patch("meikipop.gui.unified_ocr.RegionCapture", return_value=capture), \
+                with patch("wordcel.gui.unified_ocr.RegionCapture", return_value=capture), \
                         patch.object(worker, "provider", return_value=provider):
                     worker.run()
                 frames = [call.args[1] for call in worker.frames.emit.call_args_list]
@@ -177,7 +177,7 @@ class ScanWorkerTests(unittest.TestCase):
                                         for call in capture.capture.call_args_list))
                     self.assertEqual(frames[-1].physical_crop, (0, 10, 20, 10))
                 entry = Entry("1", "kitap", "", "Words", "tr", ("book",))
-                with patch("meikipop.gui.anki.AnkiClient") as client:
+                with patch("wordcel.gui.anki.AnkiClient") as client:
                     export_note([entry], "kitap ev", "", AnkiSettings(True, fields={"Image": "picture"}),
                                 screenshot=frames[-1].snapshot)
                 picture = client.return_value.add.call_args.args[0]["_media"]["picture"]["data"]
@@ -191,7 +191,7 @@ class ScanWorkerTests(unittest.TestCase):
         def load(*args):
             worker.stop()
             return provider
-        with patch("meikipop.dictionary.search.SearchEngine", return_value=Mock()), \
+        with patch("wordcel.dictionary.search.SearchEngine", return_value=Mock()), \
                 patch.object(worker, "provider", side_effect=load):
             worker.run()
         provider.assert_not_called()
@@ -200,7 +200,7 @@ class ScanWorkerTests(unittest.TestCase):
     def test_optional_morphology_receives_original_ocr_context(self):
         worker, _ = self.make_worker([(1, image_bytes(), (.2, .5), "tr", ("paddle", ""), True), None])
         engine = Mock()
-        with patch("meikipop.dictionary.search.SearchEngine", return_value=engine), \
+        with patch("wordcel.dictionary.search.SearchEngine", return_value=engine), \
                 patch.object(worker, "provider", return_value=lambda image: recognized()):
             worker.run()
         engine.search.assert_called_once_with("kitap", source="tr", foreign="tr", morphology=True,
@@ -210,7 +210,7 @@ class ScanWorkerTests(unittest.TestCase):
         worker, sink = self.make_worker([(1, image_bytes(), (0.2, 0.5), "tr"), None])
         sink.emit.side_effect = RuntimeError("wrapped C++ object has been deleted")
         engine = Mock()
-        with patch("meikipop.dictionary.search.SearchEngine", return_value=engine), \
+        with patch("wordcel.dictionary.search.SearchEngine", return_value=engine), \
                 patch.object(worker, "provider", return_value=lambda image: recognized()):
             worker.run()
         engine.close.assert_called_once_with()
@@ -226,7 +226,7 @@ class ScanWorkerTests(unittest.TestCase):
                 raise RuntimeError("test inference timed out")
             return recognized()
 
-        with patch("meikipop.dictionary.search.SearchEngine", return_value=engine), \
+        with patch("wordcel.dictionary.search.SearchEngine", return_value=engine), \
                 patch.object(worker, "provider", return_value=recognize):
             worker.start()
             try:
@@ -250,7 +250,7 @@ class ScanWorkerTests(unittest.TestCase):
         engine = Mock()
         engine.search.return_value = SimpleNamespace(entries=())
         first, second = Mock(return_value=recognized()), Mock(return_value=recognized())
-        with patch("meikipop.dictionary.search.SearchEngine", return_value=engine), \
+        with patch("wordcel.dictionary.search.SearchEngine", return_value=engine), \
                 patch.object(worker, "provider", side_effect=[first, second]) as factory:
             worker.run()
         self.assertEqual([call.args for call in factory.call_args_list],
@@ -261,8 +261,8 @@ class ScanWorkerTests(unittest.TestCase):
 
     def test_screenai_can_be_selected_on_macos_without_vision_route(self):
         provider = Mock()
-        with patch("meikipop.gui.unified_ocr.sys.platform", "darwin"), \
-                patch("meikipop.ocr.providers.screenai.provider.ScreenAiOcr", return_value=provider) as factory:
+        with patch("wordcel.gui.unified_ocr.sys.platform", "darwin"), \
+                patch("wordcel.ocr.providers.screenai.provider.ScreenAiOcr", return_value=provider) as factory:
             scan = ScanWorker.provider("ja", "screenai", "/local/component")
         self.assertEqual(scan, provider.scan)
         factory.assert_called_once_with("/local/component", language="ja")
@@ -270,15 +270,15 @@ class ScanWorkerTests(unittest.TestCase):
     def test_japanese_meiki_route_explicitly_uses_cpu(self):
         provider = Mock()
         factory = Mock(return_value=provider)
-        with patch.dict(sys.modules, {"meikipop.ocr.providers.meikiocr.provider": SimpleNamespace(MeikiOcrProvider=factory)}):
+        with patch.dict(sys.modules, {"wordcel.ocr.providers.meikiocr.provider": SimpleNamespace(MeikiOcrProvider=factory)}):
             scan = ScanWorker.provider("ja", "meikiocr")
         self.assertEqual(scan, provider.scan)
         factory.assert_called_once_with(execution_provider="CPUExecutionProvider")
 
     def test_russian_defaults_to_screenai_and_rejects_incompatible_paddle(self):
         provider = Mock()
-        with patch("meikipop.gui.unified_ocr.sys.platform", "win32"), \
-                patch("meikipop.ocr.providers.screenai.provider.ScreenAiOcr", return_value=provider) as factory:
+        with patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
+                patch("wordcel.ocr.providers.screenai.provider.ScreenAiOcr", return_value=provider) as factory:
             self.assertEqual(ScanWorker.provider("ru"), provider.scan)
             factory.assert_called_once_with(None, language="ru")
             with self.assertRaisesRegex(RuntimeError, "does not support this language"):
@@ -286,14 +286,14 @@ class ScanWorkerTests(unittest.TestCase):
 
     def test_yiddish_uses_verified_screenai_without_japanese_route(self):
         provider = Mock()
-        with patch("meikipop.gui.unified_ocr.sys.platform", "win32"), \
-                patch("meikipop.ocr.providers.screenai.provider.ScreenAiOcr", return_value=provider) as factory:
+        with patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
+                patch("wordcel.ocr.providers.screenai.provider.ScreenAiOcr", return_value=provider) as factory:
             self.assertEqual(ScanWorker.provider("yi"), provider.scan)
         factory.assert_called_once_with(None, language="yi")
 
     def test_unverified_language_does_not_load_native_component(self):
-        with patch("meikipop.gui.unified_ocr.sys.platform", "win32"), \
-                patch("meikipop.ocr.providers.screenai.provider.ScreenAiOcr") as factory:
+        with patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
+                patch("wordcel.ocr.providers.screenai.provider.ScreenAiOcr") as factory:
             with self.assertRaisesRegex(RuntimeError, "unverified"):
                 ScanWorker.provider("ang")
             with self.assertRaisesRegex(RuntimeError, "does not support"):
@@ -301,8 +301,8 @@ class ScanWorkerTests(unittest.TestCase):
         factory.assert_not_called()
 
     def test_invalid_selection_on_mac_cannot_fall_through_to_vision(self):
-        with patch("meikipop.gui.unified_ocr.sys.platform", "darwin"), \
-                patch("meikipop.ocr.macos_vision.recognize") as recognize:
+        with patch("wordcel.gui.unified_ocr.sys.platform", "darwin"), \
+                patch("wordcel.ocr.macos_vision.recognize") as recognize:
             with self.assertRaisesRegex(RuntimeError, "does not support"):
                 ScanWorker.provider("tr", "meikiocr")
         recognize.assert_not_called()
@@ -313,7 +313,7 @@ class ScanWorkerTests(unittest.TestCase):
             (1, image, (.2, .5), "tr", ("paddle", "")),
             (2, image, (.2, .5), "ru", ("paddle", "")), None])
         provider = Mock(return_value=recognized())
-        with patch("meikipop.dictionary.search.SearchEngine", return_value=Mock()), \
+        with patch("wordcel.dictionary.search.SearchEngine", return_value=Mock()), \
                 patch.object(worker, "provider", return_value=provider):
             worker.run()
         provider.assert_called_once()
@@ -331,7 +331,7 @@ class ScanWorkerTests(unittest.TestCase):
             (2, image, (.5, .4), "cmn", ("paddle", "")), None])
         engine = Mock()
         engine.search.return_value = SimpleNamespace(entries=(), matched_length=0)
-        with patch("meikipop.dictionary.search.SearchEngine", return_value=engine), \
+        with patch("wordcel.dictionary.search.SearchEngine", return_value=engine), \
                 patch.object(worker, "provider", return_value=scanner) as factory:
             worker.run()
         factory.assert_called_once_with("tr", "paddle", "")
@@ -345,20 +345,20 @@ class ScanWorkerTests(unittest.TestCase):
         worker, sink = self.make_worker([
             (1, image, (.2, .5), 'tr', ('paddle', '')),
             (2, image, (.7, .5), 'tr', ('paddle', '')), None])
-        with patch('meikipop.dictionary.search.SearchEngine', return_value=Mock()), \
+        with patch('wordcel.dictionary.search.SearchEngine', return_value=Mock()), \
                 patch.object(worker, 'provider', return_value=scanner):
             worker.run()
         scanner.scan.assert_called_once()
         self.assertEqual([call.args[2].query for call in sink.emit.call_args_list], ['kitap', 'ev'])
 
     def test_arabic_paddle_rejected_before_loading_latin_model(self):
-        with patch("meikipop.ocr.turkish_paddle.LocalOCR") as factory:
+        with patch("wordcel.ocr.turkish_paddle.LocalOCR") as factory:
             with self.assertRaisesRegex(RuntimeError, "does not support"):
                 ScanWorker.provider("ar", "paddle")
         factory.assert_not_called()
 
     def test_unspaced_matched_prefix_highlight_uses_original_source_length(self):
-        from meikipop.dictionary.search import SearchResult
+        from wordcel.dictionary.search import SearchResult
 
         for language, text, term, matched, expected_end in [
             ("cmn", "你好猫", "你好", 2, 2),
@@ -374,8 +374,8 @@ class ScanWorkerTests(unittest.TestCase):
                 worker.queue.put(None)
                 engine = Mock()
                 engine.search.return_value = SearchResult(text, language, "en", (SimpleNamespace(term=term),), matched_length=matched)
-                with patch("meikipop.dictionary.search.SearchEngine", return_value=engine), \
-                        patch("meikipop.gui.unified_ocr.config.max_lookup_length", 100):
+                with patch("wordcel.dictionary.search.SearchEngine", return_value=engine), \
+                        patch("wordcel.gui.unified_ocr.config.max_lookup_length", 100):
                     worker.run()
                 delivered = sink.emit.call_args.args[2][1]
                 self.assertEqual((delivered.query, delivered.text, delivered.start, delivered.end),
@@ -442,7 +442,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
             self.window.settings = QSettings(path, QSettings.Format.IniFormat)
             screen = QApplication.primaryScreen()
             region = QRect(screen.geometry().topLeft() + QPoint(20, 20), QRect(0, 0, 100, 50).size())
-            with patch("meikipop.gui.region_selector.RegionSelector.get_region", return_value=region):
+            with patch("wordcel.gui.region_selector.RegionSelector.get_region", return_value=region):
                 self.assertTrue(self.controller.select_scan_area())
             self.window.settings.sync()
             window = FakeWindow()
@@ -454,12 +454,12 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                 self.assertEqual(controller.hover_screen, controller._screen_key(screen))
                 self.assertFalse(controller.hover_enabled)
                 with patch.object(controller, "reload_settings"), \
-                        patch("meikipop.gui.region_selector.RegionSelector.get_region", return_value=None) as selector:
+                        patch("wordcel.gui.region_selector.RegionSelector.get_region", return_value=None) as selector:
                     controller.set_hover_enabled(True)
                     controller.set_hover_enabled(False)
                     controller.set_hover_enabled(True)
                     selector.assert_not_called()
-                with patch("meikipop.gui.region_selector.RegionSelector.get_region", return_value=None):
+                with patch("wordcel.gui.region_selector.RegionSelector.get_region", return_value=None):
                     self.assertFalse(controller.select_scan_area())
                 self.assertEqual(window.settings.value("hover_scan/region"), region)
             finally:
@@ -478,7 +478,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                 window = FakeWindow()
                 window.settings = settings
                 with patch.object(UnifiedOCR, "reload_settings"), \
-                        patch("meikipop.gui.region_selector.RegionSelector.get_region") as selector:
+                        patch("wordcel.gui.region_selector.RegionSelector.get_region") as selector:
                     controller = UnifiedOCR(window)
                 try:
                     self.assertEqual(controller.hover_enabled, expected)
@@ -528,7 +528,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_hover_capture_requests_full_snapshot_with_area_for_recognition(self):
         from PyQt6.QtGui import QPixmap
-        from meikipop.utils.capture import CaptureRequest
+        from wordcel.utils.capture import CaptureRequest
 
         self.enable_hover()
         point = QPoint(100, 100)
@@ -539,8 +539,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.controller.worker = SimpleNamespace(queue=Queue(), stop=Mock(), join=Mock())
         for native in (True, False):
             with self.subTest(native=native), \
-                    patch("meikipop.gui.unified_ocr.sys.platform", "win32"), \
-                    patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=point), \
+                    patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
+                    patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=point), \
                     patch.object(QApplication, "activeWindow", return_value=None), \
                     patch.object(type(screen), "grabWindow", return_value=pixmap):
                 self.controller._capture_excluded = native
@@ -559,9 +559,9 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_hover_refreshes_stationary_area_every_half_second_without_overlapping_jobs(self):
         self.enable_hover()
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
-                patch("meikipop.gui.unified_ocr.monotonic", return_value=10) as clock, \
+                patch("wordcel.gui.unified_ocr.monotonic", return_value=10) as clock, \
                 patch.object(self.controller, "hit_latest") as hit, \
                 patch.object(self.controller, "_request_capture") as capture:
             self.controller.scan()
@@ -582,11 +582,11 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_hover_exit_rejects_old_results_and_shift_still_scans_outside(self):
         self.enable_hover()
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
                 patch.object(self.controller, "_request_capture"):
             self.controller.scan()
         generation = self.controller.generation
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(400, 300)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(400, 300)), \
                 patch.object(self.controller, "_request_capture") as capture:
             self.controller.deliver(generation, Mock(), Mock(), "")
             self.window.show_entries.assert_not_called()
@@ -604,15 +604,15 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.assertEqual(self.controller._capture_bounds(point, screen.geometry(), self.controller.hover_screen),
                          self.controller.hover_region)
         frame = SimpleNamespace(request=SimpleNamespace(revision=1))
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=point), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=point), \
                 patch.object(self.controller, "hit_latest"), \
-                patch("meikipop.ocr.boundaries.expanded_crop") as expand:
+                patch("wordcel.ocr.boundaries.expanded_crop") as expand:
             self.controller.accept_frame(self.controller.generation, frame, "")
         expand.assert_not_called()
 
     def test_pinned_popup_and_menu_pause_hover(self):
         self.enable_hover()
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
                 patch.object(self.controller, "_request_capture") as capture:
             self.window.is_pinned = True
             self.controller.scan()
@@ -635,7 +635,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
             self.assertFalse(self.controller.timer.isActive())
             self.assertFalse(self.controller.session.accepts(old))
             return None
-        with patch("meikipop.gui.region_selector.RegionSelector.get_region", side_effect=cancel):
+        with patch("wordcel.gui.region_selector.RegionSelector.get_region", side_effect=cancel):
             self.assertFalse(self.controller.select_scan_area())
         self.assertEqual(self.controller.hover_region, region)
         self.assertTrue(self.controller.timer.isActive())
@@ -646,7 +646,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
     def test_reselection_replaces_area_and_display_changes_pause_hover(self):
         self.enable_hover()
         replacement = QRect(400, 200, 100, 50)
-        with patch("meikipop.gui.region_selector.RegionSelector.get_region", return_value=replacement):
+        with patch("wordcel.gui.region_selector.RegionSelector.get_region", return_value=replacement):
             self.assertTrue(self.controller.select_scan_area())
         self.assertEqual(self.controller.hover_region, replacement)
         self.controller._update_hover(replacement.center())
@@ -656,9 +656,9 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.assertFalse(self.controller.session.scanning())
 
     def test_selector_retains_logical_and_physical_coordinates_for_mixed_dpi(self):
-        from meikipop.gui.region_selector import RegionSelector
+        from wordcel.gui.region_selector import RegionSelector
         with patch("pynput.mouse.Controller") as mouse, \
-                patch("meikipop.gui.region_selector.QCursor.pos", return_value=QPoint(0, 0)) as cursor:
+                patch("wordcel.gui.region_selector.QCursor.pos", return_value=QPoint(0, 0)) as cursor:
             mouse.return_value.position = (1000, 200)
             selector = RegionSelector()
             selector.mousePressEvent(None)
@@ -678,7 +678,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         hover, area, _ = menu.actions()
         self.assertFalse(hover.isChecked())
         self.assertFalse(area.isEnabled())
-        with patch("meikipop.gui.region_selector.RegionSelector.get_region", return_value=None):
+        with patch("wordcel.gui.region_selector.RegionSelector.get_region", return_value=None):
             hover.trigger()
             self.app.processEvents()
         menu.aboutToShow.emit()
@@ -691,7 +691,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.enable_hover()
         self.window._peek = False
         self.window.show()
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
                 patch.object(self.controller, "_request_capture") as capture:
             self.controller.scan()
         capture.assert_not_called()
@@ -700,8 +700,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
     def test_macos_hidden_search_with_stale_focus_allows_hover_scan(self):
         self.enable_hover()
         self.window._peek = False
-        with patch("meikipop.gui.unified_ocr.sys.platform", "darwin"), \
-                patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
+        with patch("wordcel.gui.unified_ocr.sys.platform", "darwin"), \
+                patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
                 patch.object(QApplication, "activeWindow", return_value=self.window), \
                 patch.object(self.controller, "_request_capture") as capture:
             self.controller.scan()
@@ -722,14 +722,14 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_hover_dismissal_stays_closed_until_pointer_leaves_and_returns(self):
         self.enable_hover()
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
                 patch.object(self.controller, "_request_capture") as capture:
             self.controller.scan()
             self.controller.dismiss()
             self.controller.scan()
             capture.assert_called_once()
             self.assertTrue(self.controller.timer.isActive())
-            with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(400, 300)):
+            with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(400, 300)):
                 self.controller.scan()
             self.controller.scan()
             self.assertEqual(capture.call_count, 2)
@@ -737,7 +737,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
     def test_outside_click_resumes_hover_at_same_word_and_other_words_in_zone(self):
         self.enable_hover()
         self.window.setGeometry(400, 300, 200, 100)
-        with patch('meikipop.gui.unified_ocr.QCursor.pos', return_value=QPoint(100, 100)) as cursor, \
+        with patch('wordcel.gui.unified_ocr.QCursor.pos', return_value=QPoint(100, 100)) as cursor, \
                 patch.object(self.controller, '_request_capture') as capture:
             self.controller._update_hover(cursor.return_value)
             self.window.show()
@@ -757,7 +757,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.enable_hover()
         self.controller.input = SimpleNamespace(visible=threading.Event(), pin_ready=threading.Event(),
                                                pin_pending=threading.Event(), shutdown=Mock())
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)) as cursor, \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)) as cursor, \
                 patch.object(self.controller, "_request_capture") as capture:
             self.controller.scan()
             self.window.show()
@@ -805,7 +805,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.window.show()
         self.window.pin.setChecked(True)
         self.controller.holding = False
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
                 patch.object(self.controller, "scan") as scan:
             self.controller.hold_changed(True)
             self.assertFalse(self.window.is_pinned)
@@ -817,7 +817,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         frame = SimpleNamespace(request=SimpleNamespace(revision=1))
         events = []
         with patch.object(self.controller, "_valid_frame", return_value=True), \
-                patch("meikipop.ocr.boundaries.expanded_crop", return_value=(0, 0, 1800, 720)), \
+                patch("wordcel.ocr.boundaries.expanded_crop", return_value=(0, 0, 1800, 720)), \
                 patch.object(self.controller, "_request_capture", side_effect=lambda *args: events.append("capture")) as capture, \
                 patch.object(self.controller, "hit_latest", side_effect=lambda *args: events.append("hit")) as hit:
             for _ in range(4):
@@ -844,7 +844,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_macos_hidden_search_with_stale_active_window_accepts_ocr(self):
         self.window._peek = False
-        with patch("meikipop.gui.unified_ocr.sys.platform", "darwin"), \
+        with patch("wordcel.gui.unified_ocr.sys.platform", "darwin"), \
                 patch.object(QApplication, "activeWindow", return_value=self.window):
             self.controller.deliver(self.controller.generation, Mock(entries=(Mock(),)),
                                     ContextHit("kitap", "kitap ev", 0, 5), "")
@@ -852,13 +852,13 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_windows_active_search_guard_is_preserved_when_hidden(self):
         self.window._peek = False
-        with patch("meikipop.gui.unified_ocr.sys.platform", "win32"), \
+        with patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
                 patch.object(QApplication, "activeWindow", return_value=self.window):
             self.controller.deliver(self.controller.generation, Mock(), Mock(), "")
         self.window.show_entries.assert_not_called()
 
     def test_ocr_miss_hides_previous_preview_without_ending_hold(self):
-        from meikipop.dictionary.search import SearchResult
+        from wordcel.dictionary.search import SearchResult
         self.window.show()
         with patch.object(QApplication, "activeWindow", return_value=None):
             self.controller.deliver(self.controller.generation, SearchResult("unknown", "tr", "en"),
@@ -882,7 +882,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_release_timer_hides_only_unpinned_ocr_peeks(self):
         self.controller.holding = False
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
                 patch.object(self.window, "hide") as hide:
             self.window._peek = False
             self.controller.finish_peek()
@@ -895,7 +895,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.controller.holding = False
         self.window.settings = SimpleNamespace(value=lambda *args: True)
         self.window._check_cursor_leave = Mock()
-        with patch('meikipop.gui.unified_ocr.QCursor.pos', return_value=QPoint(-100, -100)), \
+        with patch('wordcel.gui.unified_ocr.QCursor.pos', return_value=QPoint(-100, -100)), \
                 patch.object(self.window, 'hide') as hide:
             self.controller.finish_peek()
             self.window._check_cursor_leave.assert_called_once_with()
@@ -930,8 +930,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
             scan.assert_called_once_with()
 
     def test_permission_failure_unchecks_scan_and_keeps_text_search_available(self):
-        with patch("meikipop.gui.unified_ocr.sys.platform", "darwin"), \
-                patch("meikipop.utils.macos.require_screen_capture_permission", side_effect=RuntimeError("Screen Recording")):
+        with patch("wordcel.gui.unified_ocr.sys.platform", "darwin"), \
+                patch("wordcel.utils.macos.require_screen_capture_permission", side_effect=RuntimeError("Screen Recording")):
             self.controller.set_enabled(True)
         self.assertFalse(self.controller.enabled)
         self.assertFalse(self.window.scan_toggle.isChecked())
@@ -945,8 +945,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                 window.settings = Mock()
                 window.settings.value.side_effect = lambda key, default=None, *args: (
                     bindings if key.endswith("/scan_bindings") else default)
-                with patch("meikipop.gui.unified_ocr.sys.platform", "darwin"), \
-                        patch("meikipop.utils.macos.require_screen_capture_permission",
+                with patch("wordcel.gui.unified_ocr.sys.platform", "darwin"), \
+                        patch("wordcel.utils.macos.require_screen_capture_permission",
                               side_effect=RuntimeError("Screen Recording")) as permission:
                     controller = UnifiedOCR(window)
                 if bindings:
@@ -967,8 +967,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.assertTrue(shifted.contains(edge))
 
     def test_pointer_retest_skips_capture_until_frame_expires(self):
-        from meikipop.ocr.frames import RecognizedFrame
-        from meikipop.utils.capture import CaptureRequest
+        from wordcel.ocr.frames import RecognizedFrame
+        from wordcel.utils.capture import CaptureRequest
         controller = self.controller
         controller.freeze_while_held = False
         controller.capture_region = QRect(0, 0, 400, 200)
@@ -980,10 +980,10 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         request = CaptureRequest(1, screen.name(), (geometry.x(), geometry.y(), geometry.width(), geometry.height()),
                                  (0, 0, 400, 200), screen.devicePixelRatio(), controller.generation)
         controller.frame = RecognizedFrame(request, tuple(recognized()), "tr", (), 1, 10)
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
-                patch("meikipop.gui.unified_ocr.monotonic", return_value=10.05) as clock, \
-                patch("meikipop.gui.unified_ocr.QTimer.singleShot") as capture:
+                patch("wordcel.gui.unified_ocr.monotonic", return_value=10.05) as clock, \
+                patch("wordcel.gui.unified_ocr.QTimer.singleShot") as capture:
             controller.scan()
             capture.assert_not_called()
             self.assertEqual(controller.hit_worker.queue.get_nowait()[2].query, "kitap")
@@ -997,10 +997,10 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
     def test_capture_exclusion_is_reused_and_restored_when_pinned(self):
         self.window.show()
         self.controller._capture_excluded = True
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
-                patch("meikipop.utils.capture.exclude_from_capture", return_value=True) as exclude, \
-                patch("meikipop.gui.unified_ocr.QTimer.singleShot"):
+                patch("wordcel.utils.capture.exclude_from_capture", return_value=True) as exclude, \
+                patch("wordcel.gui.unified_ocr.QTimer.singleShot"):
             self.controller.scan()
             exclude.assert_not_called()
             self.window.pin.setChecked(True)
@@ -1008,11 +1008,11 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_supported_capture_excludes_popup_without_hiding_it(self):
         self.window.show()
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
-                patch("meikipop.utils.capture.exclude_from_capture", return_value=True) as exclude, \
+                patch("wordcel.utils.capture.exclude_from_capture", return_value=True) as exclude, \
                 patch.object(self.window, "hide") as hide, \
-                patch("meikipop.gui.unified_ocr.QTimer.singleShot") as dispatch:
+                patch("wordcel.gui.unified_ocr.QTimer.singleShot") as dispatch:
             self.controller.scan()
             hide.assert_not_called()
             self.assertTrue(self.window.isVisible())
@@ -1024,7 +1024,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.window.show()
         self.window.pin.setChecked(True)
         self.controller.holding = False
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
                 patch.object(self.controller, "scan") as scan:
             self.controller.hold_changed(True)
             self.assertFalse(self.window.is_pinned)
@@ -1033,9 +1033,9 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
     def test_explicit_scan_outside_focused_search_resumes_ocr(self):
         self.window._peek = False
         self.window.show()
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
                 patch.object(QApplication, "activeWindow", return_value=self.window), \
-                patch("meikipop.gui.unified_ocr.QTimer.singleShot") as dispatch:
+                patch("wordcel.gui.unified_ocr.QTimer.singleShot") as dispatch:
             self.controller.scan()
         self.assertFalse(self.window.isVisible())
         self.assertTrue(self.controller.busy)
@@ -1045,12 +1045,12 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.window._peek = False
         self.window.show()
         with patch.object(QApplication, "activeWindow", return_value=self.window), \
-                patch("meikipop.gui.unified_ocr.QTimer.singleShot") as dispatch:
-            with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=self.window.geometry().center()):
+                patch("wordcel.gui.unified_ocr.QTimer.singleShot") as dispatch:
+            with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=self.window.geometry().center()):
                 self.controller.scan()
             self.controller.holding = False
             self.controller.auto_scan = True
-            with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)):
+            with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)):
                 self.controller.scan()
         self.assertTrue(self.window.isVisible())
         dispatch.assert_not_called()
@@ -1058,7 +1058,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
     def test_active_ocr_preview_stays_visible_during_held_scan(self):
         self.window.show()
         self.controller.busy = True
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
                 patch.object(QApplication, "activeWindow", return_value=self.window):
             self.controller.scan()
         self.assertTrue(self.window.isVisible())
@@ -1074,8 +1074,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                                                          peek=True, kanji=[])
 
     def test_ocr_keeps_suggestions_and_grammar_without_a_definition(self):
-        from meikipop.dictionary.search import SearchResult
-        from meikipop.language.turkish_analyzer import TrAnalysis
+        from wordcel.dictionary.search import SearchResult
+        from wordcel.language.turkish_analyzer import TrAnalysis
         hit = ContextHit('cevrimizi', 'cevrimizi', 0, 9, 'tr')
         result = SearchResult('cevrimizi', 'tr', 'en', analyses=(TrAnalysis('cevir', 'NOUN'),),
                               message='No dictionary entry.')
@@ -1090,7 +1090,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
     def test_outside_click_dismisses_pinned_popup(self):
         self.window.show()
         self.window.pin.setChecked(True)
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)):
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)):
             self.controller.outside_click()
         self.assertFalse(self.window.isVisible())
 
@@ -1118,7 +1118,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
     def test_preview_stays_anchored_while_pointer_moves_and_inference_runs(self):
         self.window.show()
         self.controller.busy = True
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
                 patch.object(QApplication, "activeWindow", return_value=None):
             self.controller.follow_cursor()
             self.window._place.assert_not_called()
@@ -1151,10 +1151,10 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_scanning_requires_held_trigger_even_with_legacy_hover_flag(self):
         self.controller.holding = False
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
-                patch("meikipop.gui.unified_ocr.monotonic", return_value=10) as clock, \
-                patch("meikipop.gui.unified_ocr.QTimer.singleShot") as capture:
+                patch("wordcel.gui.unified_ocr.monotonic", return_value=10) as clock, \
+                patch("wordcel.gui.unified_ocr.QTimer.singleShot") as capture:
             self.controller.scan()
             capture.assert_not_called()
             self.controller.auto_scan = True
@@ -1165,10 +1165,10 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
             capture.assert_not_called()
 
     def test_dismissed_scan_requires_release_and_new_trigger(self):
-        with patch("meikipop.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)) as cursor, \
+        with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)) as cursor, \
                 patch.object(QApplication, "activeWindow", return_value=None), \
-                patch("meikipop.gui.unified_ocr.monotonic", return_value=10) as clock, \
-                patch("meikipop.gui.unified_ocr.QTimer.singleShot") as capture:
+                patch("wordcel.gui.unified_ocr.monotonic", return_value=10) as clock, \
+                patch("wordcel.gui.unified_ocr.QTimer.singleShot") as capture:
             self.controller.dismiss()
             self.controller.scan()
             clock.return_value = 15

@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from meikipop.dictionary.translation import (
+from wordcel.dictionary.translation import (
     DEFAULT_ENDPOINT, DEFAULT_MODEL, LocalTranslator, TranslationSettings,
     _translation_content, load_settings, local_endpoint, save_settings,
 )
@@ -34,7 +34,7 @@ class TranslationTests(unittest.TestCase):
         connection.getresponse.return_value = response
         self.connection = connection
         self.response = response
-        return patch("meikipop.dictionary.translation.http.client.HTTPConnection", return_value=connection)
+        return patch("wordcel.dictionary.translation.http.client.HTTPConnection", return_value=connection)
 
     def manual(self, **kwargs):
         return save_settings(TranslationSettings(auto_start=False, **kwargs), self.directory)
@@ -159,7 +159,7 @@ class TranslationTests(unittest.TestCase):
                                           model="custom-model"), self.directory)
         manager = SimpleNamespace(ensure_server=Mock(side_effect=AssertionError("Unexpected startup")),
                                   install_model=Mock(side_effect=AssertionError("Unexpected download")))
-        with patch.dict(sys.modules, {"meikipop.scripts.translation_server": manager}), self.server():
+        with patch.dict(sys.modules, {"wordcel.scripts.translation_server": manager}), self.server():
             self.translator.translate("Merhaba.", "tr", "en")
         self.assertEqual(self.translator.last_provider, "custom")
         self.assertEqual(self.translator.last_model, "custom-model")
@@ -169,7 +169,7 @@ class TranslationTests(unittest.TestCase):
     def test_managed_start_is_lazy_and_uses_explicit_selected_profile(self):
         save_settings(TranslationSettings(profile="lightweight"), self.directory)
         manager = SimpleNamespace(ensure_server=Mock(), install_model=Mock(), request_lock=lambda *_: nullcontext())
-        with patch.dict(sys.modules, {"meikipop.scripts.translation_server": manager}), self.server():
+        with patch.dict(sys.modules, {"wordcel.scripts.translation_server": manager}), self.server():
             manager.ensure_server.assert_not_called()
             self.translator.translate("猫", "ja", "en")
         manager.ensure_server.assert_called_once_with(endpoint=DEFAULT_ENDPOINT, profile="lightweight",
@@ -181,7 +181,7 @@ class TranslationTests(unittest.TestCase):
     def test_missing_managed_model_does_not_fall_back_or_make_a_request(self):
         manager = SimpleNamespace(ensure_server=Mock(side_effect=RuntimeError("Install the selected model.")),
                                   request_lock=lambda *_: nullcontext())
-        with patch.dict(sys.modules, {"meikipop.scripts.translation_server": manager}), self.server():
+        with patch.dict(sys.modules, {"wordcel.scripts.translation_server": manager}), self.server():
             with self.assertRaisesRegex(RuntimeError, "Install"):
                 self.translator.translate("猫", "ja", "en")
         self.connection.request.assert_not_called()
@@ -242,7 +242,7 @@ class TranslationTests(unittest.TestCase):
                 _translation_content(response)
 
     def test_identity_empty_and_invalid_input_do_not_start_a_model(self):
-        with patch("meikipop.dictionary.translation.http.client.HTTPConnection") as connection:
+        with patch("wordcel.dictionary.translation.http.client.HTTPConnection") as connection:
             self.assertEqual(self.translator.translate("hello", "en", "en"), "hello")
             self.assertEqual(self.translator.translate("", "ja", "en"), "")
             with self.assertRaisesRegex(ValueError, "not configured"):
@@ -270,7 +270,7 @@ class TranslationTests(unittest.TestCase):
             request.assert_called_once()
 
     def test_passages_preserve_every_source_character_and_japanese_boundaries(self):
-        from meikipop.dictionary.translation import translation_passages
+        from wordcel.dictionary.translation import translation_passages
         text = "長い文章です。次の文章はもっと長いです。" * 30
         passages = list(translation_passages(text, 256))
         self.assertEqual("".join(passage for passage, _ in passages), text)
@@ -278,7 +278,7 @@ class TranslationTests(unittest.TestCase):
         self.assertTrue(all(passage.endswith("。") for passage, _ in passages))
 
     def test_long_translation_bypasses_dictionary_input_limit(self):
-        from meikipop.dictionary.search import SearchEngine
+        from wordcel.dictionary.search import SearchEngine
         translator = Mock(last_provider="fixture", last_model="fixture")
         translator.translate.return_value = "translated"
         engine = SearchEngine(self.directory, translator=translator)
@@ -299,16 +299,16 @@ class TranslationSetupTests(unittest.TestCase):
 
     def setUp(self):
         from PyQt6.QtCore import QSettings
-        from meikipop.gui.dictionary_manager import SetupDialog
+        from wordcel.gui.dictionary_manager import SetupDialog
         self.temp = tempfile.TemporaryDirectory()
         self.directory = Path(self.temp.name)
         self.translation_directory = self.directory / "translation"
-        self.load = patch("meikipop.dictionary.translation.load_settings",
+        self.load = patch("wordcel.dictionary.translation.load_settings",
                           side_effect=lambda: load_settings(self.translation_directory))
         self.load.start()
-        self.ready = patch("meikipop.gui.resources.translation_ready", return_value=False)
+        self.ready = patch("wordcel.gui.resources.translation_ready", return_value=False)
         self.ready.start()
-        installed = patch("meikipop.dictionary.translation.model_installed", return_value=False)
+        installed = patch("wordcel.dictionary.translation.model_installed", return_value=False)
         installed.start()
         self.addCleanup(installed.stop)
         settings = QSettings(str(self.directory / "qt.ini"), QSettings.Format.IniFormat)
@@ -331,14 +331,14 @@ class TranslationSetupTests(unittest.TestCase):
         changed = Mock()
         self.dialog.dictionaries_changed.connect(changed)
         self.dialog.translation_mode.setCurrentIndex(1)
-        from meikipop.dictionary.translation import load_profile_settings
+        from wordcel.dictionary.translation import load_profile_settings
         self.assertEqual(load_profile_settings(self.dialog.settings, "ja").profile, "lightweight")
         self.assertEqual(load_profile_settings(self.dialog.settings, "tr").profile, "quality")
         changed.assert_not_called()
         self.assertTrue(self.dialog.translation_endpoint.isHidden())
 
     def test_managed_choosers_use_canonical_model_languages(self):
-        from meikipop.language.support import translation_languages
+        from wordcel.language.support import translation_languages
         choices = {self.dialog.translation_partner.itemData(index)
                    for index in range(self.dialog.translation_partner.count())}
         self.assertEqual(choices, set(translation_languages()))
@@ -387,7 +387,7 @@ class TranslationSetupTests(unittest.TestCase):
         self.dialog.translation_endpoint.setText("http://localhost:8000/v1")
         self.dialog.translation_model.setText("my-local-model")
         self.assertTrue(self.dialog.save_translation())
-        from meikipop.dictionary.translation import load_profile_settings
+        from wordcel.dictionary.translation import load_profile_settings
         self.assertEqual(load_profile_settings(self.dialog.settings, "ja").provider, "custom")
 
     def test_explicit_download_runs_off_ui_thread_and_cancels_cooperatively(self):
@@ -405,7 +405,7 @@ class TranslationSetupTests(unittest.TestCase):
                 raise InterruptedError()
 
         manager = SimpleNamespace(install_model=install)
-        with patch.dict(sys.modules, {"meikipop.scripts.translation_server": manager}):
+        with patch.dict(sys.modules, {"wordcel.scripts.translation_server": manager}):
             self.dialog.resources.downloads["quality"].click()
             self.assertTrue(started.wait(2))
             self.assertFalse(self.dialog.translation_mode.isEnabled())

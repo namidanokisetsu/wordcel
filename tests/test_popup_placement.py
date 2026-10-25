@@ -1,6 +1,6 @@
 import unittest
 from PyQt6.QtCore import QPoint, QRect, QSize
-from meikipop.gui.popup_style import expanded_geometry, popup_position
+from wordcel.gui.popup_style import expanded_geometry, popup_position
 
 
 class PopupPlacementTests(unittest.TestCase):

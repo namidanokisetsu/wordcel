@@ -8,12 +8,12 @@ from unittest.mock import Mock, patch
 from PyQt6.QtCore import QMimeData
 from PyQt6.QtWidgets import QApplication
 from pynput.keyboard import KeyCode
-from meikipop.gui.selection import SelectionCapture
+from wordcel.gui.selection import SelectionCapture
 
 
 class SelectionTests(unittest.TestCase):
     def test_mac_copy_uses_physical_c_even_when_typing_layout_is_not_latin(self):
-        with patch("meikipop.gui.selection.sys.platform", "darwin"), \
+        with patch("wordcel.gui.selection.sys.platform", "darwin"), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
                 patch("pynput.keyboard.Controller") as controller:
             self.capture.start()
@@ -40,7 +40,7 @@ class SelectionTests(unittest.TestCase):
         mime = QMimeData()
         mime.setText("old clipboard")
         mime.setHtml("<b>old clipboard</b>")
-        with patch("meikipop.gui.selection.sys.platform", "win32"), \
+        with patch("wordcel.gui.selection.sys.platform", "win32"), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
                 patch.object(QApplication, "clipboard") as clipboard, patch("pynput.keyboard.Controller"):
             clipboard.return_value.mimeData.return_value = mime
@@ -58,7 +58,7 @@ class SelectionTests(unittest.TestCase):
             self.assertEqual(self.values, ["kitap"])
 
     def test_shortcut_waits_for_modifiers_and_cancels_on_focus_change(self):
-        with patch("meikipop.gui.selection.sys.platform", "win32"), \
+        with patch("wordcel.gui.selection.sys.platform", "win32"), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
                 patch("pynput.keyboard.Controller") as controller:
             self.capture.user32.GetAsyncKeyState.return_value = 0x8000
@@ -87,11 +87,11 @@ class SelectionTests(unittest.TestCase):
                 self.capture.user32.GetClipboardSequenceNumber.return_value = 10
                 unavailable = Mock()
                 self.capture.unavailable.connect(unavailable)
-                with patch("meikipop.gui.selection.sys.platform", "win32"), \
+                with patch("wordcel.gui.selection.sys.platform", "win32"), \
                         patch.object(QApplication, "activeWindow", return_value=None), \
                         patch.object(QApplication, "clipboard") as clipboard, \
                         patch("pynput.keyboard.Controller"), \
-                        patch("meikipop.gui.selection.monotonic", return_value=10) as clock:
+                        patch("wordcel.gui.selection.monotonic", return_value=10) as clock:
                     clipboard.return_value.mimeData.return_value = mime
                     self.capture.start(wait_for_modifiers=True)
                     clock.return_value = 10 + delay
@@ -111,11 +111,11 @@ class SelectionTests(unittest.TestCase):
     def test_fast_capture_times_out_without_reusing_or_overwriting_clipboard(self):
         unavailable = Mock()
         self.capture.unavailable.connect(unavailable)
-        with patch("meikipop.gui.selection.sys.platform", "win32"), \
+        with patch("wordcel.gui.selection.sys.platform", "win32"), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
                 patch.object(QApplication, "clipboard") as clipboard, \
                 patch("pynput.keyboard.Controller"), \
-                patch("meikipop.gui.selection.monotonic", return_value=10) as clock:
+                patch("wordcel.gui.selection.monotonic", return_value=10) as clock:
             clipboard.return_value.mimeData.return_value = None
             self.capture.start(wait_for_modifiers=True, copy_timeout=.05)
             self.assertFalse(self.capture.waiting)

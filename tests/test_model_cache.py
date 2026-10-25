@@ -14,8 +14,8 @@ class ModelCacheTests(unittest.TestCase):
 import json, os, sys
 from unittest.mock import patch
 from types import SimpleNamespace
-from meikipop.utils.model_cache import configure_model_cache
-with patch("meikipop.utils.paths.paths", SimpleNamespace(cache_dir=sys.argv[1])):
+from wordcel.utils.model_cache import configure_model_cache
+with patch("wordcel.utils.paths.paths", SimpleNamespace(cache_dir=sys.argv[1])):
     configure_model_cache()
 from huggingface_hub import constants
 from huggingface_hub.file_download import are_symlinks_supported
@@ -40,13 +40,13 @@ print(json.dumps([constants.HF_HUB_CACHE, constants.HF_XET_CACHE,
         kernel.OpenMutexW.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR)
         kernel.OpenMutexW.restype = wintypes.HANDLE
         kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
-        script = ('from meikipop.utils.startup import hold_installer_mutex; '
+        script = ('from wordcel.utils.startup import hold_installer_mutex; '
                   'hold_installer_mutex(); print("ready", flush=True); input()')
         process = subprocess.Popen([sys.executable, "-c", script], stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, text=True)
         try:
             self.assertEqual(process.stdout.readline().strip(), "ready")
-            handle = kernel.OpenMutexW(0x100000, False, "Local\\MeikipopDesktop")
+            handle = kernel.OpenMutexW(0x100000, False, "Local\\wordcel")
             self.assertTrue(handle)
             if handle:
                 kernel.CloseHandle(handle)

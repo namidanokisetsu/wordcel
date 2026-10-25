@@ -17,12 +17,12 @@ from PyQt6.QtGui import QKeyEvent, QTextCursor, QTextFormat
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from meikipop.dictionary.library import Entry, Library
-from meikipop.dictionary.kanji import KanjiEntry
-from meikipop.dictionary.metadata import Frequency
-from meikipop.dictionary.search import SearchResult
-from meikipop.gui.dictionary_manager import SetupDialog, SetupOperation
-from meikipop.gui.quick_lookup import LookupWorker, QuickLookupWindow, render_result
+from wordcel.dictionary.library import Entry, Library
+from wordcel.dictionary.kanji import KanjiEntry
+from wordcel.dictionary.metadata import Frequency
+from wordcel.dictionary.search import SearchResult
+from wordcel.gui.dictionary_manager import SetupDialog, SetupOperation
+from wordcel.gui.quick_lookup import LookupWorker, QuickLookupWindow, render_result
 
 
 def entry(term="猫", source="Dictionary", definitions=("cat",), language="ja"):
@@ -233,10 +233,10 @@ class QuickLookupTests(unittest.TestCase):
     def test_translation_restores_original_child_focus_without_stealing_focus(self):
         handle = int(self.window.winId())
         with patch('PyQt6.QtWidgets.QApplication.platformName', return_value='windows'), \
-                patch('meikipop.utils.window_focus.foreground_window', return_value=987654) as foreground, \
-                patch('meikipop.utils.window_focus.focused_child', return_value=987655), \
-                patch('meikipop.utils.window_focus.focus_pinned_popup'), \
-                patch('meikipop.utils.window_focus.restore_foreground') as restore:
+                patch('wordcel.utils.window_focus.foreground_window', return_value=987654) as foreground, \
+                patch('wordcel.utils.window_focus.focused_child', return_value=987655), \
+                patch('wordcel.utils.window_focus.focus_pinned_popup'), \
+                patch('wordcel.utils.window_focus.restore_foreground') as restore:
             self.window.remember_foreground()
             foreground.return_value = handle
             self.window.open_translation()
@@ -251,10 +251,10 @@ class QuickLookupTests(unittest.TestCase):
     def test_ocr_dismissal_restores_source_even_when_click_activated_before_pin(self):
         handle = int(self.window.winId())
         with patch('PyQt6.QtWidgets.QApplication.platformName', return_value='windows'), \
-                patch('meikipop.utils.window_focus.foreground_is_fullscreen', return_value=False), \
-                patch('meikipop.utils.window_focus.focus_pinned_popup'), \
-                patch('meikipop.utils.window_focus.foreground_window') as foreground, \
-                patch('meikipop.utils.window_focus.restore_foreground') as restore:
+                patch('wordcel.utils.window_focus.foreground_is_fullscreen', return_value=False), \
+                patch('wordcel.utils.window_focus.focus_pinned_popup'), \
+                patch('wordcel.utils.window_focus.foreground_window') as foreground, \
+                patch('wordcel.utils.window_focus.restore_foreground') as restore:
             for source, dismiss_foreground in ((123, handle), (456, 789)):
                 with self.subTest(source=source):
                     foreground.return_value = source
@@ -275,7 +275,7 @@ class QuickLookupTests(unittest.TestCase):
         self.window._capture_visibility = True
         try:
             with patch.object(self.window, 'remember_foreground') as remember, \
-                    patch('meikipop.utils.window_focus.restore_foreground') as restore:
+                    patch('wordcel.utils.window_focus.restore_foreground') as restore:
                 self.window.show()
                 self.window.hide()
                 remember.assert_not_called()
@@ -396,7 +396,7 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_hover_shortcut_is_independent_and_checks_collisions(self):
         self.assertIsNone(self.window._hover_keys)
-        with patch("meikipop.gui.text_shortcuts.TextHotKeys") as hotkeys:
+        with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
             self.window.apply_hover_shortcut("<ctrl>+<shift>+h", "Ctrl+Shift+H")
             with self.assertRaises(ValueError):
                 self.window.apply_translation_shortcut("<shift>+<ctrl>+h")
@@ -406,7 +406,7 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_translation_shortcut_is_independent_recordable_and_disabled_by_default(self):
         self.assertIsNone(self.window._translation_keys)
-        with patch("meikipop.gui.text_shortcuts.TextHotKeys") as hotkeys:
+        with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
             self.window.apply_translation_shortcut("<ctrl>+<shift>+t", "Ctrl+Shift+T")
             self.assertIsNone(self.window._keys)
             self.assertEqual(self.settings.value("translation_hotkey"), "<ctrl>+<shift>+t")
@@ -421,7 +421,7 @@ class QuickLookupTests(unittest.TestCase):
         dialog.translation_split.setChecked(True)
         self.assertTrue(self.settings.value("translation_side_by_side", False, bool))
         self.assertEqual(self.window.translation_panel.splitter.orientation(), Qt.Orientation.Horizontal)
-        with patch("meikipop.gui.text_shortcuts.TextHotKeys") as listener:
+        with patch("wordcel.gui.text_shortcuts.TextHotKeys") as listener:
             dialog.translation_shortcut.enabled.setChecked(True)
             import sys
             self.assertEqual(self.settings.value("translation_hotkey"),
@@ -430,12 +430,12 @@ class QuickLookupTests(unittest.TestCase):
             dialog.translation_shortcut.enabled.setChecked(False)
             listener.return_value.stop.assert_called_once()
         dialog.translation_chunk_size.setValue(512)
-        from meikipop.dictionary.translation import load_profile_settings
+        from wordcel.dictionary.translation import load_profile_settings
         self.assertEqual(load_profile_settings(self.settings, self.window.preferred_foreign).chunk_size, 512)
         dialog.hide()
 
     def test_language_search_accepts_native_english_and_code(self):
-        from meikipop.gui.language_chooser import LanguageChooser
+        from wordcel.gui.language_chooser import LanguageChooser
         dialog = LanguageChooser(self.window, {"ja": "日本語", "tr": "Türkçe"})
         for query in ("ja", "Japanese", "日本語"):
             dialog.search.setText(query)
@@ -448,7 +448,7 @@ class QuickLookupTests(unittest.TestCase):
         self.window._peek = True
         self.window.pin.setChecked(True)
         leave = QEvent(QEvent.Type.Leave)
-        with patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
+        with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
                 patch.object(self.window, "hide") as hide:
             self.window.leaveEvent(leave)
             hide.assert_not_called()
@@ -459,7 +459,7 @@ class QuickLookupTests(unittest.TestCase):
             with patch.object(QApplication, "mouseButtons", return_value=Qt.MouseButton.LeftButton):
                 self.window.leaveEvent(leave)
             hide.assert_not_called()
-            with patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=self.window.geometry().center()):
+            with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=self.window.geometry().center()):
                 self.window.leaveEvent(leave)
             hide.assert_not_called()
             self.window.leaveEvent(leave)
@@ -468,7 +468,7 @@ class QuickLookupTests(unittest.TestCase):
     def test_corner_search_ignores_cursor_leave(self):
         self.window.open_search()
         self.settings.setValue("close_on_cursor_leave", True)
-        with patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
+        with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
                 patch.object(self.window, "hide") as hide:
             self.window.leaveEvent(QEvent(QEvent.Type.Leave))
             hide.assert_not_called()
@@ -484,7 +484,7 @@ class QuickLookupTests(unittest.TestCase):
                     self.window.show_entries((entry(),), peek=True)
                 self.window.open_translation()
                 self.assertTrue(self.window._translation_view)
-                with patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
+                with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
                     if origin != "ocr":
                         self.window.leaveEvent(QEvent(QEvent.Type.Leave))
                         self.assertTrue(self.window.isVisible())
@@ -504,21 +504,21 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_translation_cursor_leave_remains_optional(self):
         self.window.open_translation()
-        with patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
+        with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
             self.window.leaveEvent(QEvent(QEvent.Type.Leave))
             self.assertTrue(self.window.isVisible())
             self.assertFalse(self.window.cursor_leave_timer.isActive())
 
     def test_translation_native_pointer_closes_after_missed_qt_release_and_leave(self):
-        from meikipop.gui.unified_ocr import UnifiedOCR
+        from wordcel.gui.unified_ocr import UnifiedOCR
         self.settings.setValue("close_on_cursor_leave", True)
         self.window.show_entries((entry(),), peek=True)
         self.window.open_translation()
         self.window.translation_browser.selecting = True
         controller = SimpleNamespace(input=Mock(), window=self.window)
-        with patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
+        with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
                 patch.object(QApplication, "mouseButtons", return_value=Qt.MouseButton.LeftButton), \
-                patch("meikipop.utils.window_focus.mouse_buttons_down", return_value=True) as buttons:
+                patch("wordcel.utils.window_focus.mouse_buttons_down", return_value=True) as buttons:
             UnifiedOCR.check_popup_cursor(controller)
             self.assertTrue(self.window.isVisible())
             buttons.return_value = False
@@ -536,7 +536,7 @@ class QuickLookupTests(unittest.TestCase):
                 browser = self.window.browser
                 browser.setTextCursor(browser.document().find("Selected definition"))
                 self.assertTrue(browser.textCursor().hasSelection())
-                with patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
+                with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
                     browser.selecting = True
                     self.window._check_cursor_leave()
                     self.assertTrue(self.window.isVisible())
@@ -551,7 +551,7 @@ class QuickLookupTests(unittest.TestCase):
         self.settings.setValue("cursor_close_margin", 36)
         frame = self.window.frameGeometry()
         near = QPoint(frame.right() + 36, frame.center().y())
-        with patch('meikipop.gui.quick_lookup.QCursor.pos', return_value=near) as cursor, \
+        with patch('wordcel.gui.quick_lookup.QCursor.pos', return_value=near) as cursor, \
                 patch.object(self.window, 'hide') as hide:
             self.window.leaveEvent(QEvent(QEvent.Type.Leave))
             hide.assert_not_called()
@@ -570,7 +570,7 @@ class QuickLookupTests(unittest.TestCase):
         self.settings.setValue("close_on_cursor_leave", True)
         self.settings.setValue("cursor_close_margin", 0)
         frame = self.window.frameGeometry()
-        with patch('meikipop.gui.quick_lookup.QCursor.pos', return_value=QPoint(frame.right() + 1, frame.center().y())), \
+        with patch('wordcel.gui.quick_lookup.QCursor.pos', return_value=QPoint(frame.right() + 1, frame.center().y())), \
                 patch.object(self.window, 'hide') as hide:
             self.window.leaveEvent(QEvent(QEvent.Type.Leave))
             hide.assert_called_once_with()
@@ -634,7 +634,7 @@ class QuickLookupTests(unittest.TestCase):
         view.selecting = True
         self.settings.setValue("close_on_cursor_leave", True)
         with patch.object(self.window, "lookup_word") as lookup, patch.object(self.window, "hide") as hide, \
-                patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
+                patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
             self.window.leaveEvent(QEvent(QEvent.Type.Leave))
             self.window.toggle_lookup()
             lookup.assert_called_once_with("cat")
@@ -668,8 +668,8 @@ class QuickLookupTests(unittest.TestCase):
         dialog = SetupDialog(self.temp.name, self.settings, Mock(), self.window)
         try:
             dialog.sync_profile("tr")
-            with patch("meikipop.gui.dictionary_manager.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes), \
-                    patch("meikipop.data_assets.remove_language_data") as remove:
+            with patch("wordcel.gui.dictionary_manager.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes), \
+                    patch("wordcel.data_assets.remove_language_data") as remove:
                 dialog.remove_profile()
                 self.wait_until(lambda: dialog.operation is None)
                 self.assertEqual(remove.call_args.args[0], "tr")
@@ -681,12 +681,12 @@ class QuickLookupTests(unittest.TestCase):
             self.assertEqual(download.read_bytes(), b"download")
             self.window.update_languages(("ja", "tr"))
             pack = (Path("tr-pack"), {"language": "tr", "title": "Turkish", "entries": 1, "enabled": True}, None)
-            with patch("meikipop.gui.dictionary_manager.Library", return_value=SimpleNamespace(
+            with patch("wordcel.gui.dictionary_manager.Library", return_value=SimpleNamespace(
                     packs=[pack], errors=[], close=Mock())):
                 dialog.reload()
             self.assertEqual(self.window.source.findData("tr"), -1)
             self.assertEqual(dialog.profile.findData("tr"), -1)
-            with patch("meikipop.gui.first_run.offer_resources"):
+            with patch("wordcel.gui.first_run.offer_resources"):
                 dialog.add_profile("tr")
             self.assertGreaterEqual(self.window.source.findData("tr"), 0)
             self.assertEqual(self.settings.value("removed_profiles", [], type=list), [])
@@ -696,7 +696,7 @@ class QuickLookupTests(unittest.TestCase):
     def test_profile_removal_can_be_cancelled_and_keeps_one_language(self):
         dialog = SetupDialog(self.temp.name, self.settings, Mock(), self.window)
         try:
-            with patch("meikipop.gui.dictionary_manager.QMessageBox.question",
+            with patch("wordcel.gui.dictionary_manager.QMessageBox.question",
                        return_value=QMessageBox.StandardButton.No) as confirm:
                 dialog.remove_profile()
                 self.assertTrue(self.settings.contains("profiles/ja/target"))
@@ -724,7 +724,7 @@ class QuickLookupTests(unittest.TestCase):
             self.assertNotIn('href="expand:', self.window.browser.toHtml())
 
     def test_default_preview_and_pin_preferences_preserve_full_context(self):
-        from meikipop.gui.quick_lookup import audio_autoplay_mode
+        from wordcel.gui.quick_lookup import audio_autoplay_mode
         self.settings.remove("profiles/ja/audio_autoplay_mode")
         self.window.audio = Mock()
         word = entry(definitions=("first", "second", "third", "fourth"))
@@ -825,7 +825,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertFalse(self.window._details_expanded)
 
     def test_preview_options_limit_first_dictionary_without_changing_pinned_results(self):
-        from meikipop.dictionary.pitch import Pitch
+        from wordcel.dictionary.pitch import Pitch
         first = replace(entry(definitions=("first meaning", "second meaning", "third meaning")),
                         frequencies=(Frequency("Rank", 123, "123"),), pitches=(Pitch("Pitch", "ねこ", 1),))
         self.settings.setValue("profiles/ja/preview_frequency", False)
@@ -854,7 +854,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertNotIn("ねこ [1]", self.window.browser.toPlainText())
 
     def test_plain_kana_fallback_when_matching_pitch_is_missing_or_hidden(self):
-        from meikipop.dictionary.pitch import Pitch
+        from wordcel.dictionary.pitch import Pitch
         word = entry()
         for pitches, preview_pitch in (((), True), ((Pitch("Pitch", "びょう", 1),), True),
                                         ((Pitch("Pitch", "ねこ", 1),), False)):
@@ -903,7 +903,7 @@ class QuickLookupTests(unittest.TestCase):
             self.settings.setValue(f"profiles/{profile}/audio_autoplay_mode", "off")
             self.settings.setValue(f"profiles/{profile}/snap_scrolling", False)
             self.settings.setValue(f"profiles/{profile}/buttons/audio_sentence", True)
-        self.model_status_patch = patch("meikipop.language.stanza_analyzer.model_status", return_value="Model needed")
+        self.model_status_patch = patch("wordcel.language.stanza_analyzer.model_status", return_value="Model needed")
         self.model_status = self.model_status_patch.start()
         self.addCleanup(self.model_status_patch.stop)
         self.engine = FakeEngine()
@@ -1154,7 +1154,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertIn("み example", text)
 
     def test_archive_owned_image_only_definition_is_retained(self):
-        path = "meikipop-image:/ja-" + "a" * 64 + "/" + "b" * 64 + ".png"
+        path = "wordcel-image:/ja-" + "a" * 64 + "/" + "b" * 64 + ".png"
         value = SearchResult("diagram", "ja", "en", (
             entry(definitions=({"type": "image", "path": path, "width": 600, "height": 300},)),))
         html = render_result(value, expanded=("Dictionary",))
@@ -1175,7 +1175,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertNotIn("cat", self.window.browser.toPlainText())
 
     def test_dictionary_collapse_setting_is_independent_of_enablement_and_profile(self):
-        from meikipop.dictionary.library import import_yomitan
+        from wordcel.dictionary.library import import_yomitan
         archive = Path(self.temp.name) / "monolingual.zip"
         with zipfile.ZipFile(archive, "w") as zf:
             zf.writestr("index.json", json.dumps(dict(title="Monolingual", format=3, sourceLanguage="ja")))
@@ -1249,7 +1249,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(self.window.audio.play.call_count, 2)
 
     def test_cached_settings_follow_active_profile_and_live_theme(self):
-        from meikipop.config.config import config
+        from wordcel.config.config import config
         self.settings.setValue("profiles/ja/theme_name", "Light")
         self.settings.setValue("profiles/tr/theme_name", "Dusk")
         self.window.open_settings()
@@ -1273,7 +1273,7 @@ class QuickLookupTests(unittest.TestCase):
         dialog.hide()
 
     def test_back_restores_profile_appearance_and_saved_identity(self):
-        from meikipop.config.config import config
+        from wordcel.config.config import config
         self.settings.setValue("profiles/ja/theme_name", "Light")
         self.settings.setValue("profiles/tr/theme_name", "Dusk")
         self.window.set_mode("tr")
@@ -1327,7 +1327,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(self.window.search.text(), sentence)
         self.assertEqual(self.window._context, sentence)
 
-        with patch("meikipop.gui.quick_lookup.QApplication.clipboard") as clipboard:
+        with patch("wordcel.gui.quick_lookup.QApplication.clipboard") as clipboard:
             self.window.copy_sentence()
             clipboard.return_value.setText.assert_called_once_with(sentence)
         self.assertTrue(self.window.isVisible())
@@ -1445,7 +1445,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(self.settings.value("profiles/ja/target"), "yi")
 
     def test_custom_translation_targets_follow_configured_and_imported_profiles(self):
-        from meikipop.dictionary.translation import TranslationSettings, save_profile_settings
+        from wordcel.dictionary.translation import TranslationSettings, save_profile_settings
         save_profile_settings(self.settings, "ja", TranslationSettings(provider="custom"))
         self.window.update_languages(("yi", "de"))
         self.assertGreaterEqual(self.window.foreign.findData("yi"), 0)
@@ -1762,8 +1762,8 @@ class QuickLookupTests(unittest.TestCase):
         self.assertIsNone(self.window.translation_worker)
 
     def test_typed_phrases_use_installed_entries_before_translation(self):
-        from meikipop.dictionary.library import import_yomitan
-        from meikipop.dictionary.search import SearchEngine
+        from wordcel.dictionary.library import import_yomitan
+        from wordcel.dictionary.search import SearchEngine
         phrases = (("tr", "her ne kadar"), ("de", "nach wie vor"), ("en", "as soon as"),
                    ("en", "e.g."), ("ja", "おはよう。"))
         for index, (language, phrase) in enumerate(phrases):
@@ -1798,8 +1798,8 @@ class QuickLookupTests(unittest.TestCase):
         translator.translate.assert_called_once()
 
     def test_manual_japanese_search_handles_romaji_and_english_translation(self):
-        from meikipop.dictionary.library import import_yomitan
-        from meikipop.dictionary.search import SearchEngine
+        from wordcel.dictionary.library import import_yomitan
+        from wordcel.dictionary.search import SearchEngine
         archive = Path(self.temp.name) / "japanese-input.zip"
         with zipfile.ZipFile(archive, "w") as zf:
             zf.writestr("index.json", json.dumps(dict(title="Japanese", format=3, sourceLanguage="ja")))
@@ -1854,8 +1854,8 @@ class QuickLookupTests(unittest.TestCase):
         self.assertNotIn("No entry", self.window.browser.toPlainText())
 
     def test_incidental_turkish_gloss_matches_require_explicit_translation(self):
-        from meikipop.dictionary.library import import_yomitan
-        from meikipop.dictionary.search import SearchEngine
+        from wordcel.dictionary.library import import_yomitan
+        from wordcel.dictionary.search import SearchEngine
         archive = Path(self.temp.name) / "fixture.zip"
         with zipfile.ZipFile(archive, "w") as zf:
             zf.writestr("index.json", json.dumps(dict(title="Turkish", format=3, sourceLanguage="tr")))
@@ -1891,7 +1891,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual([call[3] for call in self.engine.calls], [False])
 
     def test_dictionary_free_lookup_requires_translation_and_failure_is_retryable(self):
-        from meikipop.dictionary.search import SearchEngine
+        from wordcel.dictionary.search import SearchEngine
         self.settings.setValue("profiles/ja/auto_translate_miss", False)
         def search(text, **options):
             self.engine.calls.append((text, options.get("translate")))
@@ -2238,7 +2238,7 @@ class QuickLookupTests(unittest.TestCase):
         with patch.object(self.window, "translation_worker") as worker:
             self.window.submit(translate=True, context=True)
             self.assertEqual(worker.request.call_args.args[1], sentence.strip())
-        with patch("meikipop.gui.quick_lookup.QApplication.clipboard") as clipboard:
+        with patch("wordcel.gui.quick_lookup.QApplication.clipboard") as clipboard:
             self.window.copy_sentence()
             clipboard.return_value.setText.assert_called_once_with(sentence.strip())
 
@@ -2251,7 +2251,7 @@ class QuickLookupTests(unittest.TestCase):
         self.window.set_context(sentence)
         self.assertNotIn(sentence, self.window.browser.toPlainText())
         self.assertIn("There is a cat.", self.window.browser.toPlainText())
-        with patch("meikipop.gui.quick_lookup.QApplication.clipboard") as clipboard:
+        with patch("wordcel.gui.quick_lookup.QApplication.clipboard") as clipboard:
             self.window.copy_sentence()
             clipboard.return_value.setText.assert_called_once_with(sentence)
 
@@ -2341,7 +2341,7 @@ class QuickLookupTests(unittest.TestCase):
     def test_semantic_tooltips_show_escaped_descriptions_without_link_paths(self):
         from PyQt6.QtGui import QHelpEvent
         browser = self.window.browser
-        browser.setHtml('<a href="meikipop-tag:Full%20%3Cdescription%3E">summary</a> '
+        browser.setHtml('<a href="wordcel-tag:Full%20%3Cdescription%3E">summary</a> '
                         '<a href="file:///private/path" title="private/path">other</a>')
         self.window.show()
         self.app.processEvents()
@@ -2350,11 +2350,11 @@ class QuickLookupTests(unittest.TestCase):
             cursor.setPosition(cursor.selectionStart())
             point = browser.cursorRect(cursor).center() + QPoint(2, 0)
             return QHelpEvent(QEvent.Type.ToolTip, point, browser.viewport().mapToGlobal(point))
-        with patch("meikipop.gui.quick_lookup.QToolTip.showText") as show:
+        with patch("wordcel.gui.quick_lookup.QToolTip.showText") as show:
             QApplication.sendEvent(browser.viewport(), event_for("summary"))
             self.assertEqual(show.call_args.args[1], "<p>Full &lt;description&gt;</p>")
             show.reset_mock()
-            with patch("meikipop.gui.quick_lookup.QToolTip.hideText") as hide:
+            with patch("wordcel.gui.quick_lookup.QToolTip.hideText") as hide:
                 QApplication.sendEvent(browser.viewport(), event_for("other"))
                 show.assert_not_called()
                 hide.assert_called_once()
@@ -2446,7 +2446,7 @@ class QuickLookupTests(unittest.TestCase):
         for platform in ("darwin", "win32"):
             for tray in (QRect(2550, 0, 24, 24), QRect()):
                 with self.subTest(platform=platform, tray=tray), \
-                        patch("meikipop.gui.quick_lookup.sys.platform", platform), \
+                        patch("wordcel.gui.quick_lookup.sys.platform", platform), \
                         patch.object(QApplication, "screenAt", return_value=screen):
                     self.window.tray_geometry = lambda: tray
                     self.window._place()
@@ -2460,10 +2460,10 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_macos_pin_survives_focus_loss_while_native_activation_is_pending(self):
         self.window.show_entries((entry(),), "猫", peek=True)
-        with patch("meikipop.gui.quick_lookup.sys.platform", "darwin"), \
+        with patch("wordcel.gui.quick_lookup.sys.platform", "darwin"), \
                 patch.object(QApplication, "platformName", return_value="cocoa"), \
-                patch("meikipop.utils.window_focus.focus_pinned_popup") as focus, \
-                patch("meikipop.gui.quick_lookup.QTimer.singleShot") as timer, \
+                patch("wordcel.utils.window_focus.focus_pinned_popup") as focus, \
+                patch("wordcel.gui.quick_lookup.QTimer.singleShot") as timer, \
                 patch.object(self.window, "isActiveWindow", return_value=False):
             self.window.pin.setChecked(True)
             self.window._dismiss_if_inactive()
@@ -2473,14 +2473,14 @@ class QuickLookupTests(unittest.TestCase):
         callback = next(call.args[1] for call in timer.call_args_list if call.args[0] == 300)
         callback()
         self.assertFalse(self.window._opening_search)
-        with patch("meikipop.gui.quick_lookup.sys.platform", "darwin"), \
+        with patch("wordcel.gui.quick_lookup.sys.platform", "darwin"), \
                 patch.object(self.window, "isActiveWindow", return_value=False):
             self.window._dismiss_if_inactive()
         self.assertTrue(self.window.isVisible())
 
     def test_windows_pinned_ocr_still_dismisses_on_focus_loss(self):
         self.window.show_entries((entry(),), "猫", peek=True)
-        with patch("meikipop.gui.quick_lookup.sys.platform", "win32"), \
+        with patch("wordcel.gui.quick_lookup.sys.platform", "win32"), \
                 patch.object(self.window, "isActiveWindow", return_value=False):
             self.window.pin.setChecked(True)
             self.window._dismiss_if_inactive()
@@ -2489,8 +2489,8 @@ class QuickLookupTests(unittest.TestCase):
     def test_fullscreen_ocr_pin_and_clicks_keep_source_active(self):
         import ctypes
         from ctypes import wintypes
-        with patch("meikipop.utils.window_focus.foreground_is_fullscreen", return_value=True), \
-                patch("meikipop.utils.window_focus.focus_pinned_popup") as focus:
+        with patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True), \
+                patch("wordcel.utils.window_focus.focus_pinned_popup") as focus:
             self.window.show_entries((entry(),), "cat", peek=True)
             message = wintypes.MSG()
             message.message = 0x0021
@@ -2501,7 +2501,7 @@ class QuickLookupTests(unittest.TestCase):
             self.assertTrue(self.window.testAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating))
             self.assertEqual(self.window.nativeEvent(b"windows_generic_MSG", address), (True, 3))
             with patch.object(self.window, "isActiveWindow", return_value=False), \
-                    patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
+                    patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
                 self.window._dismiss_if_inactive()
             self.assertTrue(self.window.isVisible())
             self.assertTrue(self.window.is_pinned)
@@ -2512,7 +2512,7 @@ class QuickLookupTests(unittest.TestCase):
     def test_fullscreen_keyboard_and_side_buttons_navigate_snap_stops(self):
         self.settings.setValue("profiles/ja/snap_scrolling", True)
         self.window.reload_appearance()
-        with patch("meikipop.utils.window_focus.foreground_is_fullscreen", return_value=True):
+        with patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True):
             self.window.show_entries((entry(definitions=("Meaning\n" * 100,)),), "cat", peek=True)
             self.window.pin.setChecked(True)
         self.app.processEvents()
@@ -2557,10 +2557,10 @@ class QuickLookupTests(unittest.TestCase):
             self.assertTrue(self.window._popup_shortcuts["replay"].key().isEmpty())
 
     def test_fullscreen_selection_copy_keeps_source_focus_and_releases_input_on_dismissal(self):
-        from meikipop.gui.desktop_input import DesktopInput
-        from meikipop.gui.unified_ocr import UnifiedOCR
-        with patch("meikipop.gui.desktop_input.KeyboardListener"), \
-                patch("meikipop.gui.desktop_input.mouse.Listener"):
+        from wordcel.gui.desktop_input import DesktopInput
+        from wordcel.gui.unified_ocr import UnifiedOCR
+        with patch("wordcel.gui.desktop_input.KeyboardListener"), \
+                patch("wordcel.gui.desktop_input.mouse.Listener"):
             inputs = DesktopInput("shift,middle", "", "", 400)
         self.addCleanup(inputs.shutdown)
         controller = SimpleNamespace(window=self.window, input=inputs, _capture_hidden=False,
@@ -2570,13 +2570,13 @@ class QuickLookupTests(unittest.TestCase):
         user32.GetForegroundWindow.return_value = 987654
         user32.GetAsyncKeyState.side_effect = lambda vk: 0x8000 if vk == 0x11 else 0
         with patch("PyQt6.QtWidgets.QApplication.platformName", return_value="windows"), \
-                patch("meikipop.gui.unified_ocr.sys.platform", "win32"), \
+                patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
                 patch("ctypes.WinDLL", return_value=user32, create=True), \
-                patch("meikipop.utils.window_focus.foreground_window", user32.GetForegroundWindow), \
-                patch("meikipop.utils.window_focus.focused_child", return_value=987655), \
-                patch("meikipop.utils.window_focus.foreground_is_fullscreen", return_value=True), \
-                patch("meikipop.utils.window_focus.focus_pinned_popup") as focus, \
-                patch("meikipop.utils.window_focus.restore_foreground") as restore:
+                patch("wordcel.utils.window_focus.foreground_window", user32.GetForegroundWindow), \
+                patch("wordcel.utils.window_focus.focused_child", return_value=987655), \
+                patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True), \
+                patch("wordcel.utils.window_focus.focus_pinned_popup") as focus, \
+                patch("wordcel.utils.window_focus.restore_foreground") as restore:
             for pinned in (False, True):
                 with self.subTest(pinned=pinned):
                     self.window.show_entries((entry(definitions=("Selected definition",)),), "cat", peek=True)
@@ -2676,7 +2676,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertNotIn("unstressed infinitive", html)
 
     def test_compact_preview_omits_semantic_tags_and_retains_lookup_metadata(self):
-        from meikipop.dictionary.pitch import Pitch
+        from wordcel.dictionary.pitch import Pitch
         definition = {"type": "structured-content", "content": [
             {"tag": "span", "data": {"class": "tag"}, "content": "interjection"},
             {"tag": "span", "data": {"content": "tag"}, "content": "kana"},
@@ -2773,8 +2773,8 @@ class QuickLookupTests(unittest.TestCase):
         self.assertFalse(self.window.isVisible())
 
     def test_copy_feedback_stays_inside_fullscreen_popup_after_layout_invalidation(self):
-        with patch("meikipop.utils.window_focus.foreground_is_fullscreen", return_value=True), \
-                patch("meikipop.utils.window_focus.focus_pinned_popup") as focus:
+        with patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True), \
+                patch("wordcel.utils.window_focus.focus_pinned_popup") as focus:
             self.window.show_entries((entry(definitions=("Meaning\n" * 100,)),), "cat", peek=True)
             self.window.set_context("A cat sits here.")
             self.window.pin.setChecked(True)
@@ -3409,7 +3409,7 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_search_shortcut_is_opt_in_and_restores_explicit_choice(self):
         self.assertIsNone(self.window._keys)
-        with patch("meikipop.gui.text_shortcuts.TextHotKeys") as hotkeys:
+        with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
             self.window.restore_shortcut()
             hotkeys.assert_not_called()
             self.assertEqual(self.settings.value("hotkey"), "")
@@ -3470,7 +3470,7 @@ class QuickLookupTests(unittest.TestCase):
             self.assertIsNone(self.window.translation_worker)
 
     def test_typed_lookup_takes_focus_after_passive_selection(self):
-        with patch("meikipop.utils.window_focus.focus_search") as focus:
+        with patch("wordcel.utils.window_focus.focus_search") as focus:
             self.window.lookup_selected("word", passive=True)
             self.app.processEvents()
             focus.assert_not_called()
@@ -3480,7 +3480,7 @@ class QuickLookupTests(unittest.TestCase):
             self.assertFalse(self.window._passive_text)
 
     def test_pitch_display_follows_dictionary_data_despite_old_toggle(self):
-        from meikipop.dictionary.pitch import Pitch
+        from wordcel.dictionary.pitch import Pitch
         self.settings.setValue("profiles/ja/show_pitch", False)
         pitched = replace(entry(), pitches=(Pitch("Accent dictionary", "ねこ", 1),))
         self.window._display(SearchResult("猫", "ja", "en", (pitched,)))
@@ -3507,9 +3507,9 @@ class QuickLookupTests(unittest.TestCase):
     def test_mac_search_survives_delayed_application_activation(self):
         with patch("sys.platform", "darwin"), patch.object(QApplication, "platformName", return_value="cocoa"), \
                 patch.object(self.window, "isActiveWindow", return_value=False), \
-                patch("meikipop.utils.window_focus.configure_macos_popup"), \
-                patch("meikipop.utils.window_focus.focus_search"), \
-                patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-5000, -5000)):
+                patch("wordcel.utils.window_focus.configure_macos_popup"), \
+                patch("wordcel.utils.window_focus.focus_search"), \
+                patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-5000, -5000)):
             self.window.open_search()
             self.app.processEvents()
             self.window._dismiss_if_inactive()
@@ -3517,7 +3517,7 @@ class QuickLookupTests(unittest.TestCase):
             self.assertTrue(self.window.isVisible())
 
     def test_automatic_text_lookup_is_opt_in_and_does_not_steal_focus(self):
-        from meikipop.gui.text_triggers import TextTriggers
+        from wordcel.gui.text_triggers import TextTriggers
         triggers = TextTriggers(self.window)
         self.assertIsNone(triggers.listener)
         try:
@@ -3525,8 +3525,8 @@ class QuickLookupTests(unittest.TestCase):
                     patch.object(QApplication, "activeModalWidget", return_value=None), \
                     patch.object(QApplication, "activePopupWidget", return_value=None), \
                     patch.object(QApplication, "doubleClickInterval", return_value=400), \
-                    patch("meikipop.gui.text_triggers.QCursor.pos", return_value=QPoint(-100, -100)), \
-                    patch("meikipop.utils.macos.require_input_monitoring_permission"), \
+                    patch("wordcel.gui.text_triggers.QCursor.pos", return_value=QPoint(-100, -100)), \
+                    patch("wordcel.utils.macos.require_input_monitoring_permission"), \
                     patch.object(self.window.selection, "start") as capture, patch("pynput.mouse.Listener") as listener:
                 triggers.capture_selection()
                 capture.assert_not_called()
@@ -3550,14 +3550,14 @@ class QuickLookupTests(unittest.TestCase):
             triggers.deleteLater()
 
     def test_automatic_selection_capture_is_cancelled_by_new_interactions(self):
-        from meikipop.gui.text_triggers import TextTriggers
+        from wordcel.gui.text_triggers import TextTriggers
         triggers = TextTriggers(self.window)
         try:
             with patch.object(QApplication, "activeWindow", return_value=None), \
                     patch.object(QApplication, "activeModalWidget", return_value=None), \
                     patch.object(QApplication, "activePopupWidget", return_value=None), \
                     patch.object(QApplication, "doubleClickInterval", return_value=400), \
-                    patch("meikipop.utils.macos.require_input_monitoring_permission"), \
+                    patch("wordcel.utils.macos.require_input_monitoring_permission"), \
                     patch("pynput.mouse.Listener"), patch.object(self.window.selection, "start") as capture:
                 self.settings.setValue("profiles/ja/selected_text", True)
                 for action in (lambda: triggers.click(-200, -200, True),
@@ -3578,7 +3578,7 @@ class QuickLookupTests(unittest.TestCase):
             triggers.deleteLater()
 
     def test_automatic_selection_capture_ignores_open_menus(self):
-        from meikipop.gui.text_triggers import TextTriggers
+        from wordcel.gui.text_triggers import TextTriggers
         triggers = TextTriggers(self.window)
         try:
             self.settings.setValue("profiles/ja/selected_text", True)
@@ -3592,12 +3592,12 @@ class QuickLookupTests(unittest.TestCase):
             triggers.deleteLater()
 
     def test_selection_listener_does_not_hide_popup_on_scaled_display_or_scan_click(self):
-        from meikipop.gui.text_triggers import TextTriggers
+        from wordcel.gui.text_triggers import TextTriggers
         triggers = TextTriggers(self.window)
         self.window.lookup_selected("猫", passive=True)
         try:
             with patch.object(QApplication, "activeWindow", return_value=None), \
-                    patch("meikipop.gui.text_triggers.QCursor.pos", return_value=self.window.geometry().center()):
+                    patch("wordcel.gui.text_triggers.QCursor.pos", return_value=self.window.geometry().center()):
                 triggers.click(2000, 2000, True)
                 self.assertTrue(self.window.isVisible())
                 self.window._passive_text = False
@@ -3606,7 +3606,7 @@ class QuickLookupTests(unittest.TestCase):
                 self.assertTrue(self.window.isVisible())
             self.window.scan_hold_changed(True)
             with patch.object(QApplication, "activeWindow", return_value=None), \
-                    patch("meikipop.gui.text_triggers.QCursor.pos", return_value=QPoint(-500, -500)), \
+                    patch("wordcel.gui.text_triggers.QCursor.pos", return_value=QPoint(-500, -500)), \
                     patch.object(self.window.selection, "start") as capture:
                 triggers.click(-500, -500, True)
                 triggers.capture_selection()
@@ -3731,7 +3731,7 @@ class DictionaryManagerTests(unittest.TestCase):
             timer.stop()
 
     def test_russian_ocr_default_and_paddle_availability_follow_profile(self):
-        with patch("meikipop.gui.dictionary_manager.sys.platform", "win32"):
+        with patch("wordcel.gui.dictionary_manager.sys.platform", "win32"):
             self.dialog.sync_profile("ru")
             provider = self.dialog.other_ocr_provider
             self.assertEqual(provider.currentData(), "screenai")
@@ -3740,7 +3740,7 @@ class DictionaryManagerTests(unittest.TestCase):
             self.assertEqual(provider.currentData(), "paddle")
             self.assertTrue(provider.model().item(provider.findData("paddle")).isEnabled())
 
-    @patch("meikipop.gui.dictionary_manager.sys.platform", "win32")
+    @patch("wordcel.gui.dictionary_manager.sys.platform", "win32")
     def test_unsupported_ocr_profile_keeps_dictionary_and_saved_provider(self):
         self.settings.setValue("profiles/gem-pro/ocr_provider", "screenai")
         self.dialog.sync_profile("gem-pro")
@@ -3758,7 +3758,7 @@ class DictionaryManagerTests(unittest.TestCase):
         self.assertTrue(provider.model().item(provider.findData("screenai")).isEnabled())
         self.assertFalse(provider.model().item(provider.findData("paddle")).isEnabled())
 
-    @patch("meikipop.gui.dictionary_manager.sys.platform", "win32")
+    @patch("wordcel.gui.dictionary_manager.sys.platform", "win32")
     def test_mandarin_ocr_alias_uses_supported_provider(self):
         self.dialog.sync_profile("cmn")
         provider = self.dialog.other_ocr_provider
@@ -3769,11 +3769,11 @@ class DictionaryManagerTests(unittest.TestCase):
         from PyQt6.QtWidgets import QCheckBox
         self.dialog.settings.remove("start_with_windows")
         self.dialog.start_with_windows = QCheckBox(self.dialog)
-        with patch("meikipop.utils.startup.set_startup_enabled") as startup:
+        with patch("wordcel.utils.startup.set_startup_enabled") as startup:
             self.dialog.save_startup(False)
             startup.assert_called_once_with(False)
         self.assertFalse(self.dialog.settings.value("start_with_windows", True, bool))
-        with patch("meikipop.utils.startup.set_startup_enabled", side_effect=OSError("blocked")):
+        with patch("wordcel.utils.startup.set_startup_enabled", side_effect=OSError("blocked")):
             self.dialog.save_startup(True)
         self.assertFalse(self.dialog.settings.value("start_with_windows", True, bool))
 
@@ -3800,8 +3800,8 @@ class DictionaryManagerTests(unittest.TestCase):
         self.assertEqual(self.settings.value("profiles/id/scan_bindings"), "")
 
     def test_base_form_setup_is_explicit_and_follows_selected_profile(self):
-        with patch("meikipop.language.stanza_analyzer.model_status", return_value="Not installed"), \
-                patch("meikipop.scripts.setup_morphology.install") as install:
+        with patch("wordcel.language.stanza_analyzer.model_status", return_value="Not installed"), \
+                patch("wordcel.scripts.setup_morphology.install") as install:
             self.dialog.sync_profile("ru")
             install.assert_not_called()
             self.assertFalse(self.dialog.resources.base_install.isHidden())
@@ -3813,8 +3813,8 @@ class DictionaryManagerTests(unittest.TestCase):
             self.assertTrue(self.dialog.resources.base_install.isHidden())
 
     def test_turkish_engine_status_remains_visible_after_installation(self):
-        with patch("meikipop.language.turkish_analyzer.available", return_value=True), \
-                patch("meikipop.language.stanza_analyzer.model_status", return_value="Installed") as status:
+        with patch("wordcel.language.turkish_analyzer.available", return_value=True), \
+                patch("wordcel.language.stanza_analyzer.model_status", return_value="Installed") as status:
             self.dialog.sync_profile("tr")
             resources = self.dialog.resources
             self.assertEqual(resources.base_status.text(), "Word forms: Zeyrek")
@@ -3859,15 +3859,15 @@ class DictionaryManagerTests(unittest.TestCase):
     def test_cancelled_operation_keeps_completed_imports(self):
         first, second = self.archive("A", "tr"), self.archive("B", "tr")
         operation = SetupOperation([first, second], self.directory)
-        from meikipop.dictionary.library import import_yomitan
+        from wordcel.dictionary.library import import_yomitan
 
         def import_then_cancel(*args, **kwargs):
             result = import_yomitan(*args, **kwargs)
             operation.cancelled.set()
             return result
 
-        from meikipop.dictionary.import_job import import_batch
-        with patch("meikipop.dictionary.import_job.import_yomitan", side_effect=import_then_cancel):
+        from wordcel.dictionary.import_job import import_batch
+        with patch("wordcel.dictionary.import_job.import_yomitan", side_effect=import_then_cancel):
             import_batch([first, second], self.directory, None, lambda text: None, operation.cancelled)
         library = Library(self.directory)
         try:

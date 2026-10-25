@@ -9,7 +9,7 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QDialog
 
-from meikipop.gui.desktop_access import DesktopAccess
+from wordcel.gui.desktop_access import DesktopAccess
 
 
 class DesktopAccessTests(unittest.TestCase):
@@ -71,9 +71,9 @@ class DesktopAccessTests(unittest.TestCase):
         import sys
         from types import SimpleNamespace
         install = Mock()
-        with patch("meikipop.gui.desktop_access.sys.platform", "darwin"), \
+        with patch("wordcel.gui.desktop_access.sys.platform", "darwin"), \
                 patch.object(QApplication, "platformName", return_value="cocoa"), \
-                patch.dict(sys.modules, {"meikipop.gui.macos_reopen":
+                patch.dict(sys.modules, {"wordcel.gui.macos_reopen":
                                         SimpleNamespace(install_reopen_handler=install)}):
             access = DesktopAccess(self.window, self.app)
             install.assert_not_called()
@@ -83,17 +83,17 @@ class DesktopAccessTests(unittest.TestCase):
             access.deleteLater()
 
     def test_launch_intent_is_forwarded_to_existing_instance(self):
-        from meikipop.scripts.quick_lookup import main
+        from wordcel.scripts.quick_lookup import main
         for platform, arguments, background in (
             ("darwin", [], False),
             ("darwin", ["--background"], True),
             ("win32", [], True),
         ):
             with self.subTest(platform=platform, arguments=arguments), \
-                    patch("meikipop.scripts.quick_lookup.sys.platform", platform), \
-                    patch("meikipop.utils.logger.setup_logging"), \
-                    patch("meikipop.gui.single_instance.SingleInstance") as instance:
+                    patch("wordcel.scripts.quick_lookup.sys.platform", platform), \
+                    patch("wordcel.utils.logger.setup_logging"), \
+                    patch("wordcel.gui.single_instance.SingleInstance") as instance:
                 instance.return_value.start.return_value = False
-                with patch("meikipop.utils.startup.hold_installer_mutex"):
+                with patch("wordcel.utils.startup.hold_installer_mutex"):
                     self.assertEqual(main(arguments), 0)
                 instance.return_value.start.assert_called_once_with("", background)

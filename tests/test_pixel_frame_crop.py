@@ -2,7 +2,7 @@ from dataclasses import replace
 import unittest
 from unittest.mock import patch
 
-from meikipop.utils.capture import CaptureRequest, PixelFrame
+from wordcel.utils.capture import CaptureRequest, PixelFrame
 
 
 class PixelFrameCropTests(unittest.TestCase):

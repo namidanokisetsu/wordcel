@@ -3,12 +3,12 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from meikipop.language.turkish_ranking import FILENAME, load_counts, read_counts, write_counts
+from wordcel.language.turkish_ranking import FILENAME, load_counts, read_counts, write_counts
 
 
 class TurkishRankingTests(unittest.TestCase):
     def test_bundled_and_cached_counts_skip_corpus_analysis(self):
-        with tempfile.TemporaryDirectory() as directory, patch('meikipop.utils.paths.paths') as paths:
+        with tempfile.TemporaryDirectory() as directory, patch('wordcel.utils.paths.paths') as paths:
             paths.cache_dir = directory
             paths.get_resource_path.return_value = str(Path(directory) / 'bundle')
             compute = Mock(return_value={'ev_Noun': 3})

@@ -8,8 +8,8 @@ from unittest.mock import Mock, patch
 
 from PyQt6.QtCore import QLocale, QSettings
 from PyQt6.QtWidgets import QApplication
-from meikipop.gui.lookup_audio import LookupAudio
-from meikipop.dictionary.library import Entry
+from wordcel.gui.lookup_audio import LookupAudio
+from wordcel.dictionary.library import Entry
 
 
 class SentenceAudioTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class SentenceAudioTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def test_unknown_locale_cannot_use_a_fallback_system_voice(self):
-        with patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with patch("wordcel.gui.lookup_audio.AudioWorker"):
             audio = LookupAudio()
             audio.speech = Mock()
             voice = Mock()
@@ -33,13 +33,13 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_historical_locale_never_falls_back_to_english(self):
-        from meikipop.gui.lookup_audio import speech_locale
+        from wordcel.gui.lookup_audio import speech_locale
         for language in ("egy", "got", "grc", "non", "sga", "gem-pro"):
             with self.subTest(language=language):
                 self.assertIsNone(speech_locale(language))
 
     def test_historical_online_recordings_cannot_use_english_locale_fallback(self):
-        with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.lookup_audio.AudioWorker"):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/egy/audio_priority", ["online"])
             audio = LookupAudio()
@@ -53,7 +53,7 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_supported_alias_uses_matching_installed_voice(self):
-        with patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with patch("wordcel.gui.lookup_audio.AudioWorker"):
             audio = LookupAudio()
             audio.speech = Mock()
             voice = Mock()
@@ -71,7 +71,7 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_arabic_and_traditional_chinese_require_matching_installed_voices(self):
-        with patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with patch("wordcel.gui.lookup_audio.AudioWorker"):
             audio = LookupAudio()
             audio.speech = Mock()
             voice = Mock()
@@ -89,8 +89,8 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_mandarin_variants_find_real_lingua_libre_code_without_cantonese(self):
-        from meikipop.audio.online import OnlineAudio
-        with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.lookup_audio.AudioWorker"):
+        from wordcel.audio.online import OnlineAudio
+        with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.lookup_audio.AudioWorker"):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/cmn/audio_priority", ["online"])
             audio = LookupAudio()
@@ -121,8 +121,8 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_saved_priority_can_disable_sources(self):
-        from meikipop.audio.sources import source_order
-        with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.lookup_audio.AudioWorker"):
+        from wordcel.audio.sources import source_order
+        with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.lookup_audio.AudioWorker"):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/tr/audio_priority", ["tts", "online"])
             audio = LookupAudio()
@@ -147,7 +147,7 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_sentence_bypasses_word_database_and_invalidates_pending_word_clip(self):
-        with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.lookup_audio.AudioWorker"):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/audio_database", "words.db")
             settings.setValue("profiles/ja/audio_volume", 35)
@@ -172,7 +172,7 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_turkish_recordings_follow_priority_and_missing_sources_fall_back_to_tts(self):
-        with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.lookup_audio.AudioWorker"):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/tr/audio_database", "turkish.db")
             settings.setValue("profiles/tr/audio_priority", ["db:recorded", "tts"])
@@ -197,7 +197,7 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_database_failure_does_not_report_error_before_next_source_succeeds(self):
-        with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.lookup_audio.AudioWorker") as worker:
+        with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.lookup_audio.AudioWorker") as worker:
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/audio_database", "missing.db")
             settings.setValue("profiles/ja/audio_priority", ["db:first", "tts"])
@@ -217,7 +217,7 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_source_override_ignores_late_results_even_for_same_revision(self):
-        with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.lookup_audio.AudioWorker"):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/audio_database", "japanese.db")
             audio = LookupAudio()
@@ -238,7 +238,7 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_cross_language_entry_uses_active_profile_source_preferences(self):
-        with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.lookup_audio.AudioWorker"):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/tr/audio_priority", ["db:english"])
             settings.setValue("profiles/tr/audio_database", "turkish-library.db")
@@ -257,9 +257,9 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_completed_clip_keeps_export_audio_and_releases_playback_buffer(self):
-        from meikipop.audio.repository import AudioClip
+        from wordcel.audio.repository import AudioClip
         from PyQt6.QtMultimedia import QMediaPlayer
-        with patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with patch("wordcel.gui.lookup_audio.AudioWorker"):
             audio = LookupAudio()
             audio.player = Mock()
             audio.latest = (1, ("猫", "ねこ"))
@@ -280,7 +280,7 @@ class SentenceAudioTests(unittest.TestCase):
                 audio.deleteLater()
 
     def test_shared_audio_follows_system_output(self):
-        with patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with patch("wordcel.gui.lookup_audio.AudioWorker"):
             audio = LookupAudio()
             try:
                 output, device = Mock(), object()
@@ -295,8 +295,8 @@ class SentenceAudioTests(unittest.TestCase):
 
     def test_source_menu_uses_active_profile_for_cross_language_entries(self):
         from types import SimpleNamespace
-        from meikipop.gui.quick_lookup import QuickLookupWindow
-        with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.quick_lookup.QMenu") as menu_type:
+        from wordcel.gui.quick_lookup import QuickLookupWindow
+        with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.quick_lookup.QMenu") as menu_type:
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/tr/audio_priority", ["db:Turkish recordings", "online"])
             settings.setValue("profiles/tr/audio_database", "turkish.db")
@@ -310,7 +310,7 @@ class SentenceAudioTests(unittest.TestCase):
             self.assertNotIn("System voice", labels)
 
     def test_online_defaults_to_entry_language_and_falls_back_to_system_voice(self):
-        with tempfile.TemporaryDirectory() as folder, patch("meikipop.gui.lookup_audio.AudioWorker"):
+        with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.lookup_audio.AudioWorker"):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ru/audio_priority", ["online", "tts"])
             audio = LookupAudio()
@@ -340,8 +340,8 @@ class AudioSourceSettingsTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self):
-        from meikipop.gui.audio_sources import AudioSources
-        worker = patch("meikipop.gui.audio_sources.AudioWorker")
+        from wordcel.gui.audio_sources import AudioSources
+        worker = patch("wordcel.gui.audio_sources.AudioWorker")
         worker.start()
         self.addCleanup(worker.stop)
         self.sources = AudioSources()
@@ -376,7 +376,7 @@ class AudioSourceSettingsTests(unittest.TestCase):
         self.assertEqual(self.sources.items.count(), 2)
 
     def test_remove_button_clears_profile_and_keeps_database_file(self):
-        from meikipop.gui.dictionary_manager import SetupDialog
+        from wordcel.gui.dictionary_manager import SetupDialog
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "android.db"
             path.touch()

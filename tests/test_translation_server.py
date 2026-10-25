@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 import zipfile
 
-from meikipop.scripts import translation_server as server
+from wordcel.scripts import translation_server as server
 
 
 class InstallerTests(unittest.TestCase):

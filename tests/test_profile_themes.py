@@ -8,10 +8,10 @@ from unittest.mock import Mock
 from PyQt6.QtCore import QSettings
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
-from meikipop.config.config import config
-from meikipop.gui.profile_appearance import DEFAULTS, ProfileAppearance, load_appearance
-from meikipop.gui.popup_style import surface_colors
-from meikipop.gui.themes import THEMES
+from wordcel.config.config import config
+from wordcel.gui.profile_appearance import DEFAULTS, ProfileAppearance, load_appearance
+from wordcel.gui.popup_style import surface_colors
+from wordcel.gui.themes import THEMES
 
 
 def luminance(color):

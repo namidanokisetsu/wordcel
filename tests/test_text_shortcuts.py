@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from pynput.keyboard import GlobalHotKeys
-from meikipop.gui.text_shortcuts import TextHotKeys
+from wordcel.gui.text_shortcuts import TextHotKeys
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows key propagation")

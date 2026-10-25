@@ -9,9 +9,9 @@ from unittest.mock import patch
 from PyQt6.QtCore import QSettings, QUrl
 from PyQt6.QtWidgets import QApplication
 
-from meikipop.dictionary.library import Entry
-from meikipop.dictionary.search import SearchResult
-from meikipop.gui.quick_lookup import QuickLookupWindow
+from wordcel.dictionary.library import Entry
+from wordcel.dictionary.search import SearchResult
+from wordcel.gui.quick_lookup import QuickLookupWindow
 
 
 def _entry(source, definitions):
@@ -28,7 +28,7 @@ class DictionaryCollapseTests(unittest.TestCase):
         self.settings = QSettings(str(Path(self.temp.name) / "settings.ini"), QSettings.Format.IniFormat)
         self.settings.setValue("profile", "ja")
         self.settings.setValue("profiles/ja/target", "en")
-        self.model_status_patch = patch("meikipop.language.stanza_analyzer.model_status", return_value="Model needed")
+        self.model_status_patch = patch("wordcel.language.stanza_analyzer.model_status", return_value="Model needed")
         self.model_status_patch.start()
         self.window = QuickLookupWindow(self.temp.name, lambda: None, self.settings)
 

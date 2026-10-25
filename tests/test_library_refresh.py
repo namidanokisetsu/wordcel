@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from meikipop.dictionary.library import Library, save_preferences
+from wordcel.dictionary.library import Library, save_preferences
 
 
 class RefreshTests(unittest.TestCase):

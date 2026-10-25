@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from meikipop.ocr.turkish_paddle import MODELS, PADDLE_FILES, LocalOCR, file_hash, setup_ocr
-from meikipop.scripts.export_turkish_ocr import export_models
+from wordcel.ocr.turkish_paddle import MODELS, PADDLE_FILES, LocalOCR, file_hash, setup_ocr
+from wordcel.scripts.export_turkish_ocr import export_models
 
 
 class ONNXTests(unittest.TestCase):
@@ -114,7 +114,7 @@ class ONNXTests(unittest.TestCase):
             self.assertFalse(output.exists())
 
     def test_shared_setup_forwards_optional_export_directory(self):
-        from meikipop.scripts.quick_lookup import main
-        with patch('meikipop.ocr.turkish_paddle.setup_ocr') as setup:
+        from wordcel.scripts.quick_lookup import main
+        with patch('wordcel.ocr.turkish_paddle.setup_ocr') as setup:
             self.assertEqual(main(['--setup-ocr', 'paddle', '--onnx-dir', 'exports']), 0)
         setup.assert_called_once_with(onnx_dir=Path('exports'))

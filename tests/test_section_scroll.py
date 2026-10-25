@@ -8,10 +8,10 @@ from PyQt6.QtGui import QWheelEvent
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
-from meikipop.dictionary.library import Entry
-from meikipop.dictionary.kanji import KanjiEntry
-from meikipop.dictionary.search import SearchResult
-from meikipop.gui.quick_lookup import LocalDictionaryBrowser, render_result
+from wordcel.dictionary.library import Entry
+from wordcel.dictionary.kanji import KanjiEntry
+from wordcel.dictionary.search import SearchResult
+from wordcel.gui.quick_lookup import LocalDictionaryBrowser, render_result
 
 
 class SectionScrollTests(unittest.TestCase):
@@ -363,7 +363,7 @@ class SectionScrollTests(unittest.TestCase):
         self.assertEqual(self.browser.selected_text(), selected)
 
     def test_sticky_headword_keeps_pitch_renderer_and_reading(self):
-        from meikipop.dictionary.pitch import PITCH_OBJECT, Pitch
+        from wordcel.dictionary.pitch import PITCH_OBJECT, Pitch
         entries = (Entry("cat", "猫", "ねこ", "Source", "ja", ("Meaning\n" * 30,),
                          pitches=(Pitch("Pitch", "ねこ", 1),)),)
         self.browser.setHtml(render_result(SearchResult("猫", "ja", "en", entries), expanded=("Source",)))

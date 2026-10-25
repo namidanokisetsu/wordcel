@@ -13,7 +13,7 @@ from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QWidget
 from pynput import keyboard, mouse
 
-from meikipop.gui.desktop_input import DesktopInput
+from wordcel.gui.desktop_input import DesktopInput
 
 
 class ScanGestureTests(unittest.TestCase):
@@ -22,8 +22,8 @@ class ScanGestureTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self):
-        with patch("meikipop.gui.desktop_input.KeyboardListener"), \
-                patch("meikipop.gui.desktop_input.mouse.Listener"):
+        with patch("wordcel.gui.desktop_input.KeyboardListener"), \
+                patch("wordcel.gui.desktop_input.mouse.Listener"):
             self.input = DesktopInput("shift,middle", "", "", 400)
         self.addCleanup(self.input.shutdown)
         self.requested = Mock()
@@ -40,7 +40,7 @@ class ScanGestureTests(unittest.TestCase):
         held = Mock()
         self.input.hold_changed.connect(held)
         key = SimpleNamespace(vkCode=0xA0)
-        with patch("meikipop.utils.window_focus.foreground_is_fullscreen", return_value=True) as fullscreen:
+        with patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True) as fullscreen:
             self.assertFalse(self.input.filter_key(0x100, key))
             self.assertTrue(self.input.activation.active)
             self.assertTrue(self.input._suppressed_modifier(0x10))
@@ -69,7 +69,7 @@ class ScanGestureTests(unittest.TestCase):
         user32 = Mock()
         user32.GetForegroundWindow.return_value = 42
         user32.GetAsyncKeyState.return_value = 0
-        with patch("meikipop.utils.window_focus.foreground_is_fullscreen", return_value=True), \
+        with patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True), \
                 patch("ctypes.WinDLL", return_value=user32, create=True):
             self.input.filter_key(0x100, SimpleNamespace(vkCode=0xA0))
             self.assertFalse(self.input.activation.active)
@@ -77,7 +77,7 @@ class ScanGestureTests(unittest.TestCase):
             requested.assert_called_once_with("copy")
 
     def test_scan_key_blocking_defaults_off_and_supports_combinations(self):
-        with patch("meikipop.utils.window_focus.foreground_is_fullscreen", return_value=True):
+        with patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True):
             self.input.filter_key(0x100, SimpleNamespace(vkCode=0xA0))
             self.input.keys.suppress_event.assert_not_called()
             self.input.block_scan_keys = True
@@ -91,7 +91,7 @@ class ScanGestureTests(unittest.TestCase):
     def test_wheel_is_consumed_only_when_delivered_to_visible_popup(self):
         self.input.popup_handle = 123
         data = object()
-        with patch("meikipop.utils.window_focus.route_popup_wheel", return_value=True) as route:
+        with patch("wordcel.utils.window_focus.route_popup_wheel", return_value=True) as route:
             self.assertTrue(self.input.filter_mouse(0x20A, data))
             route.assert_not_called()
             self.input.visible.set()
@@ -117,7 +117,7 @@ class ScanGestureTests(unittest.TestCase):
 
     def test_native_wheel_routing_uses_hit_window_and_preserves_signed_delta(self):
         from ctypes import wintypes
-        from meikipop.utils.window_focus import route_popup_wheel
+        from wordcel.utils.window_focus import route_popup_wheel
         user32 = Mock()
         user32.ChildWindowFromPointEx.return_value = 123
         user32.GetAsyncKeyState.return_value = 0
@@ -278,13 +278,13 @@ class ScanGestureTests(unittest.TestCase):
         clicked = Mock()
         self.input.clicked.connect(clicked)
         self.ready()
-        with patch("meikipop.gui.desktop_input.sys.platform", "darwin"):
+        with patch("wordcel.gui.desktop_input.sys.platform", "darwin"):
             self.input.click(10, 20, mouse.Button.left, True)
             self.input.click(10, 20, mouse.Button.left, False)
         self.requested.assert_called_once_with()
         clicked.assert_not_called()
         self.input.clicks.suppress_event.assert_not_called()
-        with patch("meikipop.gui.desktop_input.sys.platform", "darwin"):
+        with patch("wordcel.gui.desktop_input.sys.platform", "darwin"):
             self.input.click(10, 20, mouse.Button.left, True)
         clicked.assert_called_once_with()
 
@@ -295,7 +295,7 @@ class ScanGestureTests(unittest.TestCase):
                                  kCGEventOtherMouseDown=25, kCGEventOtherMouseUp=26,
                                  kCGMouseEventButtonNumber=3, kCGMouseButtonCenter=2)
         event = object()
-        with patch("meikipop.gui.desktop_input.sys.platform", "darwin"), \
+        with patch("wordcel.gui.desktop_input.sys.platform", "darwin"), \
                 patch("pynput.mouse._darwin.Quartz", quartz):
             self.input.click(10, 20, mouse.Button.left, True)
             self.assertIsNone(self.input.darwin_intercept(1, event))
@@ -316,8 +316,8 @@ class ScanGestureTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "darwin", "Requires native pynput macOS backend")
     def test_macos_listener_uses_pynput_darwin_intercept_option(self):
-        with patch("meikipop.gui.desktop_input.KeyboardListener") as keyboard_listener, \
-                patch("meikipop.gui.desktop_input.mouse.Listener") as mouse_listener:
+        with patch("wordcel.gui.desktop_input.KeyboardListener") as keyboard_listener, \
+                patch("wordcel.gui.desktop_input.mouse.Listener") as mouse_listener:
             probe = DesktopInput("shift", "", "", 400)
         try:
             self.assertEqual(keyboard_listener.call_args.kwargs["darwin_intercept"], probe.darwin_key_intercept)
@@ -327,7 +327,7 @@ class ScanGestureTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "darwin", "macOS listener backend")
     def test_actual_macos_listeners_store_interceptors_without_starting_hooks(self):
-        from meikipop.gui.desktop_input import KeyboardListener
+        from wordcel.gui.desktop_input import KeyboardListener
         with patch.object(KeyboardListener, "start"), patch.object(KeyboardListener, "stop"), \
                 patch.object(KeyboardListener, "join"), patch.object(mouse.Listener, "start"), \
                 patch.object(mouse.Listener, "stop"), patch.object(mouse.Listener, "join"):
@@ -345,7 +345,7 @@ class ScanGestureTests(unittest.TestCase):
                                  kCGKeyboardEventKeycode=9,
                                  CGEventGetIntegerValueField=lambda event, field: 53)
         event = object()
-        with patch("meikipop.gui.desktop_input.sys.platform", "darwin"), \
+        with patch("wordcel.gui.desktop_input.sys.platform", "darwin"), \
                 patch.multiple("pynput.keyboard._darwin", kCGEventKeyDown=10, kCGEventKeyUp=11,
                                 kCGKeyboardEventKeycode=9,
                                 CGEventGetIntegerValueField=quartz.CGEventGetIntegerValueField):
@@ -365,7 +365,7 @@ class ScanGestureTests(unittest.TestCase):
                                  kCGKeyboardEventKeycode=9,
                                  CGEventGetIntegerValueField=lambda event, field: 8)
         event = object()
-        with patch("meikipop.gui.desktop_input.sys.platform", "darwin"), \
+        with patch("wordcel.gui.desktop_input.sys.platform", "darwin"), \
                 patch.multiple("pynput.keyboard._darwin", kCGEventKeyDown=10, kCGEventKeyUp=11,
                                 kCGKeyboardEventKeycode=9,
                                 CGEventGetIntegerValueField=quartz.CGEventGetIntegerValueField):
@@ -394,7 +394,7 @@ class ScanGestureTests(unittest.TestCase):
         self.assertEqual(self.input.keys.suppress_event.call_count, 3)
 
     def test_pin_key_can_be_changed_or_disabled_and_requires_scan_preview(self):
-        with patch("meikipop.gui.desktop_input.sys.platform", "darwin"):
+        with patch("wordcel.gui.desktop_input.sys.platform", "darwin"):
             self.input.keys.canonical.side_effect = lambda key: key
             self.input.set_pin_shortcut("x")
             self.input.key(keyboard.KeyCode.from_char("x"), True)
@@ -432,7 +432,7 @@ class ScanSettingsTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def test_defaults_and_saved_controls_update_current_window(self):
-        from meikipop.gui.dictionary_manager import SetupDialog
+        from wordcel.gui.dictionary_manager import SetupDialog
 
         class Window(QWidget):
             scan_settings_changed = pyqtSignal()
@@ -464,7 +464,7 @@ class ScanSettingsTests(unittest.TestCase):
                 changed.assert_called_once_with()
                 component = Path(temp) / "component"
                 component.mkdir()
-                from meikipop.ocr.providers.screenai.component import library_names
+                from wordcel.ocr.providers.screenai.component import library_names
                 (component / library_names()[0]).touch()
                 dialog.screenai_directory.setText(str(component))
                 dialog.ja_ocr_provider.setCurrentIndex(dialog.ja_ocr_provider.findData("screenai"))
@@ -500,7 +500,7 @@ class ScanSettingsTests(unittest.TestCase):
                 self.app.processEvents()
 
     def test_invalid_translation_preferences_do_not_prevent_opening_settings(self):
-        from meikipop.gui.dictionary_manager import SetupDialog
+        from wordcel.gui.dictionary_manager import SetupDialog
         with tempfile.TemporaryDirectory() as temp:
             settings = QSettings(str(Path(temp) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/translation", '{"unknown": true}')
@@ -515,7 +515,7 @@ class ScanSettingsTests(unittest.TestCase):
                 self.app.processEvents()
 
     def test_invalid_shortcuts_do_not_block_independent_settings(self):
-        from meikipop.gui.dictionary_manager import SetupDialog
+        from wordcel.gui.dictionary_manager import SetupDialog
         with tempfile.TemporaryDirectory() as temp:
             settings = QSettings(str(Path(temp) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
@@ -554,14 +554,14 @@ class ScanSettingsTests(unittest.TestCase):
                 self.app.processEvents()
 
     def test_invalid_ocr_component_restores_provider_without_blocking_capture_settings(self):
-        from meikipop.gui.dictionary_manager import SetupDialog
+        from wordcel.gui.dictionary_manager import SetupDialog
         with tempfile.TemporaryDirectory() as temp:
             settings = QSettings(str(Path(temp) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
             dialog = SetupDialog(Path(temp) / "library", settings, Mock())
             try:
                 previous = dialog.ja_ocr_provider.currentData()
-                with patch("meikipop.ocr.providers.screenai.component.find_component_directory",
+                with patch("wordcel.ocr.providers.screenai.component.find_component_directory",
                            side_effect=RuntimeError("Component missing")):
                     dialog.screenai_directory.setText(str(Path(temp) / "missing"))
                     dialog.ja_ocr_provider.setCurrentIndex(dialog.ja_ocr_provider.findData("screenai"))

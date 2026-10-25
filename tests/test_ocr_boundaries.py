@@ -1,10 +1,10 @@
 import unittest
 from dataclasses import replace
 
-from meikipop.ocr.boundaries import expanded_crop
-from meikipop.ocr.frames import RecognizedFrame
-from meikipop.ocr.interface import BoundingBox, Paragraph, Word
-from meikipop.utils.capture import CaptureRequest
+from wordcel.ocr.boundaries import expanded_crop
+from wordcel.ocr.frames import RecognizedFrame
+from wordcel.ocr.interface import BoundingBox, Paragraph, Word
+from wordcel.utils.capture import CaptureRequest
 
 
 def frame(box, *, vertical=False):

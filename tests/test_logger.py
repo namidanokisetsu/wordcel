@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from meikipop.utils import logger
+from wordcel.utils import logger
 
 
 class LoggerTests(unittest.TestCase):
@@ -44,7 +44,7 @@ class LoggerTests(unittest.TestCase):
                 logger.sys.stderr.flush()
                 state["stream"].close()
             self.assertIn("macOS packaged diagnostic", original.getvalue())
-            self.assertIn("macOS packaged diagnostic", (Path(directory) / "meikipop-runtime.log").read_text())
+            self.assertIn("macOS packaged diagnostic", (Path(directory) / "wordcel-runtime.log").read_text())
             self.fault_handler.assert_called_once_with(file=state["stream"])
 
     def test_denied_fault_handler_keeps_ordinary_logging(self):
@@ -56,7 +56,7 @@ class LoggerTests(unittest.TestCase):
             try:
                 state["sys"].stderr.write("ordinary diagnostic\n")
                 state["sys"].stderr.flush()
-                self.assertIn("ordinary diagnostic", (Path(directory) / "meikipop-runtime.log").read_text())
+                self.assertIn("ordinary diagnostic", (Path(directory) / "wordcel-runtime.log").read_text())
             finally:
                 state["stream"].close()
 
@@ -75,7 +75,7 @@ class LoggerTests(unittest.TestCase):
             for handler in logging.getLogger().handlers:
                 handler.flush()
 
-            log_text = (Path(temp_dir) / "meikipop.log").read_text(encoding="utf-8")
+            log_text = (Path(temp_dir) / "wordcel.log").read_text(encoding="utf-8")
             for handler in logging.getLogger().handlers:
                 handler.close()
 

@@ -1,6 +1,6 @@
 import unittest
 
-from meikipop.gui.activation import (
+from wordcel.gui.activation import (
     ActivationState,
     normalise_activation_bindings,
     parse_activation_bindings,

@@ -13,10 +13,10 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QLineEdit
 from pynput import keyboard
 
-from meikipop.gui.keyboard_listener import KeyboardListener
-from meikipop.gui.shortcut_edit import ShortcutEdit
-from meikipop.gui.text_shortcuts import TextHotKeys
-from meikipop.utils.macos import require_input_monitoring_permission
+from wordcel.gui.keyboard_listener import KeyboardListener
+from wordcel.gui.shortcut_edit import ShortcutEdit
+from wordcel.gui.text_shortcuts import TextHotKeys
+from wordcel.utils.macos import require_input_monitoring_permission
 
 
 class ShortcutRecordingTests(unittest.TestCase):
@@ -27,7 +27,7 @@ class ShortcutRecordingTests(unittest.TestCase):
     def test_recorded_command_and_control_roundtrip_without_changing_saved_binding(self):
         for platform, physical, sequence in (("darwin", "cmd", "Ctrl"), ("darwin", "ctrl", "Meta"),
                                               ("win32", "ctrl", "Ctrl"), ("win32", "cmd", "Meta")):
-            with self.subTest(platform=platform, physical=physical), patch("meikipop.gui.shortcut_edit.sys.platform", platform):
+            with self.subTest(platform=platform, physical=physical), patch("wordcel.gui.shortcut_edit.sys.platform", platform):
                 field = ShortcutEdit(f"<{physical}>+<shift>+d")
                 self.assertEqual(field.recorder.keySequence(), QKeySequence(sequence + "+Shift+D"))
                 self.assertEqual(set(field.binding().split("+")), {f"<{physical}>", "<shift>", "d"})
@@ -57,7 +57,7 @@ class ShortcutRecordingTests(unittest.TestCase):
 
 class InputPermissionTests(unittest.TestCase):
     def test_accessibility_requests_access_and_reports_denial(self):
-        from meikipop.utils.macos import require_accessibility_permission
+        from wordcel.utils.macos import require_accessibility_permission
         api = Mock(kAXTrustedCheckOptionPrompt="prompt")
         for granted in (False, True):
             api.AXIsProcessTrustedWithOptions.return_value = granted
@@ -71,12 +71,12 @@ class InputPermissionTests(unittest.TestCase):
 
     def test_denied_permission_keeps_configured_shortcut_for_next_launch(self):
         from types import SimpleNamespace
-        from meikipop.gui.quick_lookup import QuickLookupWindow
-        from meikipop.utils.macos import InputMonitoringPermissionError
+        from wordcel.gui.quick_lookup import QuickLookupWindow
+        from wordcel.utils.macos import InputMonitoringPermissionError
         settings = Mock()
         settings.value.return_value = ""
         window = SimpleNamespace(settings=settings, _keys=None, hotkey_requested=Mock(), show_message=Mock())
-        with patch("meikipop.gui.text_shortcuts.TextHotKeys") as listener:
+        with patch("wordcel.gui.text_shortcuts.TextHotKeys") as listener:
             listener.return_value.start.side_effect = InputMonitoringPermissionError("Input Monitoring denied")
             warning = QuickLookupWindow.apply_shortcut(window, "<cmd>+d", "Ctrl+D")
         self.assertEqual(warning, "Input Monitoring denied")
@@ -117,8 +117,8 @@ class InputPermissionTests(unittest.TestCase):
 class MacListenerTests(unittest.TestCase):
     def test_intercept_requires_accessibility_before_starting_thread(self):
         listener = KeyboardListener(darwin_intercept=lambda kind, event: event)
-        with patch("meikipop.utils.macos.require_input_monitoring_permission"), \
-                patch("meikipop.utils.macos.require_accessibility_permission",
+        with patch("wordcel.utils.macos.require_input_monitoring_permission"), \
+                patch("wordcel.utils.macos.require_accessibility_permission",
                       side_effect=RuntimeError("Accessibility")) as permission, \
                 patch.object(keyboard.Listener, "start") as start:
             with self.assertRaisesRegex(RuntimeError, "Accessibility"):
@@ -130,8 +130,8 @@ class MacListenerTests(unittest.TestCase):
         from pynput._util.darwin import HIServices
         events = []
         listener = KeyboardListener()
-        with patch("meikipop.utils.macos.require_input_monitoring_permission"), \
-                patch("meikipop.utils.macos.require_accessibility_permission") as accessibility, \
+        with patch("wordcel.utils.macos.require_input_monitoring_permission"), \
+                patch("wordcel.utils.macos.require_accessibility_permission") as accessibility, \
                 patch.object(HIServices, "AXIsProcessTrusted", side_effect=lambda: events.append("resolve")), \
                 patch.object(keyboard.Listener, "start", side_effect=lambda: events.append("start")):
             listener.start()
@@ -169,7 +169,7 @@ class MacListenerTests(unittest.TestCase):
         code = '''
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication, QWidget
-from meikipop.gui.text_shortcuts import TextHotKeys
+from wordcel.gui.text_shortcuts import TextHotKeys
 app = QApplication([])
 window = QWidget(); window.show()
 def replace():

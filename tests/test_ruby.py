@@ -10,11 +10,11 @@ from PyQt6.QtGui import QFont, QImage, QPainter, QTextCursor, QTextDocumentFragm
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtTest import QTest
 
-from meikipop.dictionary.library import Entry
-from meikipop.dictionary.search import SearchResult
-from meikipop.gui.quick_lookup import LocalDictionaryBrowser, render_result
-from meikipop.gui.ruby import BASE, READING, RUBY, ruby_html
-from meikipop.config.config import config
+from wordcel.dictionary.library import Entry
+from wordcel.dictionary.search import SearchResult
+from wordcel.gui.quick_lookup import LocalDictionaryBrowser, render_result
+from wordcel.gui.ruby import BASE, READING, RUBY, ruby_html
+from wordcel.config.config import config
 from unittest.mock import patch
 
 
@@ -86,7 +86,7 @@ class RubyTests(unittest.TestCase):
         self.assertIn("食べ物", hits)
 
     def test_frequency_provenance_tooltips_preserve_visible_rank_and_copy(self):
-        from meikipop.dictionary.metadata import Frequency
+        from wordcel.dictionary.metadata import Frequency
         from PyQt6.QtGui import QTextDocument
         word = Entry("1", "猫", "ねこ", "Words", "ja", ("cat",),
                      frequencies=(Frequency("Corpus <one>", 100, "100"),
@@ -120,8 +120,8 @@ class RubyTests(unittest.TestCase):
                 self.assertIn("#160" if combined else "#100/900㋕", self.browser.toPlainText())
 
     def test_inline_pitch_then_frequency_stay_small_and_wrap_with_headword_ruby(self):
-        from meikipop.dictionary.metadata import Frequency
-        from meikipop.dictionary.pitch import Pitch, PITCH_OBJECT, PITCH_PREFIX
+        from wordcel.dictionary.metadata import Frequency
+        from wordcel.dictionary.pitch import Pitch, PITCH_OBJECT, PITCH_PREFIX
         word = Entry("1", "祈願", "きがん", "Words", "ja", ("prayer",), inflection=("past",),
                      frequencies=(Frequency("Corpus <one>", 123, "123"),), pitches=(Pitch("NHK", "きがん", 1),))
         result = SearchResult("祈願", "ja", "en", (word,))
@@ -162,7 +162,7 @@ class RubyTests(unittest.TestCase):
                                                 for line in range(layout.lineCount())))
 
     def test_bracketed_reading_remains_when_inline_pitch_does_not_supply_it(self):
-        from meikipop.dictionary.pitch import Pitch
+        from wordcel.dictionary.pitch import Pitch
         word = Entry("1", "猫", "ねこ", "Words", "ja", ("cat",), pitches=(Pitch("NHK", "ねこ", 1),))
         self.browser.setHtml(render_result(SearchResult("猫", "ja", "en", (word,)), preview=True, preview_pitch=False))
         self.assertIn("猫 [ねこ]", self.browser.toPlainText())
@@ -206,7 +206,7 @@ class RubyTests(unittest.TestCase):
         self.assertEqual(self.browser.createMimeDataFromSelection().text(), "猫")
 
     def test_pitch_objects_preserve_original_reading_for_copy_and_lookup(self):
-        from meikipop.dictionary.pitch import Pitch, PITCH_OBJECT, render_pitches
+        from wordcel.dictionary.pitch import Pitch, PITCH_OBJECT, render_pitches
         html = render_pitches((Pitch("NHK", "きがん", 1, nasal=(2,)),))
         self.browser.setHtml(html)
         self.browser.show()
@@ -227,7 +227,7 @@ class RubyTests(unittest.TestCase):
         self.assertFalse(self.browser.grab().isNull())
 
     def test_table_breaks_and_spaces_copy_like_qt_with_inline_annotations(self):
-        from meikipop.dictionary.pitch import Pitch, render_pitches
+        from wordcel.dictionary.pitch import Pitch, render_pitches
         self.browser.setHtml('<table><tr><td>𠮷 ' + ruby_html("食べ物", "たべもの")
                              + '<br>first&nbsp;sense</td><td>second sense</td></tr></table>'
                              + render_pitches((Pitch("NHK", "きがん", 1, nasal=(2,)),)))
@@ -318,7 +318,7 @@ class RubyTests(unittest.TestCase):
         assets = self.browser.library_root / ("ja-" + "a" * 64 + ".assets")
         assets.mkdir()
         image.save(str(assets / ("b" * 64 + ".png")))
-        image_html = '<img src="meikipop-image:/ja-' + "a" * 64 + "/" + "b" * 64 + '.png" width="200" height="300">'
+        image_html = '<img src="wordcel-image:/ja-' + "a" * 64 + "/" + "b" * 64 + '.png" width="200" height="300">'
         paragraph = "説明 " + ("これは " + ruby_html("食べ物", "たべもの") + " の読みです。") * 5
         self.browser.setHtml('<style>h2 {font-size:18px}</style><h2>Headword</h2><div><div>'
                              + paragraph + image_html + paragraph + '</div>'

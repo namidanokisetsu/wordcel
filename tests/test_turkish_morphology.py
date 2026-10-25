@@ -9,15 +9,15 @@ import unittest
 from unittest.mock import Mock, patch
 import zipfile
 
-from meikipop.dictionary.library import import_yomitan
-from meikipop.dictionary.search import SearchEngine
-from meikipop.language.analyzer import Token
-from meikipop.language.turkish_analyzer import TrAnalysis, TrMorpheme, TurkishAnalyzer, grammar_labels
+from wordcel.dictionary.library import import_yomitan
+from wordcel.dictionary.search import SearchEngine
+from wordcel.language.analyzer import Token
+from wordcel.language.turkish_analyzer import TrAnalysis, TrMorpheme, TurkishAnalyzer, grammar_labels
 
 
 class TurkishCandidateTests(unittest.TestCase):
     def test_background_preparation_is_shared_by_lookup_workers(self):
-        from meikipop.language import turkish_analyzer as module
+        from wordcel.language import turkish_analyzer as module
         entered, release = threading.Event(), threading.Event()
         engine = Mock()
         engine.analyse.return_value = ()
@@ -99,7 +99,7 @@ class TurkishCandidateTests(unittest.TestCase):
 
     def test_imports_and_readiness_do_not_load_nlp(self):
         check = subprocess.run([sys.executable, '-c',
-            "import sys; from meikipop.language.morphology import model_available; "
+            "import sys; from wordcel.language.morphology import model_available; "
             "model_available('tr'); model_available('ja'); "
             "assert not {'stanza', 'torch', 'zeyrek', 'nltk'} & sys.modules.keys()"], capture_output=True, text=True)
         self.assertEqual(check.returncode, 0, check.stderr)
@@ -123,10 +123,10 @@ class TurkishLookupTests(unittest.TestCase):
         self.analyzer = Mock()
         self.analyzer.candidates.return_value = ()
         self.engine._turkish_analyzer = self.analyzer
-        ready = patch('meikipop.language.turkish_analyzer.available', return_value=True)
+        ready = patch('wordcel.language.turkish_analyzer.available', return_value=True)
         ready.start()
         self.addCleanup(ready.stop)
-        stanza = patch('meikipop.language.stanza_analyzer.model_status', return_value='Model needed')
+        stanza = patch('wordcel.language.stanza_analyzer.model_status', return_value='Model needed')
         self.stanza_status = stanza.start()
         self.addCleanup(stanza.stop)
 
@@ -148,7 +148,7 @@ class TurkishLookupTests(unittest.TestCase):
         self.assertEqual(result.entries, ())
         self.assertEqual(result.analyses, (reading,))
         self.assertEqual(result.suggestions, ('çevirmek',))
-        from meikipop.gui.quick_lookup import render_result
+        from wordcel.gui.quick_lookup import render_result
         html = render_result(result)
         for text in ('cevir', '-imiz (our)', '-i (accusative)', 'No dictionary entry.'):
             self.assertIn(text, html)
@@ -188,14 +188,14 @@ class TurkishLookupTests(unittest.TestCase):
     def test_analyzer_failure_does_not_start_a_second_engine(self):
         self.stanza_status.return_value = 'Installed'
         self.analyzer.candidates.side_effect = RuntimeError('fixture failure')
-        with patch('meikipop.language.stanza_analyzer.StanzaAnalyzer') as stanza:
+        with patch('wordcel.language.stanza_analyzer.StanzaAnalyzer') as stanza:
             with self.assertRaisesRegex(RuntimeError, 'fixture failure'):
                 self.search('mestanelikte')
             stanza.assert_not_called()
 
     def test_turkish_readiness_does_not_depend_on_old_stanza_models(self):
-        from meikipop.language.morphology import model_available
-        with patch('meikipop.language.turkish_analyzer.available', return_value=False):
+        from wordcel.language.morphology import model_available
+        with patch('wordcel.language.turkish_analyzer.available', return_value=False):
             self.assertFalse(model_available('tr'))
         self.assertTrue(model_available('tr'))
         self.stanza_status.assert_not_called()
@@ -203,7 +203,7 @@ class TurkishLookupTests(unittest.TestCase):
     def test_successful_morphology_does_not_call_stanza(self):
         self.stanza_status.return_value = 'Installed'
         self.analyzer.candidates.return_value = (TrAnalysis('divane', 'ADJ'),)
-        with patch('meikipop.language.stanza_analyzer.StanzaAnalyzer') as stanza:
+        with patch('wordcel.language.stanza_analyzer.StanzaAnalyzer') as stanza:
             self.assertEqual(self.search('divanelikte').entries[0].term, 'divane')
             stanza.assert_not_called()
 
@@ -228,7 +228,7 @@ class TurkishLookupTests(unittest.TestCase):
         entry = result.entries[0]
         self.assertEqual(entry.morphology, readings)
         self.assertEqual(entry.inflection, ('-lik (noun derivation) · -te (locative)',))
-        from meikipop.gui.quick_lookup import render_result
+        from wordcel.gui.quick_lookup import render_result
         html = render_result(result)
         self.assertIn('-lik (noun derivation)', html)
         self.assertIn('-te (locative)', html)

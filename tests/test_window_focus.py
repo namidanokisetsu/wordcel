@@ -6,7 +6,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from meikipop.utils.window_focus import (configure_macos_popup, focus_pinned_popup,
+from wordcel.utils.window_focus import (configure_macos_popup, focus_pinned_popup,
                                         foreground_is_fullscreen, reduce_motion_enabled)
 
 
@@ -17,8 +17,8 @@ class PopupSpaceTests(unittest.TestCase):
             import ctypes
             from ctypes import wintypes
             from PyQt6.QtWidgets import QApplication, QDialog
-            from meikipop.gui.quick_lookup import QuickLookupWindow
-            from meikipop.utils.capture import exclude_from_capture
+            from wordcel.gui.quick_lookup import QuickLookupWindow
+            from wordcel.utils.capture import exclude_from_capture
 
             class Popup(QDialog):
                 nativeEvent = QuickLookupWindow.nativeEvent
@@ -55,7 +55,7 @@ class PopupSpaceTests(unittest.TestCase):
             from types import SimpleNamespace
             from PyQt6.QtCore import Qt, QTimer
             from PyQt6.QtWidgets import QApplication, QDialog, QTextEdit, QVBoxLayout
-            from meikipop.utils.window_focus import route_popup_wheel, foreground_window
+            from wordcel.utils.window_focus import route_popup_wheel, foreground_window
 
             app = QApplication([])
             class Editor(QTextEdit):

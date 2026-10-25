@@ -4,8 +4,8 @@ import tempfile
 import unittest
 import zipfile
 
-from meikipop.dictionary.library import import_yomitan, save_preferences
-from meikipop.dictionary.search import SearchEngine
+from wordcel.dictionary.library import import_yomitan, save_preferences
+from wordcel.dictionary.search import SearchEngine
 
 
 class JapaneseLibraryTests(unittest.TestCase):

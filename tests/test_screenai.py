@@ -5,9 +5,9 @@ import unittest
 from unittest.mock import Mock, patch
 
 from PIL import Image
-from meikipop.ocr.providers.screenai import component
-from meikipop.ocr.providers.screenai.chrome_screen_ai_pb2 import VisualAnnotation
-from meikipop.ocr.providers.screenai.provider import ScreenAiOcr, suppress_output
+from wordcel.ocr.providers.screenai import component
+from wordcel.ocr.providers.screenai.chrome_screen_ai_pb2 import VisualAnnotation
+from wordcel.ocr.providers.screenai.provider import ScreenAiOcr, suppress_output
 
 
 def annotation(text="日本語", symbols=False):
@@ -47,7 +47,7 @@ class ComponentTests(unittest.TestCase):
             self.assertTrue(component.component_url().endswith("mac-arm64"))
 
     def test_missing_standard_descriptors_do_not_block_native_calls(self):
-        with patch("meikipop.ocr.providers.screenai.provider.os.dup", side_effect=OSError("no console")):
+        with patch("wordcel.ocr.providers.screenai.provider.os.dup", side_effect=OSError("no console")):
             with suppress_output():
                 reached = True
         self.assertTrue(reached)
@@ -67,7 +67,7 @@ class ScreenAiBridgeTests(unittest.TestCase):
             patcher = patch.object(ScreenAiOcr, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
-        patcher = patch("meikipop.ocr.providers.screenai.provider.ctypes.CDLL", return_value=self.native)
+        patcher = patch("wordcel.ocr.providers.screenai.provider.ctypes.CDLL", return_value=self.native)
         patcher.start()
         self.addCleanup(patcher.stop)
         self.provider = ScreenAiOcr(self.root)
@@ -114,7 +114,7 @@ class ScreenAiBridgeTests(unittest.TestCase):
         other = self.root / "other"
         other.mkdir()
         (other / component.library_names()[0]).touch()
-        with self.assertRaisesRegex(RuntimeError, "Restart Meikipop"):
+        with self.assertRaisesRegex(RuntimeError, "Restart Wordcel"):
             ScreenAiOcr(other)
 
     def test_actual_symbol_boxes_and_line_only_vertical_text_survive(self):
@@ -128,7 +128,7 @@ class ScreenAiBridgeTests(unittest.TestCase):
         self.assertEqual(lines[0].words[0].text, "日本語")
 
     def test_turkish_symbols_form_complete_accented_words_and_source_context(self):
-        from meikipop.ocr.context import hit_paragraphs
+        from wordcel.ocr.context import hit_paragraphs
         self.provider.language = "tr"
         text = "Öğretmen öğrencilerle görüşüyor."
         paragraphs = self.provider._transform(annotation(text, symbols=True), 1000, 100)

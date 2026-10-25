@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from meikipop.utils.windowed_processes import configure_windowed_helpers
+from wordcel.utils.windowed_processes import configure_windowed_helpers
 
 
 class HelperWindowTests(unittest.TestCase):
@@ -27,7 +27,7 @@ class HelperWindowTests(unittest.TestCase):
 
         with patch("sys.platform", platform), patch("sys.stdout", stdout), patch("sys.stderr", io.StringIO()), \
                 patch("platformdirs.user_cache_dir", return_value=temporary.name), \
-                patch("meikipop.utils.model_cache.configure_model_cache"), patch.object(subprocess, "Popen", Process), \
+                patch("wordcel.utils.model_cache.configure_model_cache"), patch.object(subprocess, "Popen", Process), \
                 patch("faulthandler.enable"):
             state = runpy.run_path(str(Path(__file__).resolve().parents[1] / "packaging/runtime.py"))
             selected = subprocess.Popen
@@ -86,11 +86,11 @@ class HelperWindowTests(unittest.TestCase):
 
     @unittest.skipUnless(hasattr(subprocess, "CREATE_NO_WINDOW"), "Windows process flags")
     def test_source_entry_configures_helpers_before_model_or_gui_setup(self):
-        from meikipop.scripts.quick_lookup import main
+        from wordcel.scripts.quick_lookup import main
         class Configured(Exception):
             pass
-        with patch("meikipop.utils.windowed_processes.configure_windowed_helpers", side_effect=Configured), \
-                patch("meikipop.utils.model_cache.configure_model_cache") as models:
+        with patch("wordcel.utils.windowed_processes.configure_windowed_helpers", side_effect=Configured), \
+                patch("wordcel.utils.model_cache.configure_model_cache") as models:
             with self.assertRaises(Configured):
                 main(["--background"])
             models.assert_not_called()

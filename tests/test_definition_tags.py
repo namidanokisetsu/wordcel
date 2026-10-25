@@ -5,7 +5,7 @@ import tempfile
 import unittest
 import zipfile
 
-from meikipop.dictionary.library import Library, import_yomitan
+from wordcel.dictionary.library import Library, import_yomitan
 
 
 class DefinitionTagTests(unittest.TestCase):
@@ -47,7 +47,7 @@ class DefinitionTagTests(unittest.TestCase):
                 self.assertIn("female given name", json.dumps(library.lookup("あかねこ")[0].definitions))
 
     def test_structured_sense_tags_are_not_duplicated(self):
-        from meikipop.dictionary.metadata import tagged_definitions
+        from wordcel.dictionary.metadata import tagged_definitions
         definitions = [{"type": "structured-content", "content": [
             {"tag": "span", "data": {"class": "tag"}, "content": "noun"}, "meaning"]}]
         self.assertIs(tagged_definitions(definitions, "n", {"n": "noun"}), definitions)
@@ -71,13 +71,13 @@ class DefinitionTagTests(unittest.TestCase):
                 self.assertIn("おきに", json.dumps(library.lookup("置きに")[0].definitions, ensure_ascii=False))
 
     def test_nontext_definitions_are_preserved(self):
-        from meikipop.dictionary.metadata import tagged_definitions
+        from wordcel.dictionary.metadata import tagged_definitions
         definitions = [{"type": "image", "path": "images/picture.png"}]
         self.assertEqual(tagged_definitions(definitions, "picture", {}), definitions)
 
     def test_tags_keep_legacy_grammar_section_boundaries(self):
-        from meikipop.dictionary.metadata import tagged_definitions
-        from meikipop.gui.gloss_content import normalize_definitions
+        from wordcel.dictionary.metadata import tagged_definitions
+        from wordcel.gui.gloss_content import normalize_definitions
         definitions = [{"type": "structured-content", "content": [
             "【 Meaning 】", {"tag": "div", "content": "at intervals of"},
             "【 Explanation 】", {"tag": "div", "content": "explanation"}]}]
