@@ -337,9 +337,9 @@ class FirstRunTests(unittest.TestCase):
         self.addCleanup(wizard.deleteLater)
         self.assertEqual(wizard.ocr.currentData(), "screenai")
 
-    def test_turkish_default_precedes_apple_vision(self):
+    def test_turkish_default_preserves_apple_vision(self):
         from wordcel.language.support import default_ocr_provider
-        self.assertEqual(default_ocr_provider("tr", "darwin", ("tr",)), "paddle")
+        self.assertEqual(default_ocr_provider("tr", "darwin", ("tr",)), "vision")
 
     def test_setup_can_skip_ocr_and_translation_and_offers_japanese_font(self):
         for task, check in self.wizard.choices:

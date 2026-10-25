@@ -299,8 +299,8 @@ The shared desktop selects providers explicitly in
 `language/support.py`. Adding a provider also requires its Settings/setup
 handling; dropping a directory into `ocr/providers/` does not register it here.
 Keep recognition local, model setup explicit and initialization worker-bound.
-Turkish setup defaults to PaddleOCR even when a system OCR provider is installed;
-saved provider choices remain unchanged. Other languages retain their existing defaults.
+Turkish setup prefers its default provider over other installed engines: PaddleOCR
+on Windows, Apple Vision on macOS. Saved provider choices remain unchanged.
 `ocr/windows_native.py` uses Windows.Media.Ocr through lazy PyWinRT imports.
 Only installed system OCR languages are selectable; recognizers and bitmaps
 stay on the scan worker. Normalized boxes reuse the shared Japanese hit lookup.
