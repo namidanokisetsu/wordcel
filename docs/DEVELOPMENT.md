@@ -2,8 +2,7 @@
 
 See the [user guide](USER_GUIDE.md) for everyday use and
 [AGENTS.md](../AGENTS.md) for repository conventions. The shared desktop app is
-the main entrypoint; the original Japanese client remains available through
-`meikipop legacy-japanese`.
+the only desktop entrypoint. Japanese lookup uses the shared app.
 
 ## Run from source
 
@@ -12,21 +11,29 @@ Use Python 3.12 for the desktop dependencies. On Windows:
 ```powershell
 py -3.12 -m venv .venv-desktop
 .\.venv-desktop\Scripts\python -m pip install -e .
-.\Start-Meikipop.cmd
+.\start-wordcel.cmd
 ```
 
 On macOS, create `.venv`, install with `python -m pip install -e .`, and use
-[Start-Meikipop.command](../Start-Meikipop.command). Grant screen/input
-permissions to the launching app or terminal. `meikipop`, `meikipop search`
-and `meikipop-search` open the shared popup;
-`python -m meikipop.scripts.quick_lookup --no-ocr` starts dictionary search alone.
+[start-wordcel.command](../start-wordcel.command). Grant screen/input
+permissions to the launching app or terminal. `wordcel`, `wordcel search`
+and `wordcel-search` open the shared popup;
+`python -m wordcel.scripts.quick_lookup --no-ocr` starts dictionary search alone.
 Use Settings for explicit dictionary, OCR and model downloads.
-The Windows source launcher uses the installed app's settings and data. Quit
+Source and installed Wordcel use the same settings and data. Quit
 the running tray app first; single-instance forwarding otherwise opens that copy.
 
 ## Architecture and constraints
 
-Paths below are relative to `src/meikipop/`.
+Paths below are relative to `src/wordcel/`. Settings use the `wordcel/wordcel`
+Qt namespace; managed data and caches use platformdirs' `wordcel` directory.
+The Meikipop settings and data directory is untouched; setup starts fresh.
+No prior-version settings or internal dictionary schemas are migrated. Yomitan archive
+formats remain supported, including archives without language metadata.
+
+The retired Japanese client, pickle dictionary builders, dynamic OCR discovery
+and online Lens/websocket adapters are removed. Shared Yomitan definition
+converters live in `dictionary/structured_content.py` and `dictionary/plain_content.py`.
 
 | Area | Main modules | Contract |
 | --- | --- | --- |
@@ -231,7 +238,7 @@ lookup.** The [experiment record](LLM_EXPERIMENTS.md) documents the measured
 benefits, failures and decision that integration is unjustified. Explicit
 sentence translation is a separate feature.
 
-Language availability lives in [support.py](../src/meikipop/language/support.py)
+Language availability lives in [support.py](../src/wordcel/language/support.py)
 and the translation model registry. Settings uses those definitions; avoid
 maintaining a second exhaustive language table in documentation.
 
@@ -248,7 +255,7 @@ Use small fixtures for lookup, rendering, cancellation and import changes.
 Real-model checks are for analysis changes or specific failures, not routine
 documentation work. OCR accuracy, global input, exclusive fullscreen, display
 scaling and clean-machine installation still need platform acceptance.
-`MEIKIPOP_TIMING=1` enables stage timings, including Anki preparation and requests,
+`WORDCEL_TIMING=1` enables stage timings, including Anki preparation and requests,
 without logging text, pixels or paths.
 
 ## OCR providers
@@ -259,13 +266,7 @@ The shared desktop selects providers explicitly in
 handling; dropping a directory into `ocr/providers/` does not register it here.
 Keep recognition local, model setup explicit and initialization worker-bound.
 
-The legacy Japanese client discovers `OcrProvider` subclasses from packages in
-`src/meikipop/ocr/providers/`. Copy the `dummy/` package, retain `__init__.py`
-and `provider.py`, supply a unique `NAME`, and implement
-`scan(PIL.Image.Image) -> Optional[List[Paragraph]]`. Return `[]` for no text or
-`None` for failure. Select it through that client's tray OCR menu.
-
-Both paths use [ocr/interface.py](../src/meikipop/ocr/interface.py):
+Providers use [ocr/interface.py](../src/wordcel/ocr/interface.py):
 `Paragraph(full_text, words, box, is_vertical)` contains
 `Word(text, separator, box, source_start=None)` records. Preserve the original
 text and offsets. Boxes use normalized center x/y, width and height relative
@@ -278,21 +279,21 @@ a tall box alone does not establish vertical text.
 Ordinary Paddle setup uses the native runtime. An optional ONNX export needs
 a separate Python 3.12 conversion environment; keep the desktop on Paddle 3.2.2.
 Install the OCR models first in Settings or with
-`meikipop search --setup-ocr paddle`, then:
+`wordcel search --setup-ocr paddle`, then:
 
 ```powershell
 py -3.12 -m venv .venv-ocr-export
 .\.venv-ocr-export\Scripts\python -m pip install paddlepaddle==3.1.1 paddle2onnx==2.1.0 onnx==1.17.0
 .\.venv-ocr-export\Scripts\python -m pip install --no-deps -e .
-.\.venv-ocr-export\Scripts\python -m meikipop.scripts.export_turkish_ocr --source-dir "$env:USERPROFILE\.paddlex\official_models" --output build\turkish-onnx
-.\.venv-desktop\Scripts\python -m meikipop.scripts.quick_lookup --setup-ocr paddle --onnx-dir build\turkish-onnx
+.\.venv-ocr-export\Scripts\python -m wordcel.scripts.export_turkish_ocr --source-dir "$env:USERPROFILE\.paddlex\official_models" --output build\turkish-onnx
+.\.venv-desktop\Scripts\python -m wordcel.scripts.quick_lookup --setup-ocr paddle --onnx-dir build\turkish-onnx
 ```
 
 Setup verifies source/export hashes and loads both models before activation.
 Normal setup restores native Paddle. Conversion dependencies are not needed
 at runtime.
 
-## Packaging and compatibility
+## Packaging
 
 Routine reinstalls are local Windows test builds with source commits pushed to
 GitHub. Public releases follow user testing and an explicit release request;
@@ -329,4 +330,4 @@ design as a reference. Pitch, input and Anki integration drew on
 preparation ordering follow [Mangatan](https://github.com/1Selxo/Mangatan/tree/6022576909b2cbc9a97286822f801d316b30371b/lib/services/mining).
 The Screen AI adapter follows
 [Meikikai's native bridge](https://github.com/hectahertz/meikikai/tree/50efb401/src/meikikai/ocr/providers/chrome_screen_ai).
-Licenses and attributions ship in `src/meikipop/resources/licenses/`.
+Licenses and attributions ship in `src/wordcel/resources/licenses/`.

@@ -45,13 +45,13 @@ jobs:
 
       - name: verify bundled runtime
         run: |
-          & ./dist/Meikipop/Meikipop-cli.exe --check-runtime
+          & ./dist/wordcel/wordcel-cli.exe --check-runtime
           if ($LASTEXITCODE -ne 0) { throw 'Bundled runtime check failed' }
 
       - name: upload windows artifact
         id: upload
         uses: actions/upload-artifact@v4
         with:
-          name: meikipop-windows-x64
+          name: wordcel-windows-x64
           path: |
             dist/*-setup.exe

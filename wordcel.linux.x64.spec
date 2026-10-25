@@ -2,12 +2,12 @@
 
 
 a = Analysis(
-    ['src/meikipop/main.py'],
+    ['src/wordcel/main.py'],
     pathex=['.'],
     binaries=[],
     datas=[
-        ('src/meikipop/resources', 'meikipop/resources'),
-        ('src/meikipop/scripts/deconjugator.json', 'meikipop/scripts'),
+        ('src/wordcel/resources', 'wordcel/resources'),
+        ('src/wordcel/scripts/deconjugator.json', 'wordcel/scripts'),
     ],
     hiddenimports=['PyQt6.QtTextToSpeech'],
     hookspath=[],
@@ -25,7 +25,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='meikipop',
+    name='wordcel',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

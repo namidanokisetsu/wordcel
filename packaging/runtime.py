@@ -4,8 +4,8 @@ import os
 import sys
 from pathlib import Path
 from platformdirs import user_cache_dir
-from meikipop.utils.model_cache import configure_model_cache
-from meikipop.utils.windowed_processes import configure_windowed_helpers
+from wordcel.utils.model_cache import configure_model_cache
+from wordcel.utils.windowed_processes import configure_windowed_helpers
 
 configure_windowed_helpers()
 configure_model_cache()
@@ -36,9 +36,9 @@ class DiagnosticStream:
 
 
 if sys.stdout is None or sys.stderr is None or sys.platform == "darwin":
-    log_dir = Path(user_cache_dir("meikipop", appauthor=False))
+    log_dir = Path(user_cache_dir("wordcel", appauthor=False))
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_path = log_dir / "meikipop-runtime.log"
+    log_path = log_dir / "wordcel-runtime.log"
     if log_path.exists() and log_path.stat().st_size > 1_000_000:
         log_path.replace(log_path.with_suffix(".log.old"))
     stream = log_path.open("a", encoding="utf-8", buffering=1)

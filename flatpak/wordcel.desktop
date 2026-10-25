@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=Meikipop
+Name=Wordcel
 Comment=Japanese OCR Popup Dictionary
-Exec=meikipop
-Icon=com.github.rtr46.meikipop
+Exec=wordcel
+Icon=io.github.namidanokisetsu.wordcel
 Terminal=false
 Type=Application
 Categories=Education;Languages;Utility;

@@ -29,7 +29,7 @@ security import "$temporary/signing.p12" -k "$keychain" \
   -P "$MACOS_SIGNING_PASSWORD" -T /usr/bin/codesign >/dev/null
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
   -k "$keychain_password" "$keychain" >/dev/null
-identity=$(security find-certificate -c 'Meikipop Signing' -Z "$keychain" | awk '/SHA-1 hash:/ {print $3}')
+identity=$(security find-certificate -c 'Wordcel Signing' -Z "$keychain" | awk '/SHA-1 hash:/ {print $3}')
 [[ "$identity" =~ ^[[:xdigit:]]{40}$ ]]
 # PyInstaller has already signed nested libraries ad hoc. Sign the main app
 # without enabling hardened runtime, which rejects libraries without a Team ID.

@@ -1,11 +1,14 @@
-# Using Meikipop
+# Using Wordcel
 
 ## Install
 
-[Download](https://github.com/namidanokisetsu/meikipop/releases/latest) the Windows
-installer or the macOS DMG for your Mac's processor. Open Meikipop, choose a
+[Download](https://github.com/namidanokisetsu/wordcel/releases/latest) the Windows
+installer or the macOS DMG for your Mac's processor. Open Wordcel, choose a
 language, and select the dictionaries and models to download. You can skip
-downloads and add them later in **Settings**. Meikipop runs in the system tray.
+downloads and add them later in **Settings**. Wordcel runs in the system tray.
+Wordcel starts with fresh settings and data. Existing Meikipop data and Anki
+notes, tags and note types stay unchanged. New Anki exports default to the
+`wordcel` tag and use your selected note type and field mapping.
 
 On macOS, allow **Screen Recording**, **Input Monitoring** and **Accessibility**
 in System Settings → Privacy & Security, then reopen the app. If permissions
@@ -66,7 +69,7 @@ frequency and pitch accent; available features depend on the installed packs.
 **Data** lists shared models first, then dictionaries and models for each language.
 Download, repair, open or remove them there; dictionary checkboxes enable or disable
 packs. Built-in resources and linked external files are labeled separately.
-Removed files still in use are cleared after restarting Meikipop.
+Removed files still in use are cleared after restarting Wordcel.
 **Remove language** deletes its settings, dictionaries and language-specific models
 after confirmation. Shared OCR and translation downloads remain available to other
 languages. Keep at least one language.

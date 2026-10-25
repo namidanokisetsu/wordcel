@@ -68,8 +68,8 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          python -c "import Vision, Quartz; from meikipop.ocr.macos_vision import recognize; from meikipop.scripts.quick_lookup import main"
-          python -m meikipop.scripts.quick_lookup --check-runtime
+          python -c "import Vision, Quartz; from wordcel.ocr.macos_vision import recognize; from wordcel.scripts.quick_lookup import main"
+          python -m wordcel.scripts.quick_lookup --check-runtime
           python -m unittest discover -s tests
 
       - name: verify native architecture
@@ -80,7 +80,7 @@ jobs:
         run: rm -rf build dist || true
 
       - name: build with pyinstaller (macos)
-        run: pyinstaller meikipop.macos.spec
+        run: pyinstaller wordcel.macos.spec
 
       - name: sign release app
         env:
@@ -88,33 +88,33 @@ jobs:
           MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
         run: |
           if [[ -n "$MACOS_SIGNING_P12" ]]; then
-            bash packaging/sign-macos.sh dist/meikipop.app
+            bash packaging/sign-macos.sh dist/wordcel.app
           fi
 
       - name: verify app resources and signature
         run: |
-          test -f dist/meikipop.app/Contents/Resources/meikipop/scripts/deconjugator.json
-          python -c "import plistlib,tomllib; expected=tomllib.load(open('pyproject.toml','rb'))['project']['version']; info=plistlib.load(open('dist/meikipop.app/Contents/Info.plist','rb')); assert info['CFBundleVersion']==expected and info['CFBundleShortVersionString']==expected,info"
-          codesign --verify --deep --strict dist/meikipop.app
+          test -f dist/wordcel.app/Contents/Resources/wordcel/scripts/deconjugator.json
+          python -c "import plistlib,tomllib; expected=tomllib.load(open('pyproject.toml','rb'))['project']['version']; info=plistlib.load(open('dist/wordcel.app/Contents/Info.plist','rb')); assert info['CFBundleVersion']==expected and info['CFBundleShortVersionString']==expected,info"
+          codesign --verify --deep --strict dist/wordcel.app
           # Native imports only: this exits before Qt, capture or accessibility.
-          dist/meikipop.app/Contents/MacOS/meikipop --check-runtime
+          dist/wordcel.app/Contents/MacOS/wordcel --check-runtime
 
       - name: create dmg
         run: |
           rm -rf dist/dmg-root
           mkdir -p dist/dmg-root
-          cp -R dist/meikipop.app dist/dmg-root/
+          cp -R dist/wordcel.app dist/dmg-root/
           ln -s /Applications dist/dmg-root/Applications
           hdiutil create \
-            -volname "meikipop" \
+            -volname "Wordcel" \
             -srcfolder dist/dmg-root \
             -ov \
             -format UDZO \
-            dist/meikipop.macos.${{ matrix.arch }}.dmg
+            dist/wordcel.macos.${{ matrix.arch }}.dmg
 
       - name: upload macos artifact
         uses: actions/upload-artifact@v4
         with:
-          name: meikipop-macos-${{ matrix.arch }}
+          name: wordcel-macos-${{ matrix.arch }}
           path: |
-            dist/meikipop.macos.${{ matrix.arch }}.dmg
+            dist/wordcel.macos.${{ matrix.arch }}.dmg

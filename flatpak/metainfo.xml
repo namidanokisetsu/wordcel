@@ -1,27 +1,26 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <component type="desktop-application">
-  <id>com.github.rtr46.meikipop</id>
+  <id>io.github.namidanokisetsu.wordcel</id>
 
-  <name>meikipop</name>
-  <summary>Instantly look up Japanese words anywhere on your screen</summary>
+  <name>Wordcel</name>
+  <summary>Look up words on your screen</summary>
   <developer id="com.github.rtr46">
     <name>
         rtr46
     </name>
   </developer>
-  <url type="homepage">https://github.com/rtr46/meikipop</url>
+  <url type="homepage">https://github.com/namidanokisetsu/wordcel</url>
   <content_rating type="oars-1.1" />
 
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
 
   <description>
-    <p>
-      Instantly look up japanese words anywhere on your screen. Meikipop uses optical character recognition (ocr) to read text from websites, games, scanned manga, or even hard-coded video subtitles, giving you effortless dictionary lookups with the press of a key (or even without)!
-    </p>
+    <p>Wordcel is a popup dictionary for screen, typed and selected text, with local OCR and Yomitan dictionaries.</p>
+    <p>Derived from Meikipop by rtr46.</p>
   </description>
 
-  <launchable type="desktop-id">com.github.rtr46.meikipop.desktop</launchable>
+  <launchable type="desktop-id">io.github.namidanokisetsu.wordcel.desktop</launchable>
   <screenshots>
     <screenshot type="default">
       <image>

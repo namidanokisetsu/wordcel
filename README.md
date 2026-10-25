@@ -1,8 +1,8 @@
-﻿# Meikipop
+﻿# Wordcel
 
-Meikipop is a popup dictionary for games, subtitles and other text on your screen. Hold your scan shortcut and point at a word to look it up, hear it or translate its sentence. Save words to Anki with context, screenshots and available recordings. Supports Japanese, Turkish and other languages through Yomitan dictionaries.
+Wordcel is a popup dictionary for games, subtitles and other text on your screen. Hold your scan shortcut and point at a word to look it up, hear it or translate its sentence. Save words to Anki with context, screenshots and available recordings. Supports Japanese, Turkish and other languages through Yomitan dictionaries.
 
-[Download](https://github.com/namidanokisetsu/meikipop/releases/latest) for Windows or macOS (Apple silicon and Intel). On first launch, choose a language and the dictionaries and models you want. Lookup and translation work offline after setup; online pronunciations are optional.
+[Download](https://github.com/namidanokisetsu/wordcel/releases/latest) for Windows or macOS (Apple silicon and Intel). On first launch, choose a language and the dictionaries and models you want. Lookup and translation work offline after setup; online pronunciations are optional.
 
 - App: Python, PyQt6, SQLite.
 - Dictionaries: Yomitan, Jitendex, Wiktionary.

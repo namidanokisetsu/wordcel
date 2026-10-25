@@ -6,4 +6,4 @@ if [[ ! -x .venv/bin/python ]]; then
   read -r '?Press Return to close.'
   exit 1
 fi
-exec .venv/bin/python -m meikipop.scripts.quick_lookup "$@"
+exec .venv/bin/python -m wordcel.scripts.quick_lookup "$@"

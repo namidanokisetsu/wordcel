@@ -16,25 +16,24 @@ def _get_build_version() -> str:
 
 BUILD_VERSION = _get_build_version()
 ranking_dir = Path(CONF['specpath']) / 'build' / 'turkish-ranking'
-subprocess.run([sys.executable, '-m', 'meikipop.scripts.build_turkish_ranking', str(ranking_dir)], check=True)
+subprocess.run([sys.executable, '-m', 'wordcel.scripts.build_turkish_ranking', str(ranking_dir)], check=True)
 model_data, model_binaries, model_imports = collect_all('stanza')
 model_data += copy_metadata('stanza', recursive=True)
-model_data += copy_metadata('meikipop')
+model_data += copy_metadata('wordcel')
 data, binaries, imports = collect_all('zeyrek')
 model_data += data + copy_metadata('zeyrek', recursive=True)
 model_binaries += binaries
 model_imports += imports
 
 a = Analysis(
-    ['src/meikipop/scripts/quick_lookup.py'],
+    ['src/wordcel/scripts/quick_lookup.py'],
     pathex=['src'],
     binaries=model_binaries,
     datas=model_data + [
-        (str(ranking_dir / '*.json'), 'meikipop/resources/turkish'),
-        ('src/meikipop/resources/icon.ico', 'meikipop/resources'),
-        ('src/meikipop/resources/icon.inactive.ico', 'meikipop/resources'),
-        ('src/meikipop/scripts/deconjugator.json', 'meikipop/scripts'),
-        ('src/meikipop/resources/licenses/*.txt', 'meikipop/resources/licenses'),
+        (str(ranking_dir / '*.json'), 'wordcel/resources/turkish'),
+        ('src/wordcel/resources/icon.ico', 'wordcel/resources'),
+        ('src/wordcel/scripts/deconjugator.json', 'wordcel/scripts'),
+        ('src/wordcel/resources/licenses/*.txt', 'wordcel/resources/licenses'),
     ],
     hiddenimports=model_imports + ['PyQt6.QtTextToSpeech', 'Vision', 'Foundation', 'Quartz', 'AppKit', 'pynput.keyboard._darwin', 'pynput.mouse._darwin'],
     hookspath=[],
@@ -51,7 +50,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='meikipop',
+    name='wordcel',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -73,18 +72,18 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='meikipop',
+    name='wordcel',
 )
 
 app = BUNDLE(
     coll,
-    name='meikipop.app',
-    icon='src/meikipop/resources/icon.ico',
-    bundle_identifier='io.github.rtr46.meikipop',
+    name='wordcel.app',
+    icon='src/wordcel/resources/icon.ico',
+    bundle_identifier='io.github.namidanokisetsu.wordcel',
     version=BUILD_VERSION,
     info_plist={
         'CFBundleVersion': BUILD_VERSION,
-        'CFBundleDisplayName': 'Meikipop',
+        'CFBundleDisplayName': 'Wordcel',
         'NSHighResolutionCapable': True,
         'NSScreenCaptureUsageDescription': 'Recognize text under the pointer for dictionary lookup.',
         'NSAppleEventsUsageDescription': 'Look up text selected in another app when you use its shortcut.',
