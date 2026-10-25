@@ -115,7 +115,8 @@ or tatweel; attached forms still need dictionary entries or word-form support.
 preview and pinned results. Scrolling is continuous by default; enable
 **Snap scrolling** to move between sections. Drag the progress bar to jump
 between reading positions. Within a section, the wheel and arrows move by whole
-text lines. Mouse Back/Forward buttons turn pages over the popup;
+text lines. Over the popup, the rear (Back) mouse button pages down and the front (Forward)
+button pages up;
 **Side-button scrolling** disables this per profile. Over fullscreen Windows
 apps, a pinned popup accepts arrows, Page Up/Down and Home/End while the source
 keeps focus. **Esc** closes the popup. In **Settings > Shortcuts**, record or

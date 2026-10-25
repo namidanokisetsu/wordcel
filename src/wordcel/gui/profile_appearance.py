@@ -106,7 +106,7 @@ class ProfileAppearance(QWidget):
         self.snap_scrolling.setToolTip("Scroll between dictionary sections")
         pinned_form.addRow(self.snap_scrolling)
         self.side_button_scrolling = QCheckBox("Side-button scrolling")
-        self.side_button_scrolling.setToolTip("Back and Forward turn pages over the popup")
+        self.side_button_scrolling.setToolTip("Rear button scrolls down; front button scrolls up")
         pinned_form.addRow(self.side_button_scrolling)
         self.font = QFontComboBox()
         detail_form.addRow("Font", self.font)

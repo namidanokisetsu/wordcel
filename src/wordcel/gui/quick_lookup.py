@@ -3083,7 +3083,7 @@ class QuickLookupWindow(QDialog):
                 and self.settings.value(f"profiles/{self.active_profile}/side_button_scrolling", True, bool)
                 and (not self._peek or self.is_pinned)):
             if event.type() == QEvent.Type.MouseButtonPress:
-                direction = -1 if event.button() == Qt.MouseButton.BackButton else 1
+                direction = 1 if event.button() == Qt.MouseButton.BackButton else -1
                 if self.browser.section_scroll.enabled:
                     self.browser.section_scroll.advance(direction)
                 else:

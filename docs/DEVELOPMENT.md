@@ -157,8 +157,8 @@ Copy text uses these same configurable bindings without activating the popup;
 an unpinned fullscreen preview routes only Copy text while a reading pane has a
 selection. Source window and child-focus restoration on dismissal remains unchanged.
 Manual search retains normal focus behavior. Borderless fullscreen uses the same
-native monitor-bounds check. Side buttons page while over the popup and can be
-disabled per profile.
+native monitor-bounds check. Side buttons page while over the popup: rear (Back) moves down, front (Forward)
+moves up. Side-button scrolling can be disabled per profile.
 Windows popups remember the source before showing, before a pin click can activate
 them. Dismissal restores that source only while the popup still has focus;
 temporary capture hiding never changes focus tracking. Windows also retains the
