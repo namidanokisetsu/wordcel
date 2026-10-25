@@ -232,11 +232,9 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.profile_name = QLineEdit()
         self.profile_name.editingFinished.connect(self.rename_profile)
         self.profile_language_label = QLabel()
-        self.active_label = QLabel()
         header_form = QFormLayout()
         header_form.addRow("Name", self.profile_name)
         header_form.addRow("Lookup language", self.profile_language_label)
-        header_form.addRow(self.active_label)
         self.profile_details = QWidget()
         self.profile_details.setLayout(header_form)
         layout.addWidget(self.profile_header)
@@ -845,7 +843,7 @@ class SetupDialog(SettingsNavigation, QDialog):
 
     def update_active_label(self):
         active = self.settings.value("profile", "")
-        self.active_label.setText("Active: " + profile_name(self.settings, active))
+        self.highlight_active_profile(active)
         self.activate_button.setEnabled(active != self.profile.currentData())
 
     def remove_profile(self):
@@ -1196,7 +1194,6 @@ class SetupDialog(SettingsNavigation, QDialog):
                 with QSignalBlocker(self.navigation):
                     self.navigation.setCurrentItem(target)
                 self.profile_details.show()
-                self.profile_menu_button.setEnabled(True)
 
     def apply_appearance(self):
         window = self.parent()

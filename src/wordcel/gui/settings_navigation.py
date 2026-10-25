@@ -1,11 +1,31 @@
 """Settings navigation and shared service connection editors."""
 from PyQt6.QtCore import QSignalBlocker, Qt
+from PyQt6.QtGui import QBrush, QPalette
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMenu, QToolButton, QTreeWidget, QTreeWidgetItem, QWidget
 
 from wordcel.config.profiles import connection, profile_ids, profile_name
 
 
 class SettingsNavigation:
+    def highlight_active_profile(self, active):
+        if not hasattr(self, "navigation"):
+            return
+        group = self.navigation.topLevelItem(2)
+        if group is None:
+            return
+        for index in range(group.childCount()):
+            entry = group.child(index)
+            identity = entry.data(0, Qt.ItemDataRole.UserRole)[0]
+            is_active = identity == active
+            name = profile_name(self.settings, identity)
+            entry.setText(0, name + ("  \u2713" if is_active else ""))
+            font = entry.font(0)
+            font.setBold(is_active)
+            entry.setFont(0, font)
+            entry.setForeground(0, self.navigation.palette().brush(QPalette.ColorRole.Highlight) if is_active else QBrush())
+            entry.setToolTip(0, "Active profile" if is_active else "")
+            entry.setData(0, Qt.ItemDataRole.AccessibleTextRole, name + (", active profile" if is_active else ""))
+
     def is_active_edit(self):
         return self.parent() is not None and getattr(self.parent(), "active_profile", None) == self.profile.currentData()
 
@@ -34,6 +54,15 @@ class SettingsNavigation:
         self.profile.hide()
         self.profile_header.layout().itemAt(0).widget().hide()
         self.navigation.currentItemChanged.connect(self.navigate)
+        self.navigation.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.navigation.customContextMenuRequested.connect(self.show_profile_menu)
+        self.profile_menu = QMenu(self.navigation)
+        self.profile_actions = {}
+        for title, callback in (("Activate", self.activate_profile), ("Duplicate", self.duplicate_profile),
+                                ("Move up", lambda: self.reorder_profile(-1)),
+                                ("Move down", lambda: self.reorder_profile(1)), ("Delete", self.remove_profile)):
+            self.profile_actions[title] = self.profile_menu.addAction(title, callback)
+        self.profile_menu.aboutToShow.connect(self.update_profile_actions)
         self.resize(900, 620)
 
     def rebuild_profiles(self, selected=None):
@@ -66,20 +95,6 @@ class SettingsNavigation:
             add.setAccessibleName("New profile")
             add.clicked.connect(self.choose_profile)
             toolbar.addWidget(add)
-            self.profile_menu_button = QToolButton()
-            self.profile_menu_button.setText("\u22ef")
-            self.profile_menu_button.setToolTip("Profile actions")
-            self.profile_menu_button.setAccessibleName("Profile actions")
-            self.profile_menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-            menu = QMenu(self.profile_menu_button)
-            self.profile_actions = {}
-            for title, callback in (("Activate", self.activate_profile), ("Duplicate", self.duplicate_profile),
-                                    ("Move up", lambda: self.reorder_profile(-1)),
-                                    ("Move down", lambda: self.reorder_profile(1)), ("Delete", self.remove_profile)):
-                self.profile_actions[title] = menu.addAction(title, callback)
-            menu.aboutToShow.connect(self.update_profile_actions)
-            self.profile_menu_button.setMenu(menu)
-            toolbar.addWidget(self.profile_menu_button)
             self.navigation.setItemWidget(group, 0, heading)
             group.setSizeHint(0, heading.sizeHint())
             group.setFlags(group.flags() & ~Qt.ItemFlag.ItemIsSelectable)
@@ -111,6 +126,14 @@ class SettingsNavigation:
         self.profile_changed()
         self.navigate(self.navigation.currentItem())
 
+    def show_profile_menu(self, position):
+        item = self.navigation.itemAt(position)
+        group = self.navigation.topLevelItem(2)
+        if item is None or item.parent() != group:
+            return
+        self.navigation.setCurrentItem(item)
+        self.profile_menu.popup(self.navigation.viewport().mapToGlobal(position))
+
     def update_profile_actions(self):
         order = list(profile_ids(self.settings))
         identity = self.profile.currentData()
@@ -127,7 +150,6 @@ class SettingsNavigation:
         if not value:
             return
         identity, page = value
-        self.profile_menu_button.setEnabled(identity is not None)
         self.profile_details.setVisible(identity is not None)
         if identity and identity != self.profile.currentData():
             from wordcel.gui.settings_section import SettingsSection

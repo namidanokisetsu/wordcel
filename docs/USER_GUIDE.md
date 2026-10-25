@@ -122,8 +122,9 @@ grammar, and screen lookup keeps available spelling suggestions.
 These include accent alternatives of recovered Turkish roots, shown as links
 without replacing the original analysis.
 Settings save immediately. The sidebar lists **App**, **Storage**, then **Profiles**.
-Use **+** beside Profiles to add a profile and its **…** menu to activate,
-duplicate, reorder or delete the selected profile. Editing a profile does not
+Use **+** beside Profiles to add a profile. Right-click a profile name to activate,
+duplicate, reorder or delete it. The active profile has a highlighted name and checkmark.
+Editing a profile does not
 activate it; deleting it keeps downloaded resources. Startup and shared connections
 are under App. Lookup and appearance settings belong to each named profile.
 The text shortcut starts disabled. **First dictionary only** limits preview to the first matching
