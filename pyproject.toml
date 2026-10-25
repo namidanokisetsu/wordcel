@@ -54,4 +54,4 @@ where = ["src"]
 include = ["wordcel*"]
 
 [tool.setuptools.package-data]
-wordcel = ["scripts/deconjugator.json", "resources/icon.ico", "resources/icon.inactive.ico", "resources/licenses/*.txt"]
+wordcel = ["scripts/deconjugator.json", "resources/icon.ico", "resources/icon.svg", "resources/licenses/*.txt"]
