@@ -145,7 +145,12 @@ Use **+** beside Profiles to add a profile. Right-click a profile name to activa
 duplicate, reorder or delete it. The active profile has a highlighted name and checkmark.
 Editing a profile does not
 activate it; deleting it keeps downloaded resources. Startup and shared connections
-are under App. Lookup and appearance settings belong to each named profile.
+are under App. **App > Appearance**, **Shortcuts**, **Popup** and **Audio playback**
+set shared defaults. Profiles initially use these defaults with their controls hidden.
+Uncheck **Use global** in a profile to customize that group. Checking it again applies
+the global settings and keeps your custom values for later. Existing profiles retain
+overrides where their saved settings differ. Dictionaries, OCR, audio sources,
+translation and Anki destinations remain profile-specific.
 The text shortcut starts disabled. **First dictionary only** limits preview to the first matching
 dictionary; **Text scale** scales word, definition and sentence sizes together.
 

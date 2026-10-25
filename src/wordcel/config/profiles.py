@@ -124,6 +124,8 @@ def migrate(settings, directory=None):
 
 
 def create_profile(settings, language, name=None, duplicate=None):
+    from wordcel.config.inheritance import raw_settings
+    settings = raw_settings(settings)
     from wordcel.dictionary.library import language_code
     from wordcel.language.profiles import default_partner
     language = language_code(language)

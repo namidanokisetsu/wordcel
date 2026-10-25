@@ -27,7 +27,7 @@ class SettingsNavigation:
             entry.setData(0, Qt.ItemDataRole.AccessibleTextRole, name + (", active profile" if is_active else ""))
 
     def is_active_edit(self):
-        return self.parent() is not None and getattr(self.parent(), "active_profile", None) == self.profile.currentData()
+        return self.settings.editing_global is None and self.parent() is not None and getattr(self.parent(), "active_profile", None) == self.profile.currentData()
 
     def build_sidebar(self, layout, tabs):
         self._navigation_state = {}
@@ -68,6 +68,7 @@ class SettingsNavigation:
     def rebuild_profiles(self, selected=None):
         selected = selected or self.profile.currentData()
         old_item = self.navigation.currentItem()
+        old_value = old_item.data(0, Qt.ItemDataRole.UserRole) if old_item else None
         old_page = old_item.data(0, Qt.ItemDataRole.UserRole)[1] if old_item and old_item.data(0, Qt.ItemDataRole.UserRole) else 0
         old_group = self.navigation.topLevelItem(2)
         expanded = {}
@@ -82,6 +83,12 @@ class SettingsNavigation:
             self.navigation.clear()
             app = QTreeWidgetItem(self.navigation, ["App"])
             app.setData(0, Qt.ItemDataRole.UserRole, (None, self.tabs.indexOf(self.app_tab)))
+            for group, title in (("appearance", "Appearance"), ("shortcuts", "Shortcuts"), ("popup", "Popup"), ("audio", "Audio playback")):
+                page = self.tabs.indexOf(self.preference_groups.global_audio_page) if group == "audio" else next(
+                    i for i in range(self.tabs.count()) if self.tabs.tabText(i) == title)
+                child = QTreeWidgetItem(app, [title])
+                child.setData(0, Qt.ItemDataRole.UserRole, ("global:" + group, page))
+            app.setExpanded(True)
             storage = QTreeWidgetItem(self.navigation, ["Storage"])
             storage.setData(0, Qt.ItemDataRole.UserRole, (None, self.tabs.indexOf(self.data_tab)))
             group = QTreeWidgetItem(self.navigation)
@@ -106,7 +113,7 @@ class SettingsNavigation:
                 entry = QTreeWidgetItem(group, [name])
                 entry.setData(0, Qt.ItemDataRole.UserRole, (identity, 0))
                 for index in range(self.tabs.count()):
-                    if self.tabs.widget(index) in (self.app_tab, self.data_tab):
+                    if self.tabs.widget(index) in (self.app_tab, self.data_tab, self.preference_groups.global_audio_page):
                         continue
                     item = QTreeWidgetItem(entry, [self.tabs.tabText(index)])
                     item.setData(0, Qt.ItemDataRole.UserRole, (identity, index))
@@ -122,6 +129,9 @@ class SettingsNavigation:
                 selected_item = app
             elif old_page == self.tabs.indexOf(self.data_tab):
                 selected_item = storage
+            if old_value and old_value[0] and old_value[0].startswith("global:"):
+                selected_item = next((app.child(i) for i in range(app.childCount())
+                                      if app.child(i).data(0, Qt.ItemDataRole.UserRole) == old_value), selected_item)
             self.navigation.setCurrentItem(selected_item)
         self.profile_changed()
         self.navigate(self.navigation.currentItem())
@@ -150,6 +160,21 @@ class SettingsNavigation:
         if not value:
             return
         identity, page = value
+        global_group = identity.split(":", 1)[1] if identity and identity.startswith("global:") else None
+        previous_group = self.settings.editing_global
+        if previous_group != global_group:
+            self.appearance._preview_timer.stop()
+            self.settings.editing_global = global_group
+            for group in dict.fromkeys(group for group in (previous_group, global_group) if group):
+                self.preference_groups.reload(group)
+            self.update_ocr_controls()
+            self.resources.refresh()
+        if global_group:
+            self.preference_groups.load_global_audio()
+            self.preference_groups.refresh()
+            self.profile_details.hide()
+            self.tabs.setCurrentIndex(page)
+            return
         self.profile_details.setVisible(identity is not None)
         if identity and identity != self.profile.currentData():
             from wordcel.gui.settings_section import SettingsSection

@@ -203,7 +203,9 @@ class ResourcesPanel(QWidget):
             self.downloads[name].setEnabled(supported and not ready and not owner.operation_busy("translation"))
         self.translation_section.setVisible(any(not row.isHidden() for row in self.model_rows.values()))
         ready = profile_translation_available(owner.settings, owner.profile.currentData())
-        owner.appearance.set_translation_available(ready)
+        global_group = getattr(owner.settings, "editing_global", None)
+        owner.appearance.set_translation_available(ready or global_group == "appearance")
+        ready = ready or global_group == "shortcuts"
         owner.translation_shortcut.enabled.setEnabled(ready)
         owner.translation_shortcut.recorder.setEnabled(ready and owner.translation_shortcut.enabled.isChecked())
         if hasattr(owner, "translation_connection"):

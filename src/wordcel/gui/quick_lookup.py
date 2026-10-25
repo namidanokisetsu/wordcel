@@ -880,6 +880,9 @@ class QuickLookupWindow(QDialog):
         self.settings = settings or QSettings("wordcel", "wordcel")
         from wordcel.config.profiles import migrate
         migrate(self.settings, directory)
+        from wordcel.config.inheritance import PreferenceSettings, migrate_defaults
+        migrate_defaults(self.settings)
+        self.settings = PreferenceSettings(self.settings)
         from wordcel.gui.profile_appearance import load_appearance
         load_appearance(self.settings, self.settings.value("profile", ""))
         self.revision = 0

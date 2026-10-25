@@ -49,6 +49,7 @@ class PopupShortcutTests(unittest.TestCase):
 
     def test_shortcuts_tab_reuses_controls_and_saves_independent_actions(self):
         dialog = SetupDialog(self.temp.name, self.settings, Mock())
+        dialog.preference_groups.controls["shortcuts"][0].setChecked(False)
         try:
             self.assertGreaterEqual(dialog.tabs.indexOf(dialog.shortcuts_tab), 0)
             self.assertTrue(dialog.shortcuts_tab.isAncestorOf(dialog.scan_key))

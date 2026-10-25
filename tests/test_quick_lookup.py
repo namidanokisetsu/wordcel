@@ -233,7 +233,7 @@ class QuickLookupTests(unittest.TestCase):
         try:
             dialog.show()
             appearance_page = next(dialog.tabs.widget(i) for i in range(dialog.tabs.count())
-                                   if dialog.tabs.widget(i).widget() is dialog.appearance)
+                                   if dialog.tabs.tabText(i) == "Appearance")
             for page in (dialog.shortcuts_tab, appearance_page):
                 dialog.tabs.setCurrentWidget(page)
                 if page is not dialog.shortcuts_tab:
@@ -919,7 +919,13 @@ class QuickLookupTests(unittest.TestCase):
         availability.start()
         self.addCleanup(availability.stop)
         self.engine = FakeEngine()
+        from wordcel.config.inheritance import GROUPS, migrate_defaults
+        migrate_defaults(self.settings)
+        for profile in ("ja", "tr", "id"):
+            for group in GROUPS:
+                self.settings.setValue(f"profiles/{profile}/overrides/{group}", True)
         self.window = QuickLookupWindow(self.temp.name, lambda: self.engine, self.settings)
+        self.settings = self.window.settings
 
     def tearDown(self):
         self.window.shutdown()
@@ -3882,6 +3888,7 @@ class DictionaryManagerTests(unittest.TestCase):
 
     def test_preview_definition_limit_is_saved_per_profile_with_all_option(self):
         self.dialog.sync_profile('tr')
+        self.dialog.preference_groups.controls["appearance"][0].setChecked(False)
         self.assertFalse(hasattr(self.dialog.appearance, 'pinned_definitions'))
         self.dialog.appearance.preview_definitions.setValue(0)
         self.assertEqual(self.settings.value('profiles/tr/preview_definitions', type=int), 0)

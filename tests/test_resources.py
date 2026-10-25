@@ -31,6 +31,7 @@ class ResourceTests(unittest.TestCase):
             dialog = SetupDialog(directory, settings, Mock())
             try:
                 self.assertFalse(any(group.title() == "All languages" for group in dialog.findChildren(QGroupBox)))
+                dialog.preference_groups.controls["popup"][0].setChecked(False)
                 dialog.close_on_cursor_leave.setChecked(True)
                 self.assertTrue(settings.value("profiles/ja/close_on_cursor_leave", False, bool))
                 asset = DataAsset("dictionary:fixture", "Words", "ja", "dictionary", "fixture", size=10, status="Enabled")
@@ -210,7 +211,7 @@ class ResourceTests(unittest.TestCase):
                 try:
                     resources = dialog.resources
                     self.assertEqual([dialog.tabs.tabText(i) for i in range(dialog.tabs.count())],
-                                     ["Lookup", "Shortcuts", "Dictionaries", "Appearance", "Audio", "Translation", "Anki", "Storage", "App"])
+                                     ["Lookup", "Shortcuts", "Dictionaries", "Appearance", "Popup", "Audio", "Translation", "Anki", "Storage", "App", "Audio playback"])
                     dialog.show_anki()
                     self.assertIs(dialog.tabs.currentWidget(), dialog.anki_tab)
                     dialog.show_audio()

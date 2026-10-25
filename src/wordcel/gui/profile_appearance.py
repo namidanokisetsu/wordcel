@@ -172,6 +172,10 @@ class ProfileAppearance(QWidget):
             if not key.startswith("color"):
                 widget.valueChanged.connect(self.save)
 
+    @property
+    def japanese_controls(self):
+        return getattr(self.settings, "editing_global", None) == "appearance" or profile_language(self.settings, self.profile()) == "ja"
+
     def _apply_preview(self):
         self.saved()
 
@@ -186,8 +190,8 @@ class ProfileAppearance(QWidget):
         for name in ("pinned_frequency", "pinned_pitch", "pinned_grammar"):
             getattr(self, name).setChecked(self.settings.value(prefix + name, True, bool))
         self.preview_definitions.setValue(self.settings.value(prefix + "preview_definitions", 1, int))
-        self.preview_form.setRowVisible(self.preview_pitch, profile_language(self.settings, self.profile()) == "ja")
-        self.pinned_form.setRowVisible(self.pinned_pitch, profile_language(self.settings, self.profile()) == "ja")
+        self.preview_form.setRowVisible(self.preview_pitch, self.japanese_controls)
+        self.pinned_form.setRowVisible(self.pinned_pitch, self.japanese_controls)
         custom = custom_palette(self.settings, self.profile())
         self.theme.blockSignals(True)
         name = theme_name(self.settings.value(f"profiles/{self.profile()}/theme_name", DEFAULTS["theme_name"]))
@@ -200,16 +204,16 @@ class ProfileAppearance(QWidget):
         self.font.setCurrentFont(QFont(self.settings.value(f"profiles/{self.profile()}/font_family",
                                                          _configured_font or default_family(profile_language(self.settings, self.profile())))))
         self.headword_furigana.setChecked(self.settings.value(f"profiles/{self.profile()}/headword_furigana", False, bool))
-        self.detail_form.setRowVisible(self.headword_furigana, profile_language(self.settings, self.profile()) == "ja")
+        self.detail_form.setRowVisible(self.headword_furigana, self.japanese_controls)
         self.definition_furigana.setChecked(self.settings.value(f"profiles/{self.profile()}/definition_furigana", True, bool))
-        self.detail_form.setRowVisible(self.definition_furigana, profile_language(self.settings, self.profile()) == "ja")
+        self.detail_form.setRowVisible(self.definition_furigana, self.japanese_controls)
         self.pitch_colors.setChecked(self.settings.value(f"profiles/{self.profile()}/pitch_colors", DEFAULTS["pitch_colors"], bool))
-        self.detail_form.setRowVisible(self.pitch_colors, profile_language(self.settings, self.profile()) == "ja")
+        self.detail_form.setRowVisible(self.pitch_colors, self.japanese_controls)
         self.kanji_stroke_order.setChecked(self.settings.value(f"profiles/{self.profile()}/kanji_stroke_order", DEFAULTS["kanji_stroke_order"], bool))
-        self.detail_form.setRowVisible(self.kanji_stroke_order, profile_language(self.settings, self.profile()) == "ja")
+        self.detail_form.setRowVisible(self.kanji_stroke_order, self.japanese_controls)
         from wordcel.utils.stroke_order_font import font_ready
-        self.detail_form.setRowVisible(self.font_install, profile_language(self.settings, self.profile()) == "ja" and not font_ready())
-        self.detail_form.setRowVisible(self.controls["furigana_scale"], profile_language(self.settings, self.profile()) == "ja")
+        self.detail_form.setRowVisible(self.font_install, self.japanese_controls and not font_ready())
+        self.detail_form.setRowVisible(self.controls["furigana_scale"], self.japanese_controls)
         for key, widget in self.controls.items():
             value = self.settings.value(f"profiles/{self.profile()}/{key}", DEFAULTS.get(key, 100))
             value = (custom if name == "Custom" else THEMES[name]).get(key, value)
@@ -264,16 +268,14 @@ class ProfileAppearance(QWidget):
             self.settings.setValue(prefix + name, getattr(self, name).isChecked())
         self.settings.setValue(prefix + "preview_definitions", self.preview_definitions.value())
         self.settings.setValue(prefix + "pinned_sentence", self.pinned_sentence.isChecked())
-        self.settings.setValue(prefix + "snap_scrolling", self.snap_scrolling.isChecked())
-        self.settings.setValue(prefix + "side_button_scrolling", self.side_button_scrolling.isChecked())
         self.settings.setValue(prefix + "font_family", self.font.currentFont().family())
-        if profile_language(self.settings, self.profile()) == "ja":
+        if self.japanese_controls:
             self.settings.setValue(prefix + "headword_furigana", self.headword_furigana.isChecked())
             self.settings.setValue(prefix + "definition_furigana", self.definition_furigana.isChecked())
             self.settings.setValue(prefix + "pitch_colors", self.pitch_colors.isChecked())
             self.settings.setValue(prefix + "kanji_stroke_order", self.kanji_stroke_order.isChecked())
         for key, widget in self.controls.items():
-            if key == "furigana_scale" and profile_language(self.settings, self.profile()) != "ja":
+            if key == "furigana_scale" and not self.japanese_controls:
                 continue
             value = widget.text() if key.startswith("color") else widget.value()
             if key == "background_opacity":

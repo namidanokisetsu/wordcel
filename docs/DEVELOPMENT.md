@@ -115,7 +115,7 @@ and Close uses a smaller drawing within the shared button geometry.
 Pinned dictionary footer actions share the heading actions' viewport right edge,
 including the scrollbar gutter as it appears or disappears.
 Reading fonts prefer antialiased outlines without grid hinting; family and size remain configurable.
-Button visibility and sentence size are saved per profile.
+Button visibility and sentence size follow the Appearance preference group.
 Multiple headword/reading groups have their own audio and Anki controls anchored
 to cached heading blocks. Anki exports and saved-note state belong to that group;
 sentence actions and automatic pronunciation retain their existing scope.
@@ -264,6 +264,17 @@ sentence translation is a separate feature.
 Language availability lives in [support.py](../src/wordcel/language/support.py)
 and the translation model registry. Settings uses those definitions; avoid
 maintaining a second exhaustive language table in documentation.
+
+Shared defaults live under `defaults/<group>/` for appearance, shortcuts, popup
+behavior and audio playback. `config/inheritance.py` resolves the effective scope
+through a QSettings view used by the runtime and settings panels. Profiles retain
+independent group override flags and custom values; the first override snapshots
+current defaults. Re-enabling inheritance never deletes custom values. Conversion
+seeds defaults from the active profile and preserves differing existing groups as
+overrides. Profile duplication copies raw preferences, not resolved global values.
+Settings reuse the same appearance, shortcut and popup panels for global editing;
+group disclosure reloads only its controls, preserving window geometry without
+reloading dictionaries. Language-specific resources and analysis remain per profile.
 
 ## Validation
 
