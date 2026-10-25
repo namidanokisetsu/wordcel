@@ -1,5 +1,6 @@
 """Offline Windows OCR using installed system language packs."""
 from functools import lru_cache
+import re
 import sys
 
 from PIL import Image
@@ -43,7 +44,10 @@ def supports_language(code, supported=None):
         return False
 
 
-def _paragraph(line, size):
+_JAPANESE_PAIR = re.compile(r"[\u3001-\u30ff\u3400-\u9fff\uf900-\ufaff\uff66-\uff9f\U00020000-\U000323af]{2}")
+
+
+def _paragraph(line, size, language=None):
     text = line.text.strip()
     if not text or not line.words:
         return None
@@ -65,6 +69,19 @@ def _paragraph(line, size):
         following = text.find(line.words[index + 1].text, end) if index + 1 < len(line.words) else len(text)
         words.append(Word(word.text, text[end:max(end, following)], box, start))
         offset = end
+    if language and language.split("-", 1)[0] == "ja":
+        # Windows inserts ASCII spaces between Japanese OCR tokens, even glyphs.
+        offset = words[0].source_start
+        parts = [text[:offset]]
+        for index, word in enumerate(words):
+            separator = word.separator
+            if (word.separator == " " and index + 1 < len(words)
+                    and _JAPANESE_PAIR.fullmatch(word.text[-1:] + words[index + 1].text[:1])):
+                separator = ""
+            words[index] = Word(word.text, separator, word.box, offset)
+            parts.append(word.text + separator)
+            offset += len(parts[-1])
+        text = "".join(parts)
     # Orientation follows the word centers rather than the line's aspect ratio.
     vertical = len(boxes) > 1 and abs(boxes[-1].center_y - boxes[0].center_y) * height > abs(boxes[-1].center_x - boxes[0].center_x) * width
     return Paragraph(text, words, _merge_bounding_boxes(boxes), vertical)
@@ -80,6 +97,7 @@ class WindowsOCR:
         if self.engine is None:
             raise RuntimeError(f"Windows OCR could not start for {language}.")
         self.max_dimension = OcrEngine.max_image_dimension
+        self.language = language
 
     def scan(self, image):
         from winrt.windows.graphics.imaging import BitmapAlphaMode, BitmapPixelFormat, SoftwareBitmap
@@ -94,6 +112,6 @@ class WindowsOCR:
         try:
             # ScanWorker owns this recognizer; blocking never reaches the Qt thread.
             result = self.engine.recognize_async(bitmap).get()
-            return [paragraph for line in result.lines if (paragraph := _paragraph(line, image.size))]
+            return [paragraph for line in result.lines if (paragraph := _paragraph(line, image.size, self.language))]
         finally:
             bitmap.close()

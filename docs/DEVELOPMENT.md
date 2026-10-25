@@ -302,6 +302,8 @@ Keep recognition local, model setup explicit and initialization worker-bound.
 `ocr/windows_native.py` uses Windows.Media.Ocr through lazy PyWinRT imports.
 Only installed system OCR languages are selectable; recognizers and bitmaps
 stay on the scan worker. Normalized boxes reuse the shared Japanese hit lookup.
+Japanese removes Windows' inserted single ASCII separators between Japanese
+tokens and rebuilds source offsets, retaining boxes and Latin word spaces.
 Windows language packs are managed in Windows Settings; Wordcel does not download them.
 
 Providers use [ocr/interface.py](../src/wordcel/ocr/interface.py):

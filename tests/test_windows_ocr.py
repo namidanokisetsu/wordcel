@@ -53,8 +53,41 @@ class WindowsOCRTests(unittest.TestCase):
         self.assertEqual(paragraph.words[0].text, "whole line")
         self.assertEqual(paragraph.words[0].source_start, 0)
 
+    def test_japanese_windows_token_spaces_allow_whole_word_lookup(self):
+        for vertical in (False, True):
+            with self.subTest(vertical=vertical):
+                tokens = list("日本語を勉強する。")
+                line = SimpleNamespace(text=" ".join(tokens), words=[
+                    word(token, 10 if vertical else 10 + index * 20,
+                         10 + index * 20 if vertical else 10, 20, 20)
+                    for index, token in enumerate(tokens)])
+                paragraph = _paragraph(line, (220, 220), "ja")
+                self.assertEqual(paragraph.full_text, "日本語を勉強する。")
+                self.assertEqual([w.source_start for w in paragraph.words], list(range(len(tokens))))
+                self.assertEqual(paragraph.is_vertical, vertical)
+                for index, expected in ((0, "日本語を勉強する。"), (4, "勉強する。")):
+                    box = paragraph.words[index].box
+                    hit = hit_paragraphs([paragraph], (box.center_x, box.center_y), "ja")
+                    self.assertEqual(hit.query, expected)
+                    self.assertEqual(hit.start, index)
+
+    def test_japanese_keeps_latin_word_spaces_and_explicit_whitespace(self):
+        tokens = ["日本語", "New", "York", "日本", "語"]
+        line = SimpleNamespace(text="日本語 New York 日本  語",
+                               words=[word(token, index * 40) for index, token in enumerate(tokens)])
+        paragraph = _paragraph(line, (220, 60), "ja-JP")
+        self.assertEqual(paragraph.full_text, line.text)
+        self.assertEqual("".join(w.text + w.separator for w in paragraph.words), line.text)
+
+    def test_japanese_retains_unboxed_leading_punctuation(self):
+        line = SimpleNamespace(text="「日 本」", words=[word("日", 10), word("本", 50)])
+        paragraph = _paragraph(line, (100, 60), "ja")
+        self.assertEqual(paragraph.full_text, "「日本」")
+        self.assertEqual([w.source_start for w in paragraph.words], [1, 2])
+
     def test_repeated_scans_reuse_engine_resize_and_always_close_bitmap(self):
         native = WindowsOCR.__new__(WindowsOCR)
+        native.language = "ja"
         native.max_dimension = 100
         native.engine = Mock()
         bitmap = Mock()
