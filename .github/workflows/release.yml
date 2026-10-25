@@ -31,15 +31,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Wordcel beta
+          name: Wordcel ${{ github.ref_name }}
           generate_release_notes: false
-          make_latest: false
-          prerelease: true
+          make_latest: true
+          prerelease: false
           fail_on_unmatched_files: true
           files: |
             artifacts/*/*.dmg
             artifacts/*/*-setup.exe
-      - name: remove older app releases, preserving tags
+      - name: remove older app releases and tags
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -48,6 +48,6 @@ jobs:
           gh api --paginate "repos/$GH_REPO/releases" --jq '.[] | select(.tag_name | startswith("v")) | .tag_name' |
           while IFS= read -r tag; do
             if [ "$tag" != "$RELEASE_TAG" ]; then
-              gh release delete "$tag" --yes
+              gh release delete "$tag" --yes --cleanup-tag
             fi
           done
