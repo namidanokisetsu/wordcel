@@ -276,10 +276,6 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.down.setToolTip("Lower priority")
         self.down.clicked.connect(lambda: self.move_pack(1))
         actions.addWidget(self.down)
-        self.remove_button = QPushButton("Remove")
-        self.remove_button.clicked.connect(lambda: self.tabs.setCurrentWidget(self.data_tab))
-        self.remove_button.setText("Storage")
-        actions.addWidget(self.remove_button)
         actions.addStretch()
         dictionary_layout.insertLayout(0, actions)
         self.combine_frequencies = QCheckBox("Combine frequency rankings")
@@ -1339,7 +1335,7 @@ class SetupDialog(SettingsNavigation, QDialog):
     def set_operation_busy(self, busy):
         if hasattr(self, "data"):
             self.data.set_busy()
-        for control in (self.import_button, self.remove_button, self.packs, self.up, self.down, self.language):
+        for control in (self.import_button, self.packs, self.up, self.down, self.language):
             control.setEnabled(not self.operation_busy("dictionaries"))
         self.remove_profile_button.setEnabled(not busy and self.profile.count() > 1)
 

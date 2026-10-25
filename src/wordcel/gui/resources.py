@@ -159,7 +159,7 @@ class ResourcesPanel(QWidget):
         owner.combine_frequencies.setVisible(sum(int(meta.get("frequencies", 0)) > 0 for meta in packs if meta["enabled"]) > 1)
         has_packs = bool(packs)
         owner.packs.setVisible(has_packs)
-        for control in (owner.up, owner.down, owner.remove_button):
+        for control in (owner.up, owner.down):
             control.setVisible(has_packs)
         provider = owner.current_ocr_control()
         from wordcel.language.support import ocr_supported, translation_supported

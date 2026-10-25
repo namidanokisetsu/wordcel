@@ -340,13 +340,10 @@ class DataPanel(QWidget):
         self.updates = {update.identity: update for update in updates}
         self.update_all.setEnabled(any(update.status == "Update available" for update in updates))
         available = sum(update.status == "Update available" for update in updates)
-        manual = sum(update.status == "Replace from ZIP" for update in updates)
         failed = sum(update.status not in {"Update available", "Up to date", "Replace from ZIP"} for update in updates)
         summary = f"{available} update{'s' if available != 1 else ''} available." if available else "No updates found."
         if not updates:
             summary = "No dictionaries installed."
-        if manual:
-            summary += f" Update checks unavailable for {manual} dictionar{'ies' if manual != 1 else 'y'}; use Replace from ZIP."
         if failed:
             summary += f" {failed} update check{'s' if failed != 1 else ''} failed."
         self.update_summary.setText(summary)
