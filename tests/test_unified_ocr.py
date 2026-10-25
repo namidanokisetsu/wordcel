@@ -743,7 +743,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                                                pin_pending=threading.Event(), shutdown=Mock(),
                                                set_pin_shortcut=Mock())
         self.window.settings = SimpleNamespace(value=lambda name, default, kind=None:
-                                             "" if name.endswith("/scan_bindings") else default)
+                                             "" if name.endswith("/scan_bindings") else default,
+                                             contains=lambda name: False)
         self.controller.reload_settings()
         self.assertTrue(self.controller.enabled)
         self.controller.input.activation.set_bindings.assert_called_once_with("")
@@ -923,7 +924,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_release_timer_defers_to_configured_cursor_grace_area(self):
         self.controller.holding = False
-        self.window.settings = SimpleNamespace(value=lambda *args: True)
+        self.window.settings = SimpleNamespace(value=lambda *args: True, contains=lambda name: False)
         self.window._check_cursor_leave = Mock()
         with patch('wordcel.gui.unified_ocr.QCursor.pos', return_value=QPoint(-100, -100)), \
                 patch.object(self.window, 'hide') as hide:
@@ -973,6 +974,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
             with self.subTest(bindings=bindings):
                 window = FakeWindow()
                 window.settings = Mock()
+                window.settings.contains.return_value = False
                 window.settings.value.side_effect = lambda key, default=None, *args: (
                     bindings if key.endswith("/scan_bindings") else default)
                 with patch("wordcel.gui.unified_ocr.sys.platform", "darwin"), \
@@ -1126,7 +1128,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_empty_scan_bindings_disable_ocr_without_affecting_search(self):
         values = {"profiles/tr/scan_bindings": ""}
-        self.window.settings = SimpleNamespace(value=lambda name, default, kind=None: values.get(name, default))
+        self.window.settings = SimpleNamespace(value=lambda name, default, kind=None: values.get(name, default),
+                                               contains=lambda name: name in values)
         self.controller.reload_settings()
         self.assertFalse(self.controller.enabled)
         self.assertTrue(self.window.search.isEnabled())
@@ -1273,7 +1276,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
 
     def test_provider_setting_change_invalidates_inflight_result(self):
         values = {f"profiles/{self.window.preferred_foreign}/ocr_provider": "screenai", "screenai_directory": "local/component"}
-        self.window.settings = SimpleNamespace(value=lambda name, default, kind=None: values.get(name, default))
+        self.window.settings = SimpleNamespace(value=lambda name, default, kind=None: values.get(name, default),
+                                               contains=lambda name: name in values)
         generation = self.controller.generation
         self.window.scan_settings_changed.emit()
         self.assertGreater(self.controller.generation, generation)
