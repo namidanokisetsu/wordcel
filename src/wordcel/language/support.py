@@ -106,14 +106,3 @@ def default_ocr_provider(code, platform=None, vision_languages=None):
         if ocr_supported(code, provider, platform):
             return provider
     return None
-
-
-def support_summary(code):
-    parts = []
-    if code in DICTIONARY_LANGUAGES:
-        parts.append("Dictionary")
-    if translation_supported(code):
-        parts.append("Translation")
-    if ocr_supported(code):
-        parts.append("OCR")
-    return " · ".join(parts) or "Imported dictionary"

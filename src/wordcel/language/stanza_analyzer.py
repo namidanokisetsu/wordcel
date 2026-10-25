@@ -3,15 +3,14 @@ from importlib.metadata import PackageNotFoundError, version
 import json
 from pathlib import Path
 
-from .analyzer import ExactAnalyzer, Token
+from .analyzer import Token
 
 STANZA_VERSION = "1.14.0"
 RESOURCES_VERSION = "1.14.0"
-PROCESSORS = {"tokenize": "imst", "mwt": "imst", "pos": "imst_charlm", "lemma": "imst_charlm"}
 
 
 def processors_for(language):
-    return PROCESSORS if language == "tr" else dict.fromkeys(("tokenize", "pos", "lemma"), "default")
+    return dict.fromkeys(("tokenize", "pos", "lemma"), "default")
 
 
 def model_status(language, model_dir=None):
@@ -45,16 +44,16 @@ def model_status(language, model_dir=None):
     return "Model needed"
 
 
-def default_model_dir(language="tr"):
+def default_model_dir(language):
     from wordcel.utils.paths import paths
     return Path(paths.data_dir) / "languages" / language / "stanza" / RESOURCES_VERSION
 
 
 def model_available(language):
-    return language != "ja" and model_status(language) == "Installed"
+    return language not in {"ja", "tr"} and model_status(language) == "Installed"
 
 
-def setup_models(model_dir=None, *, language="tr"):
+def setup_models(model_dir=None, *, language):
     import stanza
     if stanza.__version__ != STANZA_VERSION:
         raise RuntimeError(f"Install stanza=={STANZA_VERSION} before setting up models")
@@ -64,7 +63,7 @@ def setup_models(model_dir=None, *, language="tr"):
 
 
 class StanzaAnalyzer:
-    def __init__(self, model_dir=None, *, language="tr"):
+    def __init__(self, model_dir=None, *, language):
         import stanza
         if stanza.__version__ != STANZA_VERSION:
             raise RuntimeError(f"Expected stanza=={STANZA_VERSION}")
@@ -89,17 +88,10 @@ class StanzaAnalyzer:
             self._documents.popitem(last=False)
         return self._documents[text]
 
-    def diagnostics(self, text):
-        return [{"text": token.text, "start": token.start_char, "end": token.end_char,
-                 "words": [{key: getattr(word, key, None)
-                            for key in ("id", "text", "lemma", "upos", "xpos", "feats")}
-                           for word in token.words]}
-                for sentence in self._document(text).sentences for token in sentence.tokens]
 
     def analyze(self, text):
         doc = self._document(text)
         tokens = []
-        source_tokens = ExactAnalyzer().analyze(text) if getattr(self, "language", "tr") == "tr" else ()
         seen = set()
         for sentence in doc.sentences:
             for token in sentence.tokens:
@@ -108,11 +100,6 @@ class StanzaAnalyzer:
                 if word.upos == "PUNCT":
                     continue
                 start, end = token.start_char, token.end_char
-                # Stanza can split an OCR word (cocugu -> cocug + u), even across sentences.
-                for source in source_tokens:
-                    if source.start <= start and end <= source.end:
-                        start, end = source.start, source.end
-                        break
                 if (start, end) not in seen:
                     tokens.append(Token(start, end, word.lemma or token.text, word.upos))
                     seen.add((start, end))

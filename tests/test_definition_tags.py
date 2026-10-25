@@ -37,14 +37,6 @@ class DefinitionTagTests(unittest.TestCase):
                 self.assertEqual(entry.definitions[1], "Another reading")
                 self.assertEqual(library.reverse("Akaneko")[0].term, "あかねこ")
                 self.assertFalse(library.reverse("female"))
-            import sqlite3
-            with closing(sqlite3.connect(next((root / "library").glob("*.sqlite3")))) as db:
-                db.execute("DELETE FROM metadata WHERE key='tag_version'")
-                db.execute("UPDATE terms SET definitions=?", (json.dumps(["Akaneko", "Another reading"]),))
-                db.commit()
-            import_yomitan(archive, root / "library")
-            with closing(Library(root / "library")) as library:
-                self.assertIn("female given name", json.dumps(library.lookup("あかねこ")[0].definitions))
 
     def test_structured_sense_tags_are_not_duplicated(self):
         from wordcel.dictionary.metadata import tagged_definitions
@@ -52,23 +44,6 @@ class DefinitionTagTests(unittest.TestCase):
             {"tag": "span", "data": {"class": "tag"}, "content": "noun"}, "meaning"]}]
         self.assertIs(tagged_definitions(definitions, "n", {"n": "noun"}), definitions)
 
-    def test_explicit_reimport_restores_tags_without_a_tag_bank(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            archive = root / "grammar.zip"
-            with zipfile.ZipFile(archive, "w") as zf:
-                zf.writestr("index.json", json.dumps(dict(title="Grammar", format=3, sourceLanguage="ja")))
-                zf.writestr("term_bank_1.json", json.dumps([
-                    ["置きに", "", "おきに", "", 0, ["at intervals of"], -1, ""]]))
-            pack = import_yomitan(archive, root / "library")
-            import sqlite3
-            with closing(sqlite3.connect(pack)) as db:
-                db.execute("DELETE FROM metadata WHERE key='tag_version'")
-                db.execute("UPDATE terms SET definitions=?", (json.dumps(["at intervals of"]),))
-                db.commit()
-            import_yomitan(archive, root / "library")
-            with closing(Library(root / "library")) as library:
-                self.assertIn("おきに", json.dumps(library.lookup("置きに")[0].definitions, ensure_ascii=False))
 
     def test_nontext_definitions_are_preserved(self):
         from wordcel.dictionary.metadata import tagged_definitions

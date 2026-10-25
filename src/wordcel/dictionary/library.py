@@ -107,8 +107,7 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
             from .media import IMAGE_SUFFIXES, assets_ready
             has_images = any(Path(name).suffix.lower() in IMAGE_SUFFIXES for name in zf.namelist())
             media_ready = assets_ready(existing_metadata, directory, destination.stem)
-            tags_ready = existing_metadata.get("entries", "0") == "0" or existing_metadata.get("tag_version") == "1"
-            if existing_metadata.get("schema_version") == "3" and (not has_images or media_ready) and tags_ready:
+            if existing_metadata.get("schema_version") == "3" and (not has_images or media_ready):
                 if progress:
                     progress(f"Importing {title} · 100%")
                 return destination
@@ -252,7 +251,7 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                             entries=str(count), forms=str(redirects),
                             frequencies=str(frequency_count), kanji=str(kanji_count), pitches=str(pitch_count))
             metadata["checksum_warnings"] = json.dumps(sorted(zf.checksum_warnings))
-            metadata.update(media_version="1", images=str(len(images.imported)), tag_version="1",
+            metadata.update(media_version="1", images=str(len(images.imported)),
                             image_files=json.dumps(sorted(image[0] for image in images.imported.values())),
                             image_failures=str(len(images.requested) - len(images.imported)))
             db.executemany("INSERT INTO metadata VALUES(?,?)", metadata.items())
