@@ -5,7 +5,7 @@ import sys
 def _native_macos_window(window):
     """Return the AppKit window behind a Qt window, when available."""
     from PyQt6.QtWidgets import QApplication
-    if sys.platform != "darwin" or QApplication.platformName() == "offscreen":
+    if sys.platform != "darwin" or QApplication.platformName() != "cocoa":
         return None
     import ctypes
     import objc
@@ -15,7 +15,7 @@ def _native_macos_window(window):
 
 def configure_macos_popup(window):
     from PyQt6.QtWidgets import QApplication
-    if sys.platform != "darwin" or QApplication.platformName() == "offscreen":
+    if sys.platform != "darwin" or QApplication.platformName() != "cocoa":
         return
     import AppKit
     native = _native_macos_window(window)
@@ -157,7 +157,7 @@ def foreground_is_fullscreen():
 
 def activate_application():
     from PyQt6.QtWidgets import QApplication
-    if sys.platform == "darwin" and QApplication.platformName() != "offscreen":
+    if sys.platform == "darwin" and QApplication.platformName() == "cocoa":
         from AppKit import NSApplication
         application = NSApplication.sharedApplication()
         if hasattr(application, "activate"):
@@ -223,7 +223,7 @@ def _focus_native_window(window):
 def focus_pinned_popup(window, focus_widget=None):
     """Give a pinned popup keyboard focus without activating macOS globally."""
     from PyQt6.QtWidgets import QApplication
-    if sys.platform == "darwin" and QApplication.platformName() != "offscreen":
+    if sys.platform == "darwin" and QApplication.platformName() == "cocoa":
         configure_macos_popup(window)
         native = _native_macos_window(window)
         if native is not None:

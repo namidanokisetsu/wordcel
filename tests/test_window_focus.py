@@ -158,6 +158,16 @@ class PopupSpaceTests(unittest.TestCase):
             configure_macos_popup(window)
         window.winId.assert_not_called()
 
+    def test_non_cocoa_handles_are_never_bridged_to_appkit(self):
+        from wordcel.utils.window_focus import _native_macos_window
+        for platform in ("offscreen", "minimal", "windows", "xcb"):
+            window = Mock()
+            with self.subTest(platform=platform), patch("sys.platform", "darwin"), \
+                    patch("PyQt6.QtWidgets.QApplication.platformName", return_value=platform):
+                self.assertIsNone(_native_macos_window(window))
+                configure_macos_popup(window)
+            window.winId.assert_not_called()
+
     def test_pinned_popup_becomes_key_without_activating_macos_app(self):
         constants = dict(CanJoinAllSpaces=1, MoveToActiveSpace=2, FullScreenPrimary=128,
                          FullScreenAuxiliary=256, FullScreenNone=512, Primary=65536,
