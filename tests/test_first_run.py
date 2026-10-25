@@ -52,7 +52,7 @@ class FirstRunTests(unittest.TestCase):
         self.settings.setValue("profiles/ja/target", "en")
         self.assertFalse(needs_setup(self.settings))
 
-    def test_practice_is_unowned_and_text_lookup_stays_opt_in(self):
+    def test_practice_is_unowned_and_teaches_default_text_lookup(self):
         from wordcel.gui.first_run import FirstLookup
         self.window.set_mode = Mock()
         self.window.apply_shortcut = Mock(return_value="")
@@ -60,18 +60,31 @@ class FirstRunTests(unittest.TestCase):
         self.addCleanup(practice.close)
         self.addCleanup(practice.deleteLater)
         self.assertIsNone(practice.parentWidget())
-        self.assertFalse(practice.shortcut.enabled.isChecked())
+        self.assertTrue(practice.shortcut.enabled.isChecked())
         self.window.apply_shortcut.assert_not_called()
         labels = [label.text() for label in practice.findChildren(QLabel)]
         self.assertIn("こんにちは！", labels)
         self.assertTrue(any("↑ Hold Shift" in text and "text above" in text for text in labels))
         self.assertTrue(any("Select the text above" in text and "nothing selected" in text for text in labels))
         self.assertFalse(any("audio" in text.lower() for text in labels))
+        practice.shortcut.enabled.setChecked(False)
+        self.window.apply_shortcut.assert_called_once_with("", "Ctrl+Shift+D")
+        self.window.apply_shortcut.reset_mock()
         practice.shortcut.enabled.setChecked(True)
-        self.window.set_mode.assert_called_once_with("ja")
+        self.assertEqual(self.window.set_mode.call_count, 2)
         control = "<cmd>" if sys.platform == "darwin" else "<ctrl>"
         self.window.apply_shortcut.assert_called_once_with(control + "+<shift>+d", "Ctrl+Shift+D")
         self.assertNotIn("Enable Text lookup", practice.shortcut_help.text())
+
+    def test_practice_preserves_disabled_text_lookup(self):
+        from wordcel.gui.first_run import FirstLookup
+        self.settings.setValue("profiles/ja/hotkey", "")
+        practice = FirstLookup(self.window, "ja")
+        self.addCleanup(practice.close)
+        self.addCleanup(practice.deleteLater)
+        self.assertFalse(practice.shortcut.enabled.isChecked())
+        self.assertIn("Enable Text lookup", practice.shortcut_help.text())
+        self.window.apply_shortcut.assert_not_called()
 
     def test_practice_instructions_follow_saved_bindings(self):
         from wordcel.gui.first_run import FirstLookup

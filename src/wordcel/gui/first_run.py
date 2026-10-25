@@ -366,8 +366,8 @@ class FirstLookup(QDialog):
         text = "↑ Hold " + key.replace("+", " + ").title() + " and hover over the text above to look it up." if key else "Enable a screen lookup key in Settings > Shortcuts."
         layout.addWidget(QLabel(text))
         from wordcel.gui.shortcut_edit import ShortcutEdit
-        from wordcel.gui.quick_lookup import shortcut_preset
-        self.shortcut = ShortcutEdit(window.settings.value(f"profiles/{identity}/hotkey", ""),
+        from wordcel.gui.quick_lookup import default_text_shortcut, shortcut_preset
+        self.shortcut = ShortcutEdit(window.settings.value(f"profiles/{identity}/hotkey", default_text_shortcut()),
                                      window.settings.value(f"profiles/{identity}/hotkey_preset", shortcut_preset()))
         form = QFormLayout()
         form.addRow("Text lookup", self.shortcut)
@@ -438,7 +438,7 @@ class FirstLookup(QDialog):
 
     def save_shortcut(self):
         from PyQt6.QtCore import QSignalBlocker
-        from wordcel.gui.quick_lookup import shortcut_preset
+        from wordcel.gui.quick_lookup import default_text_shortcut, shortcut_preset
         try:
             value = self.shortcut.text()
             preset = self.shortcut.recorder.keySequence().toString()
@@ -447,7 +447,7 @@ class FirstLookup(QDialog):
             self.shortcut_status.setText(warning or "")
         except (ValueError, OSError, RuntimeError) as error:
             with QSignalBlocker(self.shortcut.enabled), QSignalBlocker(self.shortcut.recorder):
-                self.shortcut.set_value(self.window.settings.value(f"profiles/{self.identity}/hotkey", ""),
+                self.shortcut.set_value(self.window.settings.value(f"profiles/{self.identity}/hotkey", default_text_shortcut()),
                                         self.window.settings.value(f"profiles/{self.identity}/hotkey_preset", shortcut_preset()))
             self.shortcut_status.setText(str(error))
         self.update_shortcut_help()

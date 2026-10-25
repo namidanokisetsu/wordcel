@@ -3394,7 +3394,7 @@ class QuickLookupWindow(QDialog):
 
     def restore_shortcut(self, explicit=None):
         self._shortcuts_restored = True
-        binding = explicit if explicit is not None else self.settings.value(f"profiles/{self.active_profile}/hotkey", "")
+        binding = explicit if explicit is not None else self.settings.value(f"profiles/{self.active_profile}/hotkey", default_text_shortcut())
         self.apply_shortcut(binding)
         self.apply_translation_shortcut(self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""))
         self.apply_hover_shortcut(self.settings.value(f"profiles/{self.active_profile}/hover_hotkey", ""))
@@ -3432,7 +3432,7 @@ class QuickLookupWindow(QDialog):
         from wordcel.gui.text_shortcuts import TextHotKeys, validate_shortcuts
         from wordcel.utils.macos import InputMonitoringPermissionError
         key = f"profiles/{self.active_profile}/" + name + "_hotkey"
-        validate_shortcuts([value, *(self.settings.value(f"profiles/{self.active_profile}/" + other, "") for other in
+        validate_shortcuts([value, *(self.settings.value(f"profiles/{self.active_profile}/" + other, default_text_shortcut() if other == "hotkey" else "") for other in
                                    ("hotkey", "translation_hotkey", "hover_hotkey") if not key.endswith("/" + other))])
         signal = self.translation_requested if name == "translation" else self.hover_toggle_requested
         available = name != "translation" or self.translation_available()
@@ -3491,6 +3491,11 @@ class QuickLookupWindow(QDialog):
         if self._translation_keys:
             self._translation_keys.stop()
             self._translation_keys = None
+
+
+def default_text_shortcut():
+    control = "<cmd>" if sys.platform == "darwin" else "<ctrl>"
+    return control + "+<shift>+d"
 
 
 def shortcut_preset():

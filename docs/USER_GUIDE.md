@@ -12,7 +12,7 @@ translation model, which is off by default. Installed resources are reused;
 Japanese setup also offers the stroke-order font. Dictionary imports and model downloads can run alongside
 each other while lookup and unrelated settings remain available.
 New profiles open resource setup without repeating the tutorial. Use **Tutorial**
-at the bottom left of Settings for sample text and the optional text lookup shortcut.
+at the bottom left of Settings for sample text and the text lookup shortcut.
 Right-click Wordcel's tray icon for Search or Settings; on Windows it may be
 under **Show hidden icons**. **Find tray icon** in the tutorial points to
 the icon when its position is available.
@@ -53,7 +53,8 @@ languages in **Windows Settings ? Time & language**, then restart Wordcel.
   Clicking outside a pinned result resumes hover lookup in the same area,
   including after saving to Anki. Close or Escape pauses it until you leave and return.
 - **Typed or copied text:** open **Search** from the tray. The configurable text
-  shortcut opens selected text, or an empty input when nothing is selected.
+  shortcut defaults to **Ctrl+Shift+D** and opens selected text, or an empty input
+  when nothing is selected. Change or disable it in **Settings > Shortcuts**.
   Select a word in the search input and press Enter to look it up with the
   surrounding sentence.
   Japanese Search accepts kanji, hiragana, katakana and romaji such as `neko`,

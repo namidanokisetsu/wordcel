@@ -521,6 +521,7 @@ class ScanSettingsTests(unittest.TestCase):
             settings = QSettings(str(Path(temp) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
             settings.setValue("profiles/tr/target", "en")
+            settings.setValue("profiles/ja/hotkey", "")
             apply_shortcut = Mock()
             dialog = SetupDialog(Path(temp) / "library", settings, apply_shortcut)
             try:

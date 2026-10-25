@@ -3436,19 +3436,22 @@ class QuickLookupTests(unittest.TestCase):
                 self.assertFalse(block.blockFormat().hasProperty(QTextFormat.Property.BlockTrailingHorizontalRulerWidth))
                 block = block.next()
 
-    def test_search_shortcut_is_opt_in_and_restores_explicit_choice(self):
+    def test_search_shortcut_defaults_on_and_restores_explicit_choice(self):
         self.assertIsNone(self.window._keys)
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
             self.window.restore_shortcut()
-            hotkeys.assert_not_called()
-            self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/hotkey"), "")
+            from wordcel.gui.quick_lookup import default_text_shortcut
+            hotkeys.return_value.start.assert_called_once()
+            self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/hotkey"), default_text_shortcut())
+            hotkeys.reset_mock()
             import sys
-            chosen = "<cmd>+<shift>+d" if sys.platform == "darwin" else "<ctrl>+<shift>+d"
+            chosen = "<cmd>+k" if sys.platform == "darwin" else "<ctrl>+k"
             self.settings.setValue(f"profiles/{self.window.active_profile}/hotkey", chosen)
             self.window.restore_shortcut()
             self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/hotkey"),
                              chosen)
             hotkeys.return_value.start.assert_called_once()
+            hotkeys.reset_mock()
             self.window.apply_shortcut("")
             hotkeys.return_value.stop.assert_called_once()
             self.assertIsNone(self.window._keys)
