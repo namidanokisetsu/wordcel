@@ -653,6 +653,11 @@ class UnifiedOCR(QObject):
     def navigate_overlay(self, virtual_key):
         self.window.navigate_overlay(virtual_key)
 
+    def check_popup_cursor(self):
+        if self.input:
+            self.input.pointer_pending.clear()
+        self.window._check_cursor_leave()
+
     def popup_action(self, action):
         if (getattr(self.window, "_fullscreen_overlay", False)
                 and (self.window.is_pinned or action == "copy_text" and self.window._selected_reading_browser() is not None)
@@ -759,6 +764,7 @@ class UnifiedOCR(QObject):
                 self.input.hold_changed.connect(self.hold_changed)
                 self.input.dismissed.connect(self.dismiss)
                 self.input.clicked.connect(self.outside_click)
+                self.input.pointer_moved.connect(self.check_popup_cursor)
                 self.input.pin_requested.connect(self.pin_requested)
                 self.input.navigation_requested.connect(self.navigate_overlay)
                 self.input.popup_action_requested.connect(self.popup_action)

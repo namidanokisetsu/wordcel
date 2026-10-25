@@ -3207,9 +3207,13 @@ class QuickLookupWindow(QDialog):
             return
         if not self.cursor_leave_timer.isActive():
             self.cursor_leave_timer.start()
+        from meikipop.utils.window_focus import mouse_buttons_down
+        dragging = mouse_buttons_down()
+        if dragging is None:
+            dragging = (QApplication.mouseButtons() != Qt.MouseButton.NoButton
+                        or any(browser.selecting for browser in self._reading_browsers()))
         if (not self.cursor_close_bounds().contains(point)
-                and QApplication.mouseButtons() == Qt.MouseButton.NoButton
-                and not any(browser.selecting for browser in self._reading_browsers())
+                and not dragging
                 and QApplication.activeModalWidget() is None and QApplication.activePopupWidget() is None
                 and not (self._setup is not None and self._setup.isVisible())):
             self.hide()

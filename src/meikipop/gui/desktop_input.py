@@ -53,12 +53,14 @@ class DesktopInput(QObject):
     pin_requested = pyqtSignal()
     navigation_requested = pyqtSignal(int)
     popup_action_requested = pyqtSignal(str)
+    pointer_moved = pyqtSignal()
 
     def __init__(self, bindings, clipboard_hotkey, search_hotkey, double_click_ms, parent=None):
         super().__init__(parent)
         self.activation = ActivationState(bindings, allow_empty=True)
         self.hover_active = threading.Event()
         self.visible = threading.Event()
+        self.pointer_pending = threading.Event()
         self.pin_ready = threading.Event()
         self.pin_pending = threading.Event()
         self.popup_controls_active = threading.Event()
@@ -89,7 +91,7 @@ class DesktopInput(QObject):
         mouse_options = {"win32_event_filter": self.filter_mouse} if sys.platform == "win32" else {}
         if sys.platform == "darwin":
             mouse_options["darwin_intercept"] = self.darwin_intercept
-        self.clicks = mouse.Listener(on_click=self.click, **mouse_options)
+        self.clicks = mouse.Listener(on_click=self.click, on_move=self.move, **mouse_options)
         self.shortcuts = None
         self.set_shortcuts(clipboard_hotkey, search_hotkey)
         self.keys.start()
@@ -276,6 +278,11 @@ class DesktopInput(QObject):
                     self._darwin_escape = False
             return None
         return event
+
+    def move(self, x, y):
+        if self.visible.is_set() and not self.pointer_pending.is_set():
+            self.pointer_pending.set()
+            self.pointer_moved.emit()
 
     def click(self, x, y, button, down):
         pin_requested = (down and sys.platform != "win32"

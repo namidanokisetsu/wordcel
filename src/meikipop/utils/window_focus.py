@@ -88,18 +88,33 @@ def restore_foreground(handle, child=None):
                     user32.AttachThreadInput(current, thread, False)
 
 
+def mouse_buttons_down():
+    """Read physical buttons when an inactive popup can miss Qt releases."""
+    from PyQt6.QtWidgets import QApplication
+    if sys.platform != "win32" or QApplication.platformName() == "offscreen":
+        return None
+    import ctypes
+    user32 = ctypes.WinDLL("user32")
+    return any(user32.GetAsyncKeyState(key) & 0x8000 for key in (0x01, 0x02, 0x04, 0x05, 0x06))
+
+
 def route_popup_wheel(handle, message, data):
     """Post wheel input only to the native popup beneath the pointer."""
     import ctypes
     from ctypes import wintypes
     user32 = ctypes.WinDLL("user32")
-    user32.WindowFromPoint.argtypes = [wintypes.POINT]
-    user32.WindowFromPoint.restype = wintypes.HWND
-    user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
-    user32.GetAncestor.restype = wintypes.HWND
+    user32.GetDesktopWindow.restype = wintypes.HWND
+    user32.ScreenToClient.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+    user32.ChildWindowFromPointEx.argtypes = [wintypes.HWND, wintypes.POINT, wintypes.UINT]
+    user32.ChildWindowFromPointEx.restype = wintypes.HWND
     user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-    target = user32.WindowFromPoint(data.pt)
-    if not target or user32.GetAncestor(target, 2) != handle:
+    desktop = user32.GetDesktopWindow()
+    point = wintypes.POINT(data.pt.x, data.pt.y)
+    # Avoid sending WM_NCHITTEST to another thread from the input hook.
+    if not user32.ScreenToClient(desktop, ctypes.byref(point)):
+        return False
+    target = user32.ChildWindowFromPointEx(desktop, point, 0x07)
+    if target != handle:
         return False
     modifiers = sum(flag for vk, flag in ((0x01, 1), (0x02, 2), (0x10, 4), (0x11, 8), (0x04, 16))
                     if user32.GetAsyncKeyState(vk) & 0x8000)

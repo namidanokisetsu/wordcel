@@ -46,6 +46,63 @@ class PopupSpaceTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows native wheel dispatch")
+    def test_native_wheel_routes_from_hook_thread_without_activating_popup(self):
+        code = textwrap.dedent('''
+            import ctypes
+            import threading
+            from ctypes import wintypes
+            from types import SimpleNamespace
+            from PyQt6.QtCore import Qt, QTimer
+            from PyQt6.QtWidgets import QApplication, QDialog, QTextEdit, QVBoxLayout
+            from meikipop.utils.window_focus import route_popup_wheel, foreground_window
+
+            app = QApplication([])
+            class Editor(QTextEdit):
+                deltas = []
+                def wheelEvent(self, event):
+                    self.deltas.append(event.angleDelta().y())
+                    event.accept()
+
+            popup = QDialog(None, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
+                            | Qt.WindowType.WindowStaysOnTopHint)
+            popup.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+            editor = Editor()
+            layout = QVBoxLayout(popup)
+            layout.addWidget(editor)
+            popup.resize(180, 100)
+            area = app.primaryScreen().availableGeometry()
+            popup.move(area.right() - popup.width(), area.bottom() - popup.height())
+            previous = foreground_window()
+            popup.show()
+            app.processEvents()
+            user32 = ctypes.WinDLL("user32")
+            user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+            handle = int(popup.winId())
+            rect = wintypes.RECT()
+            assert user32.GetWindowRect(handle, ctypes.byref(rect))
+            data = SimpleNamespace(pt=wintypes.POINT((rect.left + rect.right) // 2,
+                                                    (rect.top + rect.bottom) // 2),
+                                   mouseData=120 << 16)
+            routed = []
+            thread = threading.Thread(target=lambda: routed.append(route_popup_wheel(handle, 0x20A, data)))
+            try:
+                thread.start()
+                thread.join(timeout=1)
+                assert not thread.is_alive(), "Wheel routing waited on the UI thread"
+                assert routed == [True], routed
+                QTimer.singleShot(100, app.quit)
+                app.exec()
+                assert editor.deltas == [120], editor.deltas
+                assert foreground_window() == previous
+            finally:
+                popup.close()
+        ''')
+        result = subprocess.run([sys.executable, "-X", "faulthandler", "-c", code],
+                                env={**os.environ, "QT_QPA_PLATFORM": "windows"},
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_windows_fullscreen_uses_monitor_bounds_and_excludes_desktop(self):
         user32 = Mock()
         user32.GetForegroundWindow.return_value = 42

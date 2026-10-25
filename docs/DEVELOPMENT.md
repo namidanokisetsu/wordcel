@@ -136,7 +136,7 @@ Optional Windows fullscreen scan-key blocking consumes configured modifiers'
 down/up pairs while still updating scan state. It defaults off per profile;
 consumed modifiers remain available to popup shortcuts.
 Wheel input over the popup is posted to its native window and suppressed at the
-mouse hook, preventing the foreground game from also scrolling.
+mouse hook. Native Z-order checks avoid synchronous hit-test messages from the hook.
 Copy text uses these same configurable bindings without activating the popup;
 an unpinned fullscreen preview routes only Copy text while a reading pane has a
 selection. Source window and child-focus restoration on dismissal remains unchanged.
@@ -169,12 +169,16 @@ Settings save screen, pin and text shortcuts independently. OCR component
 validation only gates provider setup; rejected choices restore the saved controls.
 Setup jobs share one control list for disabling and restoring their inputs.
 Cursor-leave dismissal is an app-wide opt-in, including pinned popups but excluding
-corner search. Corner search retains its saved size and tray edge; geometry,
+corner windows, including their translation view. Corner search retains its saved
+size and tray edge; geometry,
 selection drags, menus and Settings prevent unintended dismissal. A retained text
 selection does not override enabled cursor-leave dismissal after the mouse is released.
 The shared cursor grace area expands the current window frame in logical pixels.
 Polling runs only while the cursor is outside; OCR's release timer uses the same
 boundary and interaction guards when cursor-leave dismissal is enabled.
+Coalesced global pointer movement also checks dismissal when an inactive popup
+misses Qt leave events. Windows checks physical buttons so missed Qt releases
+cannot leave a translation selection permanently blocking dismissal.
 Lookup and copy shortcuts share selection routing across the visible dictionary,
 translation and kanji panes, preferring the focused pane.
 Copy confirmation uses the frame's content rectangle and layout margins because

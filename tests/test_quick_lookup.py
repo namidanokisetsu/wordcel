@@ -473,6 +473,59 @@ class QuickLookupTests(unittest.TestCase):
             self.window.leaveEvent(QEvent(QEvent.Type.Leave))
             hide.assert_not_called()
 
+    def test_translation_cursor_leave_preserves_corner_windows(self):
+        self.settings.setValue("close_on_cursor_leave", True)
+        for origin in ("shortcut", "corner", "ocr"):
+            with self.subTest(origin=origin):
+                self.window.hide()
+                if origin == "corner":
+                    self.window.open_search()
+                elif origin == "ocr":
+                    self.window.show_entries((entry(),), peek=True)
+                self.window.open_translation()
+                self.assertTrue(self.window._translation_view)
+                with patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
+                    if origin != "ocr":
+                        self.window.leaveEvent(QEvent(QEvent.Type.Leave))
+                        self.assertTrue(self.window.isVisible())
+                        self.assertFalse(self.window.cursor_leave_timer.isActive())
+                        continue
+                    with patch.object(QApplication, "mouseButtons", return_value=Qt.MouseButton.LeftButton):
+                        self.window.leaveEvent(QEvent(QEvent.Type.Leave))
+                        self.assertTrue(self.window.isVisible())
+                        self.assertTrue(self.window.cursor_leave_timer.isActive())
+                    with patch.object(QApplication, "activePopupWidget", return_value=Mock()):
+                        self.window._check_cursor_leave()
+                        self.assertTrue(self.window.isVisible())
+                    self.window._check_cursor_leave()
+                    self.assertFalse(self.window.isVisible())
+                    self.assertFalse(self.window.cursor_leave_timer.isActive())
+                    self.assertFalse(self.window.translation_debounce.isActive())
+
+    def test_translation_cursor_leave_remains_optional(self):
+        self.window.open_translation()
+        with patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
+            self.window.leaveEvent(QEvent(QEvent.Type.Leave))
+            self.assertTrue(self.window.isVisible())
+            self.assertFalse(self.window.cursor_leave_timer.isActive())
+
+    def test_translation_native_pointer_closes_after_missed_qt_release_and_leave(self):
+        from meikipop.gui.unified_ocr import UnifiedOCR
+        self.settings.setValue("close_on_cursor_leave", True)
+        self.window.show_entries((entry(),), peek=True)
+        self.window.open_translation()
+        self.window.translation_browser.selecting = True
+        controller = SimpleNamespace(input=Mock(), window=self.window)
+        with patch("meikipop.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
+                patch.object(QApplication, "mouseButtons", return_value=Qt.MouseButton.LeftButton), \
+                patch("meikipop.utils.window_focus.mouse_buttons_down", return_value=True) as buttons:
+            UnifiedOCR.check_popup_cursor(controller)
+            self.assertTrue(self.window.isVisible())
+            buttons.return_value = False
+            UnifiedOCR.check_popup_cursor(controller)
+            self.assertFalse(self.window.isVisible())
+            controller.input.pointer_pending.clear.assert_called()
+
     def test_cursor_leave_closes_retained_selection_after_drag_release(self):
         self.settings.setValue("close_on_cursor_leave", True)
         for pinned in (False, True):

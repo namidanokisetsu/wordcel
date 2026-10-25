@@ -102,19 +102,32 @@ class ScanGestureTests(unittest.TestCase):
             self.assertTrue(self.input.filter_mouse(0x20A, data))
             self.assertEqual(self.input.clicks.suppress_event.call_count, 2)
 
+    def test_pointer_moves_are_coalesced_until_the_gui_checks_dismissal(self):
+        moved = Mock()
+        self.input.pointer_moved.connect(moved)
+        self.input.move(10, 20)
+        moved.assert_not_called()
+        self.input.visible.set()
+        self.input.move(10, 20)
+        self.input.move(20, 30)
+        moved.assert_called_once_with()
+        self.input.pointer_pending.clear()
+        self.input.move(30, 40)
+        self.assertEqual(moved.call_count, 2)
+
     def test_native_wheel_routing_uses_hit_window_and_preserves_signed_delta(self):
         from ctypes import wintypes
         from meikipop.utils.window_focus import route_popup_wheel
         user32 = Mock()
-        user32.WindowFromPoint.return_value = 124
-        user32.GetAncestor.return_value = 123
+        user32.ChildWindowFromPointEx.return_value = 123
         user32.GetAsyncKeyState.return_value = 0
         data = SimpleNamespace(pt=wintypes.POINT(-10, 200), mouseData=(-120 & 0xffff) << 16)
         with patch("ctypes.WinDLL", return_value=user32, create=True):
             self.assertTrue(route_popup_wheel(123, 0x20A, data))
-            user32.PostMessageW.assert_called_once_with(124, 0x20A, data.mouseData, (200 << 16) | 0xfff6)
+            user32.PostMessageW.assert_called_once_with(123, 0x20A, data.mouseData, (200 << 16) | 0xfff6)
+            user32.WindowFromPoint.assert_not_called()
             user32.PostMessageW.reset_mock()
-            user32.GetAncestor.return_value = 456
+            user32.ChildWindowFromPointEx.return_value = 456
             self.assertFalse(route_popup_wheel(123, 0x20A, data))
             user32.PostMessageW.assert_not_called()
 
