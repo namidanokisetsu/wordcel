@@ -3,7 +3,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import unittest
 
-from PyQt6.QtCore import QPoint, QPointF, Qt
+from PyQt6.QtCore import QEvent, QObject, QPoint, QPointF, Qt
 from PyQt6.QtGui import QWheelEvent
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
@@ -161,6 +161,42 @@ class SectionScrollTests(unittest.TestCase):
                 self.assertTrue(header.isVisible())
                 self.assertAlmostEqual(copied, baseline, delta=1)
                 self.assertEqual(header.y(), 0)
+
+    def test_scrolling_within_later_heading_batches_overlay_updates(self):
+        class Moves(QObject):
+            def __init__(self):
+                super().__init__()
+                self.positions = []
+
+            def eventFilter(self, watched, event):
+                if event.type() == QEvent.Type.Move and watched.updatesEnabled():
+                    self.positions.append(event.pos())
+                return False
+
+        entries = tuple(Entry(str(i), "海", reading, "Source", "ja", ("meaning\n" * 40,))
+                        for i, reading in enumerate(("うみ", "かい")))
+        self.browser.setHtml(render_result(SearchResult("海", "ja", "en", entries), expanded=("Source",)))
+        self.app.processEvents()
+        self.scroller.set_enabled(True)
+        start = self.scroller.boundaries()[1][0] + self.scroller.header.height()
+        self.bar.setValue(start)
+        self.app.processEvents()
+        header = self.scroller.header
+        self.assertTrue(header.isVisible())
+        self.assertIn("かい", header.toPlainText())
+        moves = Moves()
+        header.installEventFilter(moves)
+        for offset in (1, 2, 35, 36, 2, 1):
+            self.bar.setValue(start + offset)
+            self.app.processEvents()
+            self.assertEqual(header.pos(), QPoint(0, 0))
+        self.assertEqual(moves.positions, [])
+
+        self.browser.setUpdatesEnabled(False)
+        self.bar.setValue(start + 50)
+        self.assertFalse(self.browser.viewport().updatesEnabled())
+        self.browser.setUpdatesEnabled(True)
+        self.assertTrue(self.browser.viewport().updatesEnabled())
 
     def test_initial_and_scrolled_entries_align_all_rows_without_document_padding(self):
         entries = tuple(Entry(str(i), term, "", "Source", "en", (f"meaning {i}",))

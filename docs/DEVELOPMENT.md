@@ -69,6 +69,8 @@ subject to available space. Opening and closing kanji never resize the popup.
 Lookup prepares kanji data for every returned headword in result order.
 Sticky headings retain the ruby and pitch object renderers and forward links
 without navigating their own document.
+Sticky scrolling batches viewport painting until heading and action anchors are
+restored, so Qt's intermediate child movement is not displayed.
 Snap scrolling keeps its section clipping during progress-bar dragging and maps
 the pointer to the nearest reading stop without changing selection.
 Wheel notches and arrows move by measured text lines within a section; page

@@ -801,10 +801,21 @@ class LocalDictionaryBrowser(RubyBrowser):
         super().keyPressEvent(event)
 
     def scrollContentsBy(self, dx, dy):
-        super().scrollContentsBy(dx, dy)
-        if hasattr(self, "section_scroll"):
-            self.section_scroll._update_header()
-        self.scrolled.emit()
+        scroller = getattr(self, "section_scroll", None)
+        viewport = self.viewport()
+        redraw = bool(scroller and scroller.enabled and not scroller.preview and viewport.updatesEnabled())
+        # Qt's pixel scrolling moves viewport children before we restore their
+        # anchors. Paint sticky headings and their actions at the final geometry.
+        if redraw:
+            viewport.setUpdatesEnabled(False)
+        try:
+            super().scrollContentsBy(dx, dy)
+            if scroller is not None:
+                scroller._update_header()
+            self.scrolled.emit()
+        finally:
+            if redraw:
+                viewport.setUpdatesEnabled(True)
 
     def loadResource(self, resource_type, name):
         if resource_type == QTextDocument.ResourceType.ImageResource.value and getattr(self, "library_root", None):
