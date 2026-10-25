@@ -48,6 +48,15 @@ jobs:
           & ./dist/wordcel/wordcel-cli.exe --check-runtime
           if ($LASTEXITCODE -ne 0) { throw 'Bundled runtime check failed' }
 
+      - name: verify optional engines
+        run: |
+          & ./dist/wordcel/wordcel-cli.exe --setup-engine paddle
+          if ($LASTEXITCODE -ne 0) { throw 'Paddle engine setup failed' }
+          & ./dist/wordcel/wordcel-cli.exe --setup-engine stanza
+          if ($LASTEXITCODE -ne 0) { throw 'Stanza engine setup failed' }
+          & ./dist/wordcel/wordcel-cli.exe --check-optional-runtimes
+          if ($LASTEXITCODE -ne 0) { throw 'Optional engine check failed' }
+
       - name: upload windows artifact
         id: upload
         uses: actions/upload-artifact@v4

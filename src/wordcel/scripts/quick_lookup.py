@@ -23,10 +23,17 @@ def main(argv=None):
     parser.add_argument("--onnx-dir", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--setup-dictionary", metavar="LANGUAGE", help=argparse.SUPPRESS)
     parser.add_argument("--check-runtime", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--check-optional-runtimes", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--setup-engine", choices=("paddle", "stanza"), help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.onnx_dir and args.setup_ocr != "paddle":
         parser.error("--onnx-dir requires --setup-ocr paddle")
     background = args.background or (not args.text and sys.platform != "darwin")
+
+    if args.setup_engine:
+        from wordcel.optional_runtimes import install
+        install(args.setup_engine, print)
+        return 0
 
     if args.setup_dictionary:
         import threading
@@ -59,6 +66,22 @@ def main(argv=None):
             import traceback
             traceback.print_exc()
             return 1
+        return 0
+
+    if args.check_optional_runtimes:
+        from wordcel.optional_runtimes import require
+        if sys.platform == "win32":
+            require("paddle")
+            from wordcel.ocr.turkish_paddle import prepare_environment
+            prepare_environment()
+            import paddle
+            import paddleocr
+            from paddlex.utils.deps import require_extra
+            require_extra("ocr-core")
+        require("stanza")
+        import stanza
+        import torch
+        assert torch.ones(1).item() == 1
         return 0
 
     if args.check_runtime:
@@ -102,16 +125,7 @@ def main(argv=None):
                 if not imported:
                     raise RuntimeError(message)
             if sys.platform == "win32":
-                # Exercise the scan-before-morphology order that exposed DLL conflicts.
-                from wordcel.ocr.turkish_paddle import prepare_environment
-                prepare_environment()
-                import paddle
-                import paddleocr
                 import meikiocr
-                from paddlex.utils.deps import require_extra
-                require_extra("ocr-core")
-            import stanza
-            import torch
             from wordcel.language.turkish_analyzer import TurkishAnalyzer
             from wordcel.language.turkish_ranking import FILENAME, read_counts
             from wordcel.utils.paths import paths

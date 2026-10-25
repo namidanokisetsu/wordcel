@@ -99,6 +99,8 @@ jobs:
           codesign --verify --deep --strict dist/wordcel.app
           # Native imports only: this exits before Qt, capture or accessibility.
           dist/wordcel.app/Contents/MacOS/wordcel --check-runtime
+          dist/wordcel.app/Contents/MacOS/wordcel --setup-engine stanza
+          dist/wordcel.app/Contents/MacOS/wordcel --check-optional-runtimes
 
       - name: create dmg
         run: |
