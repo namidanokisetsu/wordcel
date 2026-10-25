@@ -3,8 +3,9 @@ from importlib.metadata import distribution
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import platform
+import posixpath
 import subprocess
 import sys
 from urllib.request import urlopen
@@ -85,8 +86,34 @@ def prepare(root):
 
 def strip(analysis, external):
     def keep(entry):
-        return os.path.normcase(str(Path(entry[1]).resolve())) not in external
+        return entry[2] == "SYMLINK" or os.path.normcase(str(Path(entry[1]).resolve())) not in external
     # Analyze first so optional imports still contribute required standard-library modules.
     analysis.pure = [entry for entry in analysis.pure if keep(entry)]
     analysis.binaries = [entry for entry in analysis.binaries if keep(entry)]
     analysis.datas = [entry for entry in analysis.datas if keep(entry)]
+    # Native-library aliases refer to bundle destinations, not source files.
+    # Removing a library can orphan aliases in either TOC, including link chains.
+    normalize = lambda name: posixpath.normpath(name.replace("\\", "/"))
+    while True:
+        entries = [*analysis.binaries, *analysis.datas]
+        destinations = {normalize(entry[0]) for entry in entries}
+        destinations.update(str(parent) for name in tuple(destinations) for parent in PurePosixPath(name).parents)
+        aliases = {normalize(name): normalize(posixpath.join(posixpath.dirname(normalize(name)), target.replace("\\", "/")))
+                   for name, target, kind in entries if kind == "SYMLINK"}
+        def linked(entry):
+            if entry[2] != "SYMLINK":
+                return True
+            target, seen = aliases[normalize(entry[0])], set()
+            while target not in seen:
+                if target in destinations:
+                    return True
+                seen.add(target)
+                prefix = next((str(parent) for parent in PurePosixPath(target).parents if str(parent) in aliases), None)
+                if prefix is None:
+                    break
+                target = normalize(posixpath.join(aliases[prefix], posixpath.relpath(target, prefix)))
+            return False
+        analysis.binaries = [entry for entry in analysis.binaries if linked(entry)]
+        analysis.datas = [entry for entry in analysis.datas if linked(entry)]
+        if len(analysis.binaries) + len(analysis.datas) == len(entries):
+            break

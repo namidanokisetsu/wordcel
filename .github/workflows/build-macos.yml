@@ -81,7 +81,10 @@ jobs:
         run: rm -rf build dist || true
 
       - name: build with pyinstaller (macos)
-        run: pyinstaller wordcel.macos.spec
+        run: |
+          pyinstaller wordcel.macos.spec
+          python -c "from pathlib import Path; app=Path('dist/wordcel.app'); assert (app/'Contents/MacOS/wordcel').is_file(), 'App executable is missing'; broken=[str(p) for p in app.rglob('*') if p.is_symlink() and not p.exists()]; assert not broken, 'Broken bundle links: ' + ', '.join(broken)"
+          codesign --verify --deep --strict --verbose=2 dist/wordcel.app
 
       - name: sign release app
         env:
