@@ -93,7 +93,7 @@ class AnkiGuiTests(unittest.TestCase):
         panel.load("tr")
         self.assertFalse(panel.enabled.isChecked())
         self.assertTrue(panel.options.isHidden())
-        self.assertTrue(panel.shortcut.enabled.isChecked())
+        self.assertFalse(panel.shortcut.enabled.isChecked())
         self.assertEqual(panel.shortcut.recorder.keySequence().toString(), "Shift+A")
         panel.load("ja")
         self.assertEqual(panel._field_controls["Reading"].currentData(), "reading")

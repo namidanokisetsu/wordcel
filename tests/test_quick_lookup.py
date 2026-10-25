@@ -2565,6 +2565,9 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(bar.value(), 0)
 
     def test_popup_actions_reuse_existing_commands_without_stealing_typing(self):
+        self.settings.setValue("profiles/ja/popup/replay_shortcut", "R")
+        self.settings.setValue("profiles/ja/popup/copy_shortcut", "Shift+C")
+        self.window.reload_popup_shortcuts()
         self.window.show_entries((entry(),), "cat")
         self.window.activateWindow()
         self.window.browser.setFocus()

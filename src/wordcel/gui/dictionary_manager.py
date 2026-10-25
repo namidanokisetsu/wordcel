@@ -551,7 +551,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.anki.shortcut.enabled.toggled.disconnect(self.anki._save)
         self.anki.shortcut.recorder.editingFinished.disconnect(self.anki._save)
         for action, label, default in POPUP_ACTIONS:
-            control = self.anki.shortcut if action == "anki" else ShortcutEdit(default, default)
+            control = self.anki.shortcut if action == "anki" else ShortcutEdit(default if action == "copy_text" else "", default)
             self.popup_shortcuts[action] = control
             popup_form.addRow(label, control)
             control.enabled.toggled.connect(lambda _: self.autosave(self.save_popup_shortcuts))

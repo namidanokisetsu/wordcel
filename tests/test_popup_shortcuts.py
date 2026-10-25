@@ -27,18 +27,18 @@ class PopupShortcutTests(unittest.TestCase):
 
     def test_defaults_saved_bindings_and_disabled_actions(self):
         self.assertEqual(popup_bindings(self.settings, "ja"),
-                         {"replay": "R", "anki": "Shift+A", "copy": "Shift+C",
-                          "copy_text": "Ctrl+C", "back": "Alt+Left"})
+                         {"replay": "", "anki": "", "copy": "",
+                          "copy_text": "Ctrl+C", "back": ""})
         self.settings.setValue("profiles/ja/anki/shortcut", "Ctrl+Shift+A")
         self.settings.setValue("profiles/ja/popup/replay_shortcut", "")
         self.assertEqual(popup_bindings(self.settings, "ja")["anki"], "Ctrl+Shift+A")
         self.assertEqual(popup_bindings(self.settings, "ja")["replay"], "")
-        self.assertEqual(popup_bindings(self.settings, "tr")["replay"], "R")
+        self.assertEqual(popup_bindings(self.settings, "tr")["replay"], "")
         self.settings.setValue("profiles/ja/popup/copy_text_shortcut", "Ctrl+Insert")
         self.assertEqual(popup_bindings(self.settings, "ja")["copy_text"], "Ctrl+Insert")
         self.settings.setValue("profiles/ja/popup/copy_text_shortcut", "")
         self.assertEqual(popup_bindings(self.settings, "ja")["copy_text"], "")
-        self.assertEqual(popup_bindings(self.settings, "ja")["copy"], "Shift+C")
+        self.assertEqual(popup_bindings(self.settings, "ja")["copy"], "")
 
     def test_native_chords_keep_letters_stable_and_modifiers_exact(self):
         for value, expected in (("R", (0x52, 0)), ("Shift+A", (0x41, 1)),
@@ -54,6 +54,11 @@ class PopupShortcutTests(unittest.TestCase):
             self.assertTrue(dialog.shortcuts_tab.isAncestorOf(dialog.scan_key))
             self.assertTrue(dialog.shortcuts_tab.isAncestorOf(dialog.shortcut))
             self.assertTrue(dialog.shortcuts_tab.isAncestorOf(dialog.anki.shortcut))
+            for action, control in dialog.popup_shortcuts.items():
+                self.assertEqual(control.enabled.isChecked(), action == "copy_text")
+                self.assertFalse(control.recorder.keySequence().isEmpty())
+            for action in ("replay", "anki", "copy"):
+                dialog.popup_shortcuts[action].enabled.setChecked(True)
             replay = dialog.popup_shortcuts["replay"]
             replay.recorder.setKeySequence(QKeySequence("F2"))
             dialog.save_popup_shortcuts()

@@ -14,7 +14,7 @@ def shortcut_key(profile, action):
 
 def popup_bindings(settings, profile):
     return {action: settings.value(shortcut_key(profile, action),
-                                   QKeySequence(QKeySequence.StandardKey.Back).toString() if action == "back" else default)
+                                   default if action == "copy_text" else "")
             for action, _, default in POPUP_ACTIONS}
 
 

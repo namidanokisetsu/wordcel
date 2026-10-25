@@ -120,9 +120,9 @@ button pages up;
 **Side-button scrolling** disables this per profile. Over fullscreen Windows
 apps, a pinned popup accepts arrows, Page Up/Down and Home/End while the source
 keeps focus. **Esc** closes the popup. In **Settings > Shortcuts**, record or
-disable lookup and popup bindings. Popup defaults are **R** for replay,
-**Shift+A** for Anki, **Shift+C** for copying the sentence and **Alt+Left** for Back.
-**Copy text** defaults to **Ctrl+C**, including selected preview text over fullscreen Windows apps.
+disable lookup and popup bindings. Only **Copy text** is enabled by default
+(**Ctrl+C**), including selected preview text over fullscreen Windows apps. Replay,
+Anki, Copy sentence and Back shortcuts are optional.
 Close a pinned popup before starting another lookup with a keyboard hold.
 Windows passes scan keys through to games by default. Enable **Block scan keys
 in fullscreen** in Shortcuts to reserve them for lookup, or choose another scan

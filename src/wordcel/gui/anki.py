@@ -154,7 +154,7 @@ class AnkiSettingsPanel(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setWidget(mapping_widget)
         options_layout.addWidget(scroll, 1)
-        self.shortcut = ShortcutEdit("Shift+A", "Shift+A")
+        self.shortcut = ShortcutEdit("", "Shift+A")
         self.shortcut.setToolTip("Add to Anki while reading the popup")
         self.shortcut_form = form
         form.addRow("Add shortcut", self.shortcut)
@@ -206,7 +206,7 @@ class AnkiSettingsPanel(QWidget):
             self._maps = {}
         self._maps = {model: mapping for model, mapping in self._maps.items() if isinstance(mapping, dict)}
         self._set_fields(list(options.fields), options.fields)
-        shortcut = self.settings.value(self._prefix + "shortcut", "Shift+A")
+        shortcut = self.settings.value(self._prefix + "shortcut", "")
         self.shortcut.set_value(shortcut, self.settings.value(self._prefix + "shortcut_preset", "Shift+A"))
         self.status.clear()
         self._loading = False

@@ -2795,7 +2795,7 @@ class QuickLookupWindow(QDialog):
             button.setAccessibleName(description)
             button.setEnabled(ready)
         if hasattr(self, "anki_shortcut"):
-            binding = self.settings.value(f"profiles/{self.active_profile}/anki/shortcut", "Shift+A")
+            binding = self.settings.value(f"profiles/{self.active_profile}/anki/shortcut", "")
             self.anki_shortcut.setKey(QKeySequence(binding))
             self.anki_shortcut.setEnabled(ready and not browse and bool(binding))
 

@@ -170,7 +170,8 @@ Unhandled native popup events return `(False, 0)` directly. Calling PyQt's base
 `nativeEvent` can crash Windows handle creation; a hidden native-window fixture
 covers creation, capture exclusion, focus tracking and mouse activation.
 Settings groups lookup and popup bindings in Shortcuts, reusing the key recorder
-and existing Anki shortcut storage. Saved bindings and disabled actions survive
+and existing Anki shortcut storage. Only Copy text is enabled by default; other
+popup actions retain recorder presets. Saved bindings and disabled actions survive
 profile switches. Popup actions yield to text fields, and native action repeats
 are suppressed while navigation keys retain repeat scrolling. Escape retains
 the existing dismissal path.
