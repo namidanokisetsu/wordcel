@@ -242,6 +242,9 @@ class ScanWorker(threading.Thread):
             raise RuntimeError("Screen recognition support is unverified for this language.")
         if not ocr_supported(language, selected):
             raise RuntimeError("This OCR provider does not support this language.")
+        if selected == "windows":
+            from wordcel.ocr.windows_native import WindowsOCR
+            return WindowsOCR(language).scan
         if selected == "screenai":
             from wordcel.ocr.providers.screenai.provider import ScreenAiOcr
             return ScreenAiOcr(component_directory or None, language=language).scan

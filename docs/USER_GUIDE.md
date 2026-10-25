@@ -15,6 +15,10 @@ in System Settings → Privacy & Security, then reopen the app. If permissions
 stop working after an update, remove the old app from those lists and add it
 again. The app is not Apple-notarized, so Gatekeeper may show a warning.
 
+Windows OCR uses your installed Windows OCR language packs. Select it or
+Chrome Screen AI under **Settings ? Lookup ? OCR model**. Add missing Windows
+languages in **Windows Settings ? Time & language**, then restart Wordcel.
+
 ## Look up words
 
 - **On screen:** hold Shift and point at a word. While holding it, click to pin

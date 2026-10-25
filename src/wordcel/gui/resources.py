@@ -7,6 +7,12 @@ from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidg
 
 
 def ocr_ready(provider, component_directory=""):
+    if provider == "windows":
+        from wordcel.ocr.windows_native import supported_languages
+        try:
+            return bool(supported_languages())
+        except RuntimeError:
+            return False
     if provider == "vision":
         import sys
         return sys.platform == "darwin"
@@ -131,7 +137,7 @@ class ResourcesPanel(QWidget):
         available = bool(provider.currentData() and item is not None and item.isEnabled()
                          and ocr_supported(code, provider.currentData()))
         ready = available and ocr_ready(provider.currentData(), owner.screenai_directory.text())
-        downloadable = available and not ready and provider.currentData() not in {"screenai", "vision"}
+        downloadable = available and not ready and provider.currentData() not in {"screenai", "vision", "windows"}
         self.ocr_install.setText("Download " + provider.currentText().split(" (")[0] if available else "Download OCR")
         self.ocr_section.setVisible(downloadable)
         self.ocr_install.setVisible(downloadable)

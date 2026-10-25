@@ -73,6 +73,14 @@ def ocr_languages(provider, platform=None, vision_languages=None):
     if platform is None:
         import sys
         platform = sys.platform
+    if provider == "windows":
+        if platform != "win32":
+            return frozenset()
+        from wordcel.ocr.windows_native import supported_languages
+        try:
+            return frozenset(supported_languages())
+        except RuntimeError:
+            return frozenset()
     if provider == "vision":
         if platform != "darwin":
             return frozenset()
@@ -90,6 +98,9 @@ def ocr_languages(provider, platform=None, vision_languages=None):
 def ocr_supported(code, provider=None, platform=None, vision_languages=None):
     if provider is None:
         provider = default_ocr_provider(code, platform, vision_languages)
+    if provider == "windows":
+        from wordcel.ocr.windows_native import supports_language
+        return supports_language(code, ocr_languages(provider, platform, vision_languages))
     if provider == "vision":
         from wordcel.ocr.macos_vision import supports_language
         return supports_language(code, ocr_languages(provider, platform, vision_languages))

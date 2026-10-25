@@ -364,6 +364,8 @@ class SetupDialog(QDialog):
         self.ja_ocr_provider.addItem("MeikiOCR (CPU)", "meikiocr")
         self.ja_ocr_provider.addItem("PaddleOCR (multilingual)", "paddle")
         self.ja_ocr_provider.addItem("Chrome Screen AI (local)", "screenai")
+        if sys.platform == "win32":
+            self.ja_ocr_provider.addItem("Windows OCR", "windows")
         if sys.platform == "darwin":
             self.ja_ocr_provider.addItem("Apple Vision", "vision")
         default_provider = "vision" if sys.platform == "darwin" else "meikiocr"
@@ -372,6 +374,8 @@ class SetupDialog(QDialog):
         self.tr_ocr_provider = QComboBox()
         self.tr_ocr_provider.addItem("PaddleOCR (local)", "paddle")
         self.tr_ocr_provider.addItem("Chrome Screen AI (local)", "screenai")
+        if sys.platform == "win32":
+            self.tr_ocr_provider.addItem("Windows OCR", "windows")
         if sys.platform == "darwin":
             self.tr_ocr_provider.addItem("Apple Vision", "vision")
         tr_default = "vision" if sys.platform == "darwin" else "paddle"
@@ -380,6 +384,8 @@ class SetupDialog(QDialog):
         self.other_ocr_provider = QComboBox()
         self.other_ocr_provider.addItem("PaddleOCR (multilingual)", "paddle")
         self.other_ocr_provider.addItem("Chrome Screen AI (local)", "screenai")
+        if sys.platform == "win32":
+            self.other_ocr_provider.addItem("Windows OCR", "windows")
         if sys.platform == "darwin":
             self.other_ocr_provider.addItem("Apple Vision", "vision")
         scan_layout.addRow("OCR model", self.other_ocr_provider)
@@ -985,7 +991,8 @@ class SetupDialog(QDialog):
                            and not (bundled_mac and value in {"meikiocr", "paddle"}))
             item = provider.model().item(index)
             item.setEnabled(enabled)
-            item.setToolTip("" if enabled else "This OCR provider does not support this language on this computer")
+            item.setToolTip("" if enabled else "Install this language's OCR pack in Windows Settings, then restart Wordcel"
+                            if value == "windows" else "This OCR provider does not support this language on this computer")
             if enabled:
                 supported.append(value)
         default = default_ocr_provider(code)

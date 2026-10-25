@@ -12,7 +12,7 @@ datas = [(str(root / "src/wordcel/resources"), "wordcel/resources"),
          (str(root / "src/wordcel/scripts/deconjugator.json"), "wordcel/scripts"),
          (str(root / "LICENSE"), "licenses/wordcel")]
 binaries, hiddenimports = [], ["PyQt6.QtTextToSpeech", "pynput.keyboard._win32", "pynput.mouse._win32"]
-for package in ("stanza", "zeyrek", "paddle", "paddleocr", "paddlex", "imagesize", "mss", "meikiocr"):
+for package in ("stanza", "zeyrek", "paddle", "paddleocr", "paddlex", "imagesize", "mss", "meikiocr", "winrt"):
     data, binary, hidden = collect_all(package)
     datas += data
     binaries += binary

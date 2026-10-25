@@ -72,6 +72,8 @@ def main(argv=None):
         from wordcel.gui.first_run import LanguageSuggestion
         from wordcel.gui.dictionary_manager import SetupDialog
         if sys.platform == "win32":
+            from wordcel.ocr.windows_native import supported_languages
+            supported_languages()
             from PyQt6.QtWidgets import QApplication, QDialog
             from wordcel.gui.quick_lookup import QuickLookupWindow
 
