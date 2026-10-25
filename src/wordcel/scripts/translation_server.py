@@ -24,6 +24,8 @@ from urllib.error import URLError
 from urllib.parse import urlsplit
 from urllib.request import ProxyHandler, Request, build_opener, urlopen
 import zipfile
+from wordcel import USER_AGENT
+
 from wordcel.utils.timing import mark, logger as timing_logger
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:8766/v1"
@@ -98,7 +100,7 @@ def _download(url, destination, digest, progress=None, cancelled=None, local=Non
     temporary = Path(name)
     try:
         with os.fdopen(fd, "wb") as output:
-            request = Request(url, headers={"User-Agent": "Wordcel-setup/2.0.5"})
+            request = Request(url, headers={"User-Agent": USER_AGENT})
             with Path(local).open("rb") if local and Path(local).is_file() else urlopen(request, timeout=30) as source:
                 digest_state, received, last_report = hashlib.sha256(), 0, -1
                 while chunk := source.read(4 * 1024 * 1024):

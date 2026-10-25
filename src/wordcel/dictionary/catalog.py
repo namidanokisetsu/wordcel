@@ -5,6 +5,8 @@ import tempfile
 from urllib.request import Request, urlopen
 
 from .library import import_yomitan, language_code
+from wordcel import USER_AGENT
+
 from wordcel.language.support import DICTIONARY_LANGUAGES
 from wordcel.utils.progress import content_length, download_progress
 
@@ -47,7 +49,7 @@ def recommendations(language):
 
 def install_recommended(dictionary, directory, progress, cancelled):
     progress(f"Downloading {dictionary.title}…")
-    request = Request(dictionary.url, headers={"User-Agent": "Wordcel dictionary installer"})
+    request = Request(dictionary.url, headers={"User-Agent": USER_AGENT})
     with tempfile.TemporaryDirectory(prefix="wordcel-dictionary-") as folder:
         archive = Path(folder) / "dictionary.zip"
         with urlopen(request, timeout=30) as response, archive.open("wb") as output:

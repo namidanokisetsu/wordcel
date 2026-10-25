@@ -5,6 +5,8 @@ import threading
 from urllib.request import Request, urlopen
 import zipfile
 
+from wordcel import USER_AGENT
+
 from wordcel.utils.progress import content_length, download_progress
 from wordcel.utils.stroke_order_font import FILES, PACKAGE, file_hash, font_directory, font_ready
 
@@ -48,7 +50,7 @@ def install(progress=None, cancelled=None, directory=None):
     with tempfile.TemporaryDirectory(prefix=".stroke-order-", dir=target.parent) as temporary:
         stage = Path(temporary)
         archive = stage / "font.zip"
-        with urlopen(Request(URL, headers={"User-Agent": "Wordcel"}), timeout=30) as response, archive.open("wb") as stream:
+        with urlopen(Request(URL, headers={"User-Agent": USER_AGENT}), timeout=30) as response, archive.open("wb") as stream:
             size, total = content_length(response), 0
             if size > MAX_DOWNLOAD:
                 raise ValueError("Stroke-order font download is too large.")

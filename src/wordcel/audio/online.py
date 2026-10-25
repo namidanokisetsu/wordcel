@@ -7,6 +7,8 @@ from time import monotonic
 from unicodedata import normalize
 from urllib.parse import urlsplit
 
+from wordcel import USER_AGENT
+
 import requests
 
 
@@ -26,7 +28,7 @@ class OnlineAudio:
         if cancelled() or remaining <= 0:
             raise InterruptedError()
         with requests.get(url, params=params, timeout=(min(3, remaining), min(4, remaining)), stream=True, allow_redirects=False,
-                          headers={"User-Agent": "Wordcel/2.1 (https://github.com/namidanokisetsu/wordcel)"}) as response:
+                          headers={"User-Agent": USER_AGENT}) as response:
             response.raise_for_status()
             if response.is_redirect:
                 raise ValueError("Unexpected recording redirect")

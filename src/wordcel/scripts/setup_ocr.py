@@ -5,6 +5,8 @@ import tempfile
 from urllib.request import Request, urlopen
 import zipfile
 
+from wordcel import USER_AGENT
+
 from wordcel.utils.progress import content_length, download_progress
 
 
@@ -30,7 +32,7 @@ def install_screenai(progress, cancelled):
         stage = Path(temporary)
         archive = stage / "component.zip"
         digest = hashlib.sha256()
-        with urlopen(Request(url, headers={"User-Agent": "Wordcel"}), timeout=30) as response, archive.open("wb") as output:
+        with urlopen(Request(url, headers={"User-Agent": USER_AGENT}), timeout=30) as response, archive.open("wb") as output:
             total = 0
             size = content_length(response)
             progress(download_progress("Screen AI", total, size))
