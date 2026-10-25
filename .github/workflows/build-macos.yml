@@ -67,6 +67,7 @@ jobs:
       - name: check native bridge and lookup fixtures
         env:
           QT_QPA_PLATFORM: offscreen
+          PYTHONFAULTHANDLER: "1"
         run: |
           python -c "import Vision, Quartz; from wordcel.ocr.macos_vision import recognize; from wordcel.scripts.quick_lookup import main"
           python -m wordcel.scripts.quick_lookup --check-runtime
