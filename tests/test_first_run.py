@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 import zipfile
 
 from PyQt6.QtCore import QSettings
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 from wordcel.config.profiles import profile_language
 from wordcel.gui.first_run import FirstLanguage, LanguageSuggestion, complete_first_setup, needs_setup
 
@@ -30,6 +30,8 @@ class FirstRunTests(unittest.TestCase):
         self.window.preferred_foreign = "ja"
         self.window._setup = None
         self.window.refresh_library = Mock()
+        self.window.set_mode = Mock()
+        self.window.apply_shortcut = Mock(return_value="")
         self.window.scan_settings_changed = Mock()
         readiness = patch("wordcel.dictionary.translation.model_installed", return_value=False)
         self.model_installed = readiness.start()
@@ -49,6 +51,39 @@ class FirstRunTests(unittest.TestCase):
         self.assertTrue(needs_setup(self.settings))
         self.settings.setValue("profiles/ja/target", "en")
         self.assertFalse(needs_setup(self.settings))
+
+    def test_practice_is_unowned_and_text_lookup_stays_opt_in(self):
+        from wordcel.gui.first_run import FirstLookup
+        self.window.set_mode = Mock()
+        self.window.apply_shortcut = Mock(return_value="")
+        practice = FirstLookup(self.window, "ja")
+        self.addCleanup(practice.close)
+        self.addCleanup(practice.deleteLater)
+        self.assertIsNone(practice.parentWidget())
+        self.assertFalse(practice.shortcut.enabled.isChecked())
+        self.window.apply_shortcut.assert_not_called()
+        labels = [label.text() for label in practice.findChildren(QLabel)]
+        self.assertIn("こんにちは！", labels)
+        self.assertTrue(any("↑ Hold Shift" in text and "text above" in text for text in labels))
+        self.assertTrue(any("Select the text above" in text and "nothing selected" in text for text in labels))
+        self.assertFalse(any("audio" in text.lower() for text in labels))
+        practice.shortcut.enabled.setChecked(True)
+        self.window.set_mode.assert_called_once_with("ja")
+        control = "<cmd>" if sys.platform == "darwin" else "<ctrl>"
+        self.window.apply_shortcut.assert_called_once_with(control + "+<shift>+d", "Ctrl+Shift+D")
+        self.assertNotIn("Enable Text lookup", practice.shortcut_help.text())
+
+    def test_practice_instructions_follow_saved_bindings(self):
+        from wordcel.gui.first_run import FirstLookup
+        self.settings.setValue("profiles/tr/scan_bindings", "alt")
+        control = "<cmd>" if sys.platform == "darwin" else "<ctrl>"
+        self.settings.setValue("profiles/tr/hotkey", control + "+k")
+        practice = FirstLookup(self.window, "tr")
+        self.addCleanup(practice.close)
+        self.addCleanup(practice.deleteLater)
+        self.assertIn("Ctrl+K", practice.shortcut_help.text())
+        self.assertNotIn("Ctrl+Shift+D", practice.shortcut_help.text())
+        self.assertTrue(any("Hold Alt" in label.text() for label in practice.findChildren(QLabel)))
 
     def test_installed_translation_is_shared_and_selected_without_another_download(self):
         from wordcel.dictionary.translation import load_profile_settings, save_profile_settings, TranslationSettings
@@ -245,6 +280,15 @@ class FirstRunTests(unittest.TestCase):
             self.wizard.accept()
         setup.assert_not_called()
         self.assertIsNone(self.wizard.operation)
+
+    def test_resource_only_setup_finishes_without_replaying_tutorial(self):
+        self.wizard.tutorial = False
+        for task, check in self.wizard.choices:
+            check.setChecked(False)
+        with patch("wordcel.gui.first_run.show_tutorial") as tutorial:
+            self.wizard.accept()
+        tutorial.assert_not_called()
+        self.assertTrue(self.settings.value("profiles/ja/setup_completed", False, bool))
 
     def test_dictionary_is_optional_and_translation_uses_selected_size(self):
         self.assertTrue(all(check.isChecked() == (task.kind != "translation") for task, check in self.wizard.choices))

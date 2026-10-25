@@ -2639,6 +2639,10 @@ class QuickLookupWindow(QDialog):
         from PyQt6.QtWidgets import QKeySequenceEdit
         if isinstance(QApplication.focusWidget(), QKeySequenceEdit):
             return
+        active = QApplication.activeWindow()
+        if active is not None and active is not self:
+            self.request_lookup()
+            return
         if (self.isVisible() and self.search.hasFocus() and self.search.hasSelectedText()
                 and self.search.selectedText().strip() != self.search.text().strip()):
             self.submit(translate=False, selection=True)
@@ -2665,7 +2669,7 @@ class QuickLookupWindow(QDialog):
     def request_lookup(self):
         if QApplication.activeWindow() is not None:
             focused = QApplication.focusWidget()
-            text = focused.selectedText() if isinstance(focused, QLineEdit) else (
+            text = focused.selectedText() if isinstance(focused, (QLineEdit, QLabel)) else (
                 self._selected_reading_browser().selected_text() if self._selected_reading_browser() else "")
             self.open_search(text)
             return
@@ -3354,7 +3358,7 @@ class QuickLookupWindow(QDialog):
 
     def resume_setup(self):
         from wordcel.gui.first_run import offer_resources
-        offer_resources(self, self.active_profile, force=True)
+        offer_resources(self, self.active_profile, force=True, tutorial=False)
 
     def refresh_library(self):
         self._render_identity = None
@@ -3455,6 +3459,9 @@ class QuickLookupWindow(QDialog):
     def shutdown(self):
         if self._shutting_down:
             return
+        practice = getattr(self, "_first_lookup", None)
+        if practice is not None:
+            practice.close()
         onboarding = getattr(self, "_language_setup", None)
         if onboarding is not None:
             onboarding.cancelled.set()

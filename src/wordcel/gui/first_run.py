@@ -67,9 +67,10 @@ class FirstLanguage(QDialog):
 
 
 class LanguageSuggestion(QDialog):
-    def __init__(self, window, language=None):
+    def __init__(self, window, language=None, *, tutorial=True):
         super().__init__(window)
         self.window = window
+        self.tutorial = tutorial
         from wordcel.config.profiles import profile_language
         self.profile = language or getattr(window, "active_profile", window.preferred_foreign)
         self.language = profile_language(window.settings, self.profile)
@@ -96,6 +97,9 @@ class LanguageSuggestion(QDialog):
         layout.addWidget(self.details)
         self.details.hide()
         self.customize.toggled.connect(self.details.setVisible)
+        self.installed_summary = QLabel()
+        self.installed_summary.setWordWrap(True)
+        layout.addWidget(self.installed_summary)
         self.choices = []
         resource_rows = {}
         for task in language_plan(self.language):
@@ -104,7 +108,7 @@ class LanguageSuggestion(QDialog):
             if task.kind in {"ocr", "translation"}:
                 row = QHBoxLayout()
                 row.addWidget(check)
-                (layout if task.kind == "translation" else detail_layout).addLayout(row)
+                detail_layout.addLayout(row)
                 resource_rows[task.kind] = row
             else:
                 detail_layout.addWidget(check)
@@ -204,12 +208,16 @@ class LanguageSuggestion(QDialog):
 
     def refresh_choices(self):
         from dataclasses import replace
+        installed_labels = [meta["title"] for meta in self.installed_packs]
         for task, check in self.choices:
             selected = replace(task, value=self.translation.currentData() if task.kind == "translation" else self.ocr.currentData()) \
                 if task.kind in {"translation", "ocr"} else task
             installed = self.task_ready(selected)
-            check.setText(task.label + (" ✓" if installed else ""))
+            check.setText(task.label + (" ✓ Installed" if installed else ""))
             check.setEnabled(self.operation is None and not installed)
+            if installed and (task.kind != "dictionary" or task in self.completed_tasks):
+                installed_labels.append(task.label)
+        self.installed_summary.setText("Installed: " + ", ".join(installed_labels) if installed_labels else "No resources installed")
 
     def use_translation(self, profile):
         from dataclasses import replace
@@ -289,9 +297,8 @@ class LanguageSuggestion(QDialog):
 
     def finish_setup(self):
         self.window.settings.setValue(f"profiles/{self.profile}/setup_completed", True)
-        handoff = FirstLookup(self.window, self.profile)
-        self.window._first_lookup = handoff
-        handoff.show()
+        if self.tutorial:
+            show_tutorial(self.window, self.profile)
         super().accept()
 
     def reject(self):
@@ -300,7 +307,7 @@ class LanguageSuggestion(QDialog):
         super().reject()
 
 
-def offer_resources(window, code, *, force=False):
+def offer_resources(window, code, *, force=False, tutorial=True):
     key = f"profiles/{code}/resources_suggested"
     if not force and window.settings.value(key, False, bool):
         return None
@@ -310,7 +317,7 @@ def offer_resources(window, code, *, force=False):
     if code in suggestions and suggestions[code].isVisible():
         suggestions[code].raise_()
         return suggestions[code]
-    suggestion = LanguageSuggestion(window, code)
+    suggestion = LanguageSuggestion(window, code, tutorial=tutorial)
     suggestions[code] = suggestion
     suggestion.show()
     suggestion.raise_()
@@ -322,25 +329,59 @@ def offer_resources(window, code, *, force=False):
     return suggestion
 
 
+def show_tutorial(window, identity):
+    previous = getattr(window, "_first_lookup", None)
+    if previous is not None:
+        previous.close()
+    window.set_mode(identity)
+    handoff = FirstLookup(window, identity)
+    window._first_lookup = handoff
+    handoff.show()
+
+
 class FirstLookup(QDialog):
     def __init__(self, window, identity):
-        super().__init__(window)
+        # An owned dialog always stacks above its lookup popup on Windows.
+        super().__init__()
+        self.window = window
+        self.identity = identity
         from wordcel.config.profiles import profile_language
         from wordcel.gui.resources import ocr_ready
         from wordcel.language.support import default_ocr_provider
         from wordcel.dictionary.library import Library
-        self.setWindowTitle("Try a lookup")
+        self.setWindowTitle("Tutorial")
         language = profile_language(window.settings, identity)
         layout = QVBoxLayout(self)
-        example = {"ja": "?", "tr": "merhaba", "en": "hello", "zh": "??", "ru": "??????",
-                   "de": "Hallo", "fr": "bonjour", "es": "hola", "ko": "??"}.get(language, "hello")
+        example = {"ja": "こんにちは！", "tr": "Merhaba!", "en": "Hello!", "zh": "你好！", "ru": "Привет!",
+                   "de": "Hallo!", "fr": "Bonjour !", "es": "¡Hola!", "ko": "안녕하세요!"}.get(language, "Hello!")
         sample = QLabel(example)
+        font = sample.font()
+        font.setPointSizeF(font.pointSizeF() * 2)
+        sample.setFont(font)
+        sample.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sample.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(sample)
         bindings = window.settings.value(f"profiles/{identity}/scan_bindings", "shift,middle")
         key = next(iter(bindings.split(",")), "")
-        text = "Hold " + key.replace("+", " + ").title() + " and point at a word" if key else "Open Search to look up a word"
+        text = "↑ Hold " + key.replace("+", " + ").title() + " and hover over the text above to look it up." if key else "Enable a screen lookup key in Settings > Shortcuts."
         layout.addWidget(QLabel(text))
+        from wordcel.gui.shortcut_edit import ShortcutEdit
+        from wordcel.gui.quick_lookup import shortcut_preset
+        self.shortcut = ShortcutEdit(window.settings.value(f"profiles/{identity}/hotkey", ""),
+                                     window.settings.value(f"profiles/{identity}/hotkey_preset", shortcut_preset()))
+        form = QFormLayout()
+        form.addRow("Text lookup", self.shortcut)
+        layout.addLayout(form)
+        self.shortcut_help = QLabel()
+        self.shortcut_help.setWordWrap(True)
+        layout.addWidget(self.shortcut_help)
+        from wordcel.gui.settings_section import StatusLabel
+        self.shortcut_status = StatusLabel()
+        self.shortcut_status.setWordWrap(True)
+        layout.addWidget(self.shortcut_status)
+        self.shortcut.enabled.toggled.connect(self.save_shortcut)
+        self.shortcut.recorder.editingFinished.connect(self.save_shortcut)
+        self.update_shortcut_help()
         provider = window.settings.value(f"profiles/{identity}/ocr_provider", default_ocr_provider(language))
         library = Library(window.directory)
         try:
@@ -365,16 +406,51 @@ class FirstLookup(QDialog):
             repair = QPushButton("Screen access?")
             repair.clicked.connect(window.open_settings)
             layout.addWidget(repair)
-        # Voices are optional and never gate dictionary or screen lookup.
-        from PyQt6.QtCore import QLocale
-        from PyQt6.QtTextToSpeech import QTextToSpeech
-        self.speech = QTextToSpeech(self)
-        voices = [voice for voice in self.speech.availableVoices() if voice.locale().language() == QLocale(language).language()]
-        if not voices:
-            layout.addWidget(QLabel("Sentence audio voice unavailable"))
+        layout.addWidget(QLabel("Open Tutorial again from the bottom left of Settings."))
+        tray_text = "Wordcel stays in the system tray. Right-click its icon for Search or Settings."
+        if sys.platform == "win32":
+            tray_text += " It may be under hidden icons (^)."
+        tray_help = QLabel(tray_text)
+        tray_help.setWordWrap(True)
+        layout.addWidget(tray_help)
+        if hasattr(window, "tray_geometry"):
+            locate = QPushButton("Find tray icon")
+            locate.clicked.connect(self.show_tray_icon)
+            layout.addWidget(locate)
         search = QPushButton("Open Search")
         search.clicked.connect(lambda: self.try_lookup(window, identity, example))
         layout.addWidget(search)
+
+    def show_tray_icon(self):
+        from PyQt6.QtGui import QGuiApplication
+        from PyQt6.QtWidgets import QToolTip
+        bounds = self.window.tray_geometry()
+        if bounds.isValid() and QGuiApplication.screenAt(bounds.center()) is not None:
+            QToolTip.showText(bounds.center(), "Wordcel: right-click for Search or Settings", self)
+        else:
+            self.shortcut_status.setText("Open the system tray's hidden icons to find Wordcel.")
+
+    def update_shortcut_help(self):
+        key = self.shortcut.recorder.keySequence().toString()
+        prefix = "" if self.shortcut.enabled.isChecked() else "Enable Text lookup above to try this.\n"
+        self.shortcut_help.setText(prefix + f"Select the text above and press {key} to look it up.\n"
+                                   f"Or press {key} with nothing selected, then type a word.")
+
+    def save_shortcut(self):
+        from PyQt6.QtCore import QSignalBlocker
+        from wordcel.gui.quick_lookup import shortcut_preset
+        try:
+            value = self.shortcut.text()
+            preset = self.shortcut.recorder.keySequence().toString()
+            self.window.set_mode(self.identity)
+            warning = self.window.apply_shortcut(value, preset)
+            self.shortcut_status.setText(warning or "")
+        except (ValueError, OSError, RuntimeError) as error:
+            with QSignalBlocker(self.shortcut.enabled), QSignalBlocker(self.shortcut.recorder):
+                self.shortcut.set_value(self.window.settings.value(f"profiles/{self.identity}/hotkey", ""),
+                                        self.window.settings.value(f"profiles/{self.identity}/hotkey_preset", shortcut_preset()))
+            self.shortcut_status.setText(str(error))
+        self.update_shortcut_help()
 
     def try_lookup(self, window, identity, example):
         window.set_mode(identity)

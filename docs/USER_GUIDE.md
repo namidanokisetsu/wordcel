@@ -6,10 +6,16 @@
 installer or the macOS DMG for your Mac's processor. Open Wordcel, choose a
 language, and select the dictionaries and models to download. You can skip
 downloads and add them later in **Settings**. Wordcel runs in the system tray.
-Setup lets you choose each dictionary, the OCR engine and the translation model,
-or skip downloads. Installed resources are reused; Japanese setup also offers
-the stroke-order font. Dictionary imports and model downloads can run alongside
+Use **Settings > Lookup > Resume setup** if you skipped the wizard.
+**Customize** lets you choose each dictionary, the OCR engine and optional
+translation model, which is off by default. Installed resources are reused;
+Japanese setup also offers the stroke-order font. Dictionary imports and model downloads can run alongside
 each other while lookup and unrelated settings remain available.
+New profiles open resource setup without repeating the tutorial. Use **Tutorial**
+at the bottom left of Settings for sample text and the optional text lookup shortcut.
+Right-click Wordcel's tray icon for Search or Settings; on Windows it may be
+under **Show hidden icons**. **Find tray icon** in the tutorial points to
+the icon when its position is available.
 Wordcel starts with fresh settings and data. Existing Meikipop data and Anki
 notes, tags and note types stay unchanged. New Anki exports default to the
 `wordcel` tag and use your selected note type and field mapping.

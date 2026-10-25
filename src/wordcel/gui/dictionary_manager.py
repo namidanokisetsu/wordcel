@@ -572,6 +572,11 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self.status)
         footer = QHBoxLayout()
+        tutorial = QPushButton("Tutorial")
+        tutorial.setFlat(True)
+        tutorial.setStyleSheet("color: palette(mid);")
+        tutorial.clicked.connect(self.show_tutorial)
+        footer.addWidget(tutorial)
         footer.addStretch()
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setVisible(False)
@@ -715,7 +720,13 @@ class SetupDialog(SettingsNavigation, QDialog):
     def resume_setup(self):
         if self.parent() is not None:
             from wordcel.gui.first_run import offer_resources
-            offer_resources(self.parent(), self.profile.currentData(), force=True)
+            offer_resources(self.parent(), self.profile.currentData(), force=True, tutorial=False)
+
+    def show_tutorial(self):
+        if self.parent() is not None:
+            from wordcel.gui.first_run import show_tutorial
+            self.hide()
+            show_tutorial(self.parent(), self.profile.currentData())
 
     def save_startup(self, enabled):
         from wordcel.utils.startup import set_startup_enabled
@@ -823,6 +834,8 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.rebuild_profiles(identity)
         if self.parent() is not None:
             self.parent().update_languages()
+            from wordcel.gui.first_run import offer_resources
+            offer_resources(self.parent(), identity, tutorial=False)
 
     def duplicate_profile(self):
         identity = create_profile(self.settings, self.editing_language,

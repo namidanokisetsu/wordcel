@@ -189,9 +189,12 @@ class ResourceTests(unittest.TestCase):
                 dialog = SetupDialog(root / "library", settings, Mock())
                 try:
                     self.assertTrue(dialog.resources.dictionary_install.isHidden())
+                    self.assertEqual(dialog.resources.dictionary_status.text(), "Dictionaries: 1 installed, 1 enabled")
                     remove_dictionary(root / "library", pack.name, lambda: None, threading.Event())
                     dialog.resources.refresh()
                     self.assertFalse(dialog.resources.dictionary_install.isHidden())
+                    self.assertFalse(dialog.resources.dictionary_install.isFlat())
+                    self.assertEqual(dialog.resources.dictionary_status.text(), "No dictionaries installed")
                 finally:
                     dialog.deleteLater()
                     self.app.processEvents()

@@ -188,6 +188,11 @@ model downloads; only conflicting resource actions and language removal are bloc
 Each job retains its own progress and completion state across profile changes.
 Initial setup searches language names and codes, reuses installed resources,
 and offers explicit OCR/translation choices plus the Japanese stroke-order font.
+Translation stays unchecked under Customize. The practice window is unowned so
+it cannot force the lookup popup behind it; its optional text shortcut reuses the
+shared recorder and saved binding. Optional speech availability does not gate setup.
+New profiles offer resources without a tutorial handoff. Settings keeps Tutorial
+in its footer; sample-label selection uses the shared text lookup shortcut.
 Translation models use resumable Hugging Face transfers into the download cache;
 only files matching the pinned size and SHA256 move into the installed models.
 Cursor-leave dismissal is an app-wide opt-in, including pinned popups but excluding

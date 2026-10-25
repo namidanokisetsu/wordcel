@@ -2028,6 +2028,10 @@ class QuickLookupTests(unittest.TestCase):
         try:
             dialog.add_profile("de")
             german = dialog.profile.currentData()
+            wizard = self.window._resource_suggestions[german]
+            self.assertTrue(wizard.isVisible())
+            self.assertFalse(wizard.tutorial)
+            wizard.close()
             self.assertEqual(self.window.preferred_foreign, "ja")
             dialog.activate_profile()
             self.assertEqual(self.window.preferred_foreign, "de")
@@ -3470,6 +3474,24 @@ class QuickLookupTests(unittest.TestCase):
             self.window.selection.unavailable.emit(False)
             self.assertFalse(self.window.isVisible())
             clipboard.assert_not_called()
+
+    def test_lookup_shortcut_reads_tutorial_selection_while_popup_is_visible(self):
+        from PyQt6.QtWidgets import QLabel
+        sample = QLabel("Merhaba!")
+        sample.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        sample.setSelection(0, 7)
+        self.window.show()
+        with patch.object(QApplication, "activeWindow", return_value=sample), \
+                patch.object(QApplication, "focusWidget", return_value=sample), \
+                patch.object(self.window, "open_search") as search, \
+                patch.object(self.window.selection, "start") as capture:
+            self.window.toggle_lookup()
+            search.assert_called_once_with("Merhaba")
+            sample.setSelection(0, 0)
+            self.window.toggle_lookup()
+            self.assertEqual(search.call_args.args, ("",))
+            capture.assert_not_called()
+        sample.deleteLater()
 
     def test_lookup_shortcut_uses_only_selection_within_app(self):
         with patch.object(QApplication, "activeWindow", return_value=self.window), \
