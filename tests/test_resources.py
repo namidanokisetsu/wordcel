@@ -53,7 +53,8 @@ class ResourceTests(unittest.TestCase):
                 with patch.object(dialog, "begin_operation") as start:
                     dialog.data.rows[missing.key].download.click()
                     start.assert_called_once_with([], recommended=recommended)
-                dialog.data.set_busy(True)
+                with patch.object(dialog, "operation_busy", return_value=True):
+                    dialog.data.set_busy()
                 self.assertFalse(row.remove.isEnabled())
                 self.assertFalse(dialog.data.rows[missing.key].download.isEnabled())
             finally:
@@ -118,13 +119,54 @@ class ResourceTests(unittest.TestCase):
                     for status, changed in (("Done", True), ("Cancelled", False), ("Failed", False)):
                         with self.subTest(status=status):
                             dialog.begin_operation([])
-                            self.assertFalse(dialog.translation_endpoint.isEnabled())
-                            self.assertFalse(dialog.translation_model.isEnabled())
+                            self.assertTrue(dialog.translation_endpoint.isEnabled())
+                            self.assertTrue(dialog.translation_model.isEnabled())
                             self.assertFalse(dialog.remove_profile_button.isEnabled())
                             dialog._finished(status, changed)
                             self.assertTrue(dialog.translation_endpoint.isEnabled())
                             self.assertTrue(dialog.translation_model.isEnabled())
                             self.assertTrue(dialog.remove_profile_button.isEnabled())
+                finally:
+                    dialog.deleteLater()
+                    self.app.processEvents()
+
+    def test_independent_setup_jobs_keep_settings_usable_and_finish_individually(self):
+        with tempfile.TemporaryDirectory() as directory:
+            settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
+            settings.setValue("profiles/ja/target", "en")
+            settings.setValue("profiles/tr/target", "en")
+            with patch("wordcel.gui.resources.ocr_ready", return_value=False), \
+                    patch("wordcel.gui.resources.translation_ready", return_value=False), \
+                    patch("wordcel.gui.dictionary_manager.SetupOperation.start"):
+                dialog = SetupDialog(Path(directory) / "library", settings, Mock())
+                try:
+                    dialog.begin_operation([], profile="quality")
+                    model = dialog.operation
+                    self.assertTrue(dialog.import_button.isEnabled())
+                    self.assertTrue(dialog.profile.isEnabled())
+                    self.assertTrue(dialog.translation_mode.isEnabled())
+                    self.assertTrue(dialog.ja_ocr_provider.isEnabled())
+                    self.assertFalse(dialog.resources.downloads["quality"].isEnabled())
+                    dialog.begin_operation(["dictionary.zip"], language="ja")
+                    dictionaries = next(job for job in dialog.operations if job is not model)
+                    self.assertEqual(len(dialog.operations), 2)
+                    self.assertFalse(dialog.import_button.isEnabled())
+                    dialog.begin_operation([], profile="lightweight")
+                    self.assertEqual(len(dialog.operations), 2)
+                    dialog.sync_profile("tr")
+                    self.assertEqual(dialog.profile.currentData(), "tr")
+                    dialog._operation_progress(model, "Model: 25%")
+                    dialog._operation_progress(dictionaries, "Dictionary: 50%")
+                    self.assertEqual(dialog.operations[model].text(), "Model: 25%")
+                    dialog._finished("Imported", True, dictionaries)
+                    self.assertIs(dialog.operation, model)
+                    self.assertTrue(dialog.import_button.isEnabled())
+                    self.assertFalse(dialog.resources.downloads["quality"].isEnabled())
+                    dialog.cancel_operation()
+                    self.assertTrue(model.cancelled.is_set())
+                    dialog._finished("Cancelled", False, model)
+                    self.assertFalse(dialog.operations)
+                    self.assertTrue(dialog.resources.downloads["quality"].isEnabled())
                 finally:
                     dialog.deleteLater()
                     self.app.processEvents()

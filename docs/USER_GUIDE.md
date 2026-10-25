@@ -6,9 +6,17 @@
 installer or the macOS DMG for your Mac's processor. Open Wordcel, choose a
 language, and select the dictionaries and models to download. You can skip
 downloads and add them later in **Settings**. Wordcel runs in the system tray.
+Setup lets you choose each dictionary, the OCR engine and the translation model,
+or skip downloads. Installed resources are reused; Japanese setup also offers
+the stroke-order font. Dictionary imports and model downloads can run alongside
+each other while lookup and unrelated settings remain available.
 Wordcel starts with fresh settings and data. Existing Meikipop data and Anki
 notes, tags and note types stay unchanged. New Anki exports default to the
 `wordcel` tag and use your selected note type and field mapping.
+
+The installer bundles the app and its libraries, not dictionary packs or model
+weights. For offline use, install the desired resources beforehand. Windows OCR
+uses installed Windows language packs; system speech uses installed voices.
 
 On macOS, allow **Screen Recording**, **Input Monitoring** and **Accessibility**
 in System Settings → Privacy & Security, then reopen the app. If permissions

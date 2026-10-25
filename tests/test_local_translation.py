@@ -408,7 +408,7 @@ class TranslationSetupTests(unittest.TestCase):
         with patch.dict(sys.modules, {"wordcel.scripts.translation_server": manager}):
             self.dialog.resources.downloads["quality"].click()
             self.assertTrue(started.wait(2))
-            self.assertFalse(self.dialog.translation_mode.isEnabled())
+            self.assertTrue(self.dialog.translation_mode.isEnabled())
             self.dialog.cancel_operation()
             deadline = time.monotonic() + 2
             while self.dialog.operation is not None and time.monotonic() < deadline:

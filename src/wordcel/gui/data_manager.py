@@ -71,11 +71,12 @@ class DataPanel(QWidget):
         self._task.finished.connect(self._finished)
         self._task.thread.start()
 
-    def set_busy(self, busy):
+    def set_busy(self):
         for button in self.import_buttons.values():
-            button.setEnabled(not busy)
+            button.setEnabled(not self.owner.operation_busy("dictionaries"))
         for row in self.rows.values():
-            row.enabled.setEnabled(not busy)
+            busy = self.owner.operation_busy(row.asset.key)
+            row.enabled.setEnabled(not self.owner.operation_busy("dictionaries"))
             row.remove.setEnabled(not busy)
             row.download.setEnabled(not busy)
 
@@ -164,7 +165,7 @@ class DataPanel(QWidget):
             row.download.setVisible((not present or asset.status == "Incomplete")
                                     and asset.kind in {"translation", "runtime", "ocr", "morphology", "fonts", "recommended"})
         self.total.setText(size_label(sum(asset.size for asset in assets)) + " used")
-        self.set_busy(self.owner.operation is not None)
+        self.set_busy()
         self.layout().activate()
         scroll.setValue(position)
 

@@ -110,10 +110,9 @@ class ResourcesPanel(QWidget):
         code = owner.profile.currentData()
         if not code:
             return
-        busy = owner.operation is not None
         from wordcel.utils.stroke_order_font import font_ready
         owner.appearance.detail_form.setRowVisible(self.font_install, code == "ja" and not font_ready())
-        self.font_install.setEnabled(not busy)
+        self.font_install.setEnabled(not owner.operation_busy("fonts"))
         from wordcel.dictionary.library import Library
         library = Library(owner.directory)
         try:
@@ -124,7 +123,7 @@ class ResourcesPanel(QWidget):
         dictionaries = recommendations(code)
         self.missing_dictionaries = tuple(item for item in dictionaries if not any(item.matches(meta) for meta in packs))
         self.dictionary_install.setVisible(bool(self.missing_dictionaries))
-        self.dictionary_install.setEnabled(bool(self.missing_dictionaries) and not busy)
+        self.dictionary_install.setEnabled(bool(self.missing_dictionaries) and not owner.operation_busy("dictionaries"))
         self.dictionary_install.setToolTip("\n".join(item.title for item in self.missing_dictionaries))
         owner.combine_frequencies.setVisible(sum(int(meta.get("frequencies", 0)) > 0 for meta in packs if meta["enabled"]) > 1)
         has_packs = bool(packs)
@@ -141,7 +140,7 @@ class ResourcesPanel(QWidget):
         self.ocr_install.setText("Download " + provider.currentText().split(" (")[0] if available else "Download OCR")
         self.ocr_section.setVisible(downloadable)
         self.ocr_install.setVisible(downloadable)
-        self.ocr_install.setEnabled(downloadable and not busy)
+        self.ocr_install.setEnabled(downloadable and not owner.operation_busy("ocr"))
         from wordcel.language.stanza_analyzer import model_status
         from wordcel.language.support import STANZA_LANGUAGES
         supported = code in STANZA_LANGUAGES and code not in {"ja", "tr"}
@@ -156,7 +155,7 @@ class ResourcesPanel(QWidget):
         self.base_install.setText("Download word-form support")
         self.base_install.setVisible(supported and not ready)
         self.dictionary_section.setVisible(bool(self.missing_dictionaries) or supported or turkish)
-        self.base_install.setEnabled(not busy)
+        self.base_install.setEnabled(not owner.operation_busy("morphology"))
         source = owner.translation_source.currentData()
         target = owner.translation_target.currentData()
         source = code if source == "auto" else source
@@ -168,5 +167,5 @@ class ResourcesPanel(QWidget):
             selected = owner.translation_mode.currentData() == name
             self.model_rows[name].setVisible(supported and selected and not ready)
             self.downloads[name].setVisible(supported and not ready)
-            self.downloads[name].setEnabled(supported and not ready and not busy)
+            self.downloads[name].setEnabled(supported and not ready and not owner.operation_busy("translation"))
         self.translation_section.setVisible(any(not row.isHidden() for row in self.model_rows.values()))

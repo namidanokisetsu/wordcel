@@ -175,7 +175,13 @@ preserve Japanese behavior when adding another language. Model weights,
 dictionary packs, generated assets and environments stay outside Git.
 Settings save screen, pin and text shortcuts independently. OCR component
 validation only gates provider setup; rejected choices restore the saved controls.
-Setup jobs share one control list for disabling and restoring their inputs.
+Settings tracks setup jobs by resource. Dictionary imports can run alongside
+model downloads; only conflicting resource actions and language removal are blocked.
+Each job retains its own progress and completion state across profile changes.
+Initial setup searches language names and codes, reuses installed resources,
+and offers explicit OCR/translation choices plus the Japanese stroke-order font.
+Translation models use resumable Hugging Face transfers into the download cache;
+only files matching the pinned size and SHA256 move into the installed models.
 Cursor-leave dismissal is an app-wide opt-in, including pinned popups but excluding
 corner windows, including their translation view. Corner search retains its saved
 size and tray edge; geometry,

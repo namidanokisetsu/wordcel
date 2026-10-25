@@ -17,6 +17,12 @@ from wordcel.gui.settings_section import SettingsSection, StatusLabel, align_for
 from wordcel.language.profiles import configured_profiles, default_partner, visible_profiles
 
 
+def setup_resource(key):
+    kind = key.split(":", 1)[0]
+    return {"dictionary": "dictionaries", "recommended": "dictionaries", "runtime": "translation",
+            "stanza": "morphology", "font": "fonts", "cache": "all"}.get(kind, kind)
+
+
 class SetupOperation(QObject):
     progress = pyqtSignal(str)
     finished = pyqtSignal(str, bool)
@@ -35,6 +41,9 @@ class SetupOperation(QObject):
         self.ocr = ocr
         self.fonts = fonts
         self.asset, self.remove_language = asset, remove_language
+        self.resource = ("all" if remove_language else setup_resource(asset) if asset else
+                         "translation" if profile else "ocr" if ocr else "morphology" if morphology else
+                         "fonts" if fonts else "dictionaries")
         self.installed_component = ""
         self.cancelled = threading.Event()
         self.thread = threading.Thread(target=self._run, name="dictionary-setup", daemon=True)
@@ -140,6 +149,7 @@ class SetupDialog(QDialog):
         self.settings = settings
         self._apply_shortcut = apply_shortcut
         self.operation = None
+        self.operations = {}
         self._close_pending = False
         self._loading = True
         self._imported_languages = ()
@@ -478,6 +488,8 @@ class SetupDialog(QDialog):
             self.anki.changed.connect(parent.update_anki)
             self.anki.changed.connect(parent.scan_settings_changed.emit)
 
+        self.jobs_layout = QVBoxLayout()
+        layout.addLayout(self.jobs_layout)
         self.status = StatusLabel()
         self.audio_sources.failed.connect(self.status.setText)
         self.status.setWordWrap(True)
@@ -1159,52 +1171,79 @@ class SetupDialog(QDialog):
             self.status.setText(str(error))
             return False
 
+    def operation_busy(self, resource):
+        resource = setup_resource(resource)
+        active = tuple(self.operations) or ((self.operation,) if self.operation is not None else ())
+        return any(resource == "all" or job.resource in {resource, "all"} for job in active)
+
     def set_operation_busy(self, busy):
         if hasattr(self, "data"):
-            self.data.set_busy(busy)
-        for control in (self.import_button, self.remove_button, self.profile, self.add_profile_button, self.remove_profile_button,
-                        self.packs, self.up, self.down, self.language,
-                        self.ja_ocr_provider, self.tr_ocr_provider, self.other_ocr_provider,
-                        self.translation_partner, self.translation_mode, self.translation_source, self.translation_target, self.translation_endpoint,
-                        self.translation_model):
-            control.setEnabled(not busy)
+            self.data.set_busy()
+        for control in (self.import_button, self.remove_button, self.packs, self.up, self.down, self.language):
+            control.setEnabled(not self.operation_busy("dictionaries"))
         self.remove_profile_button.setEnabled(not busy and self.profile.count() > 1)
 
     def begin_operation(self, paths, language=None, profile=None, recommended=None, remove=None, morphology=None, ocr=None, fonts=False,
                         asset=None, remove_language=None):
-        if self.operation is not None:
+        operation = SetupOperation(paths, self.directory, language, profile, recommended, remove, morphology, ocr, fonts,
+                                   asset, remove_language)
+        if self.operation_busy(operation.resource):
+            operation.deleteLater()
             return
-        self.operation = SetupOperation(paths, self.directory, language, profile, recommended, remove, morphology, ocr, fonts,
-                                        asset, remove_language)
-        self.operation.refresh.connect(self.dictionaries_changed)
-        self.operation.progress.connect(self.status.setText)
-        self.operation.finished.connect(self._finished)
+        label = StatusLabel()
+        label.setWordWrap(True)
+        label.setText({"translation": "Downloading translation…", "ocr": "Downloading OCR…",
+                       "morphology": "Downloading word-form support…", "fonts": "Downloading font…",
+                       "dictionaries": "Updating dictionaries…"}.get(operation.resource, "Removing data…"))
+        self.jobs_layout.addWidget(label)
+        self.operations[operation] = label
+        self.operation = next(iter(self.operations))
+        operation.refresh.connect(self.dictionaries_changed)
+        operation.progress.connect(lambda text, job=operation: self._operation_progress(job, text))
+        operation.finished.connect(lambda status, changed, job=operation: self._finished(status, changed, job))
         self.cancel_button.setVisible(True)
+        self.cancel_button.setText("Cancel all" if len(self.operations) > 1 else "Cancel")
         self.cancel_button.setEnabled(True)
         self.set_operation_busy(True)
-        self.operation.start()
+        operation.start()
         self.resources.refresh()
 
+    def _operation_progress(self, operation, text):
+        label = self.operations.get(operation)
+        if label is not None:
+            label.setText(text)
+
     def cancel_operation(self):
-        if self.operation is not None:
-            self.operation.cancelled.set()
+        active = tuple(self.operations) or ((self.operation,) if self.operation is not None else ())
+        if active:
+            for operation in active:
+                operation.cancelled.set()
             self.status.setText("Finishing the current step…")
             self.cancel_button.setEnabled(False)
 
-    def _finished(self, status, changed):
-        removed_language = self.operation.remove_language if self.operation is not None else None
-        ocr_changed = changed and self.operation is not None and (
-            self.operation.ocr or self.operation.asset and self.operation.asset.startswith("ocr:"))
-        font_installed = changed and self.operation is not None and self.operation.fonts
-        component = self.operation.installed_component if self.operation is not None else ""
+    def _finished(self, status, changed, operation=None):
+        operation = operation or self.operation
+        removed_language = operation.remove_language if operation is not None else None
+        ocr_changed = changed and operation is not None and (
+            operation.ocr or operation.asset and operation.asset.startswith("ocr:"))
+        font_installed = changed and operation is not None and operation.fonts
+        component = operation.installed_component if operation is not None else ""
         if component:
             self.screenai_directory.setText(component)
             self.settings.setValue("screenai_directory", component)
-        self.operation = None
+        label = self.operations.pop(operation, None)
+        if label is not None:
+            self.jobs_layout.removeWidget(label)
+            label.deleteLater()
+        self.operation = next(iter(self.operations), None)
+        if operation is not None:
+            operation.deleteLater()
         if changed and removed_language:
             self._forget_profile(removed_language)
-        self.cancel_button.setVisible(False)
-        self.set_operation_busy(False)
+        self.cancel_button.setVisible(bool(self.operations))
+        self.cancel_button.setText("Cancel all" if len(self.operations) > 1 else "Cancel")
+        self.cancel_button.setEnabled(any(not job.cancelled.is_set() for job in self.operations))
+        self.set_operation_busy(bool(self.operations))
         self.update_translation_controls()
         self.update_ocr_controls()
         self.reload(preserve=True)
