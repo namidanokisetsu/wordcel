@@ -650,7 +650,7 @@ class UnifiedOCR(QObject):
             self.input.popup_handle = (int(self.window.winId())
                 if sys.platform == "win32" and self.window.isVisible() else None)
             self.input.navigation_source = (getattr(self.window, "_previous_foreground", None)
-                if (getattr(self.window, "_fullscreen_overlay", False)
+                if (getattr(self.window, "_source_overlay", False)
                     and (self.window.is_pinned or self.window._selected_reading_browser() is not None)
                     and self.window.isVisible() and QApplication.activeModalWidget() is None
                     and QApplication.activePopupWidget() is None) else None)
@@ -673,7 +673,7 @@ class UnifiedOCR(QObject):
         self.window._check_cursor_leave()
 
     def popup_action(self, action):
-        if (getattr(self.window, "_fullscreen_overlay", False)
+        if (getattr(self.window, "_source_overlay", False)
                 and (self.window.is_pinned or action == "copy_text" and self.window._selected_reading_browser() is not None)
                 and self.window.isVisible() and QApplication.activeModalWidget() is None
                 and QApplication.activePopupWidget() is None):

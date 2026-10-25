@@ -146,8 +146,10 @@ Manual input stays in dictionary lookup, retaining available suggestions.
 Clicking its text reuses language spans and Japanese prefix lookup, selecting
 the returned match with UTF-16 input offsets while retaining the full sentence.
 Translation requires an explicit action, including after a dictionary miss.
-Windows OCR popups over a fullscreen source expand without activation and reject
-mouse activation, keeping the source foreground and its taskbar hidden. The
+Windows OCR popups expand without activation and reject mouse activation,
+including kanji interactions, keeping the source foreground and fullscreen taskbars hidden.
+This preserves source-app hotkey conditions before outside button presses;
+queued dismissal cannot restore focus in time for another application's mouse hook. The
 existing Windows input hook routes unmodified arrows, Page Up/Down and Home/End
 and configured popup actions to the pinned popup only while its source remains
 foreground; matching releases are consumed even after dismissal. Other keyboard

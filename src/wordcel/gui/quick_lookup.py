@@ -898,7 +898,7 @@ class QuickLookupWindow(QDialog):
         self._needs_place = False
         self._context = ""
         self._peek = False
-        self._fullscreen_overlay = False
+        self._source_overlay = False
         self._history = []
         self._new_chain = True
         self._expanded = set()
@@ -1558,7 +1558,7 @@ class QuickLookupWindow(QDialog):
         display_target = target if target != "auto" else (
             self.preferred_foreign if source == self.foreign.currentData() else self.foreign.currentData())
         self._show_translation(text, source, display_target)
-        self._fullscreen_overlay = False
+        self._source_overlay = False
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, False)
         from wordcel.utils.window_focus import focus_pinned_popup
         focus_pinned_popup(self, self.translation_panel.source)
@@ -2411,10 +2411,9 @@ class QuickLookupWindow(QDialog):
                 self.move(*popup_position(point.x(), point.y(), self.size(), area, config.popup_position_mode))
 
     def _set_peek(self, peek):
-        from wordcel.utils.window_focus import foreground_is_fullscreen
         if peek:
             self._remember_corner_size()
-        self._fullscreen_overlay = bool(peek) and foreground_is_fullscreen()
+        self._source_overlay = bool(peek) and sys.platform == "win32"
         if peek and not self._peek and (self._reading_size_custom or self.size() != self._auto_fit_size):
             self._normal_size = self.size()
         elif not peek and self._peek and not self.is_pinned:
@@ -3042,12 +3041,14 @@ class QuickLookupWindow(QDialog):
                     self._resize_expanded()
             elif self._reading_size_custom or self.size() != self._auto_fit_size:
                 self._normal_size = self.size()
-        if checked and not self._fullscreen_overlay:
+        if checked and not self._source_overlay:
             self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, False)
             from wordcel.utils.window_focus import focus_pinned_popup
             self._opening_search = sys.platform == "darwin"
             focus_pinned_popup(self, self.browser)
             QTimer.singleShot(300, lambda: setattr(self, "_opening_search", False))
+        elif checked:
+            self.browser.setFocus(Qt.FocusReason.OtherFocusReason)
         self.context_label.hide()
         self._place_actions()
         self.layout().activate()
@@ -3074,18 +3075,18 @@ class QuickLookupWindow(QDialog):
     def navigate_overlay(self, virtual_key):
         keys = {0x21: Qt.Key.Key_PageUp, 0x22: Qt.Key.Key_PageDown, 0x23: Qt.Key.Key_End,
                 0x24: Qt.Key.Key_Home, 0x26: Qt.Key.Key_Up, 0x28: Qt.Key.Key_Down}
-        if (virtual_key in keys and self._fullscreen_overlay and self.is_pinned and self.isVisible()
+        if (virtual_key in keys and self._source_overlay and self.is_pinned and self.isVisible()
                 and QApplication.activeModalWidget() is None and QApplication.activePopupWidget() is None):
             event = QKeyEvent(QEvent.Type.KeyPress, keys[virtual_key], Qt.KeyboardModifier.NoModifier)
             QApplication.sendEvent(self.browser, event)
 
     def nativeEvent(self, event_type, message):
-        if getattr(self, "_fullscreen_overlay", False) and event_type == b"windows_generic_MSG":
+        if getattr(self, "_source_overlay", False) and event_type == b"windows_generic_MSG":
             import ctypes
             from ctypes import wintypes
             native = wintypes.MSG.from_address(int(message))
             if native.message == 0x0021:  # WM_MOUSEACTIVATE
-                return True, 3  # MA_NOACTIVATE keeps the fullscreen source active.
+                return True, 3  # MA_NOACTIVATE preserves source-app hotkey conditions.
         # Let Qt dispatch unhandled messages; calling PyQt's base virtual can
         # crash while Windows is creating the native window handle.
         return False, 0
@@ -3131,9 +3132,9 @@ class QuickLookupWindow(QDialog):
             QToolTip.hideText()
             return True
         if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
-            if (self._translation_view and self._fullscreen_overlay
+            if (self._translation_view and self._source_overlay
                     and watched in (self.translation_panel.source, self.translation_panel.source.viewport())):
-                self._fullscreen_overlay = False
+                self._source_overlay = False
                 self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, False)
                 from wordcel.utils.window_focus import focus_pinned_popup
                 focus_pinned_popup(self, self.translation_panel.source)
@@ -3294,7 +3295,7 @@ class QuickLookupWindow(QDialog):
             QTimer.singleShot(0, self._dismiss_if_inactive)
 
     def _dismiss_if_inactive(self):
-        if self._opening_search or self._passive_text or self._fullscreen_overlay:
+        if self._opening_search or self._passive_text or self._source_overlay:
             return
         bounds = self.cursor_close_bounds() if self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", False, bool) else self.geometry()
         if bounds.contains(QCursor.pos()):

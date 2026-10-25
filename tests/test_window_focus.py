@@ -34,9 +34,9 @@ class PopupSpaceTests(unittest.TestCase):
             user32 = ctypes.WinDLL("user32")
             user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
             user32.SendMessageW.restype = ctypes.c_ssize_t
-            popup._fullscreen_overlay = True
+            popup._source_overlay = True
             assert user32.SendMessageW(handle, 0x0021, 0, 0) == 3
-            popup._fullscreen_overlay = False
+            popup._source_overlay = False
             user32.SendMessageW(handle, 0, 0, 0)
             popup.destroy()
             app.processEvents()

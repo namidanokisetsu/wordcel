@@ -2494,7 +2494,8 @@ class QuickLookupTests(unittest.TestCase):
                     self.assertLessEqual(self.window.geometry().right(), area.right())
 
     def test_macos_pin_survives_focus_loss_while_native_activation_is_pending(self):
-        self.window.show_entries((entry(),), "猫", peek=True)
+        with patch("wordcel.gui.quick_lookup.sys.platform", "darwin"):
+            self.window.show_entries((entry(),), "猫", peek=True)
         with patch("wordcel.gui.quick_lookup.sys.platform", "darwin"), \
                 patch.object(QApplication, "platformName", return_value="cocoa"), \
                 patch("wordcel.utils.window_focus.focus_pinned_popup") as focus, \
@@ -2513,18 +2514,43 @@ class QuickLookupTests(unittest.TestCase):
             self.window._dismiss_if_inactive()
         self.assertTrue(self.window.isVisible())
 
-    def test_windows_pinned_ocr_still_dismisses_on_focus_loss(self):
+    def test_windows_editing_ocr_still_dismisses_on_focus_loss(self):
         self.window.show_entries((entry(),), "猫", peek=True)
+        self.window._source_overlay = False
         with patch("wordcel.gui.quick_lookup.sys.platform", "win32"), \
                 patch.object(self.window, "isActiveWindow", return_value=False):
             self.window.pin.setChecked(True)
             self.window._dismiss_if_inactive()
         self.assertFalse(self.window.isVisible())
 
-    def test_fullscreen_ocr_pin_and_clicks_keep_source_active(self):
+    def test_windowed_ocr_kanji_and_dismissal_keep_source_active(self):
         import ctypes
         from ctypes import wintypes
-        with patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True), \
+        with patch("wordcel.gui.quick_lookup.sys.platform", "win32"), \
+                patch("PyQt6.QtWidgets.QApplication.platformName", return_value="windows"), \
+                patch("wordcel.utils.window_focus.foreground_window", return_value=987654), \
+                patch("wordcel.utils.window_focus.focused_child", return_value=987655), \
+                patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=False), \
+                patch("wordcel.utils.window_focus.focus_pinned_popup") as focus, \
+                patch("wordcel.utils.window_focus.restore_foreground") as restore:
+            self.window.show_entries((entry(),), kanji=(KanjiEntry("x", meanings=("test",)),), peek=True)
+            message = wintypes.MSG()
+            message.message = 0x0021
+            for _ in range(2):
+                self.window.pin.setChecked(True)
+                self.window._select_kanji("x")
+                self.assertEqual(self.window.nativeEvent(b"windows_generic_MSG", ctypes.addressof(message)), (True, 3))
+                self.window._close_kanji()
+                self.window.pin.setChecked(False)
+            self.assertEqual((self.window._previous_foreground, self.window._previous_focus), (987654, 987655))
+            self.window.hide()
+            focus.assert_not_called()
+            restore.assert_not_called()
+
+    def test_windows_ocr_pin_and_clicks_keep_source_active(self):
+        import ctypes
+        from ctypes import wintypes
+        with patch("wordcel.gui.quick_lookup.sys.platform", "win32"), \
                 patch("wordcel.utils.window_focus.focus_pinned_popup") as focus:
             self.window.show_entries((entry(),), "cat", peek=True)
             message = wintypes.MSG()
@@ -2541,13 +2567,13 @@ class QuickLookupTests(unittest.TestCase):
             self.assertTrue(self.window.isVisible())
             self.assertTrue(self.window.is_pinned)
             self.window.open_search()
-            self.assertFalse(self.window._fullscreen_overlay)
+            self.assertFalse(self.window._source_overlay)
             self.assertFalse(self.window.testAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating))
 
     def test_fullscreen_keyboard_and_side_buttons_navigate_snap_stops(self):
         self.settings.setValue("profiles/ja/snap_scrolling", True)
         self.window.reload_appearance()
-        with patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True):
+        with patch("wordcel.gui.quick_lookup.sys.platform", "win32"):
             self.window.show_entries((entry(definitions=("Meaning\n" * 100,)),), "cat", peek=True)
             self.window.pin.setChecked(True)
         self.app.processEvents()
@@ -2612,7 +2638,7 @@ class QuickLookupTests(unittest.TestCase):
                 patch("ctypes.WinDLL", return_value=user32, create=True), \
                 patch("wordcel.utils.window_focus.foreground_window", user32.GetForegroundWindow), \
                 patch("wordcel.utils.window_focus.focused_child", return_value=987655), \
-                patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True), \
+                patch("wordcel.gui.quick_lookup.sys.platform", "win32"), \
                 patch("wordcel.utils.window_focus.focus_pinned_popup") as focus, \
                 patch("wordcel.utils.window_focus.restore_foreground") as restore:
             for pinned in (False, True):
@@ -2811,7 +2837,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertFalse(self.window.isVisible())
 
     def test_copy_feedback_stays_inside_fullscreen_popup_after_layout_invalidation(self):
-        with patch("wordcel.utils.window_focus.foreground_is_fullscreen", return_value=True), \
+        with patch("wordcel.gui.quick_lookup.sys.platform", "win32"), \
                 patch("wordcel.utils.window_focus.focus_pinned_popup") as focus:
             self.window.show_entries((entry(definitions=("Meaning\n" * 100,)),), "cat", peek=True)
             self.window.set_context("A cat sits here.")
