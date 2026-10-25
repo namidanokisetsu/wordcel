@@ -84,6 +84,18 @@ class DataPanel(QWidget):
         self.update_all.clicked.connect(self.install_updates)
         header.addWidget(self.update_all)
         self.body.addLayout(header)
+        self.update_notice = QWidget()
+        notice_layout = QHBoxLayout(self.update_notice)
+        notice_layout.setContentsMargins(0, 0, 0, 0)
+        self.update_summary = QLabel()
+        self.update_summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.update_summary.setWordWrap(True)
+        notice_layout.addWidget(self.update_summary, 1)
+        dismiss = QPushButton("Dismiss")
+        dismiss.clicked.connect(self.update_notice.hide)
+        notice_layout.addWidget(dismiss)
+        self.body.addWidget(self.update_notice)
+        self.update_notice.hide()
         transfers = QHBoxLayout()
         self.export_resources = QPushButton("Export resources…")
         self.import_resources = QPushButton("Import resources…")
@@ -222,7 +234,8 @@ class DataPanel(QWidget):
                 layout.addWidget(row.status)
                 row.open, row.download, row.remove = QPushButton("Open"), QPushButton("Download"), QPushButton("Remove")
                 row.update = QPushButton("Update")
-                row.replace = QPushButton("Replace ZIP?")
+                row.replace = QPushButton("Replace from ZIP")
+                row.replace.setToolTip("Install a dictionary ZIP you downloaded, keeping profile settings")
                 for button in (row.open, row.download, row.update, row.replace, row.remove):
                     layout.addWidget(button)
                 self.rows[asset.key] = row
@@ -245,10 +258,13 @@ class DataPanel(QWidget):
             users = ", ".join(profile_name(self.owner.settings, identity) for identity in using)
             row.title.setText("\n".join(value for value in (asset.title, details, "Used by: " + users if users else "Unused") if value))
             update = self.updates.get(asset.identity)
+            failed = update and update.status not in {"Update available", "Up to date", "Replace from ZIP"}
+            if failed:
+                row.title.setText(row.title.text() + "\nUpdate check failed")
             row.update.setVisible(bool(update and update.status == "Update available"))
             row.update.setToolTip("Available: " + update.available if update else "")
             row.replace.setVisible(asset.kind == "dictionary")
-            row.title.setToolTip("\n".join(map(str, asset.paths)))
+            row.title.setToolTip(update.status if failed else "\n".join(map(str, asset.paths)))
             row.enabled.hide()
             with QSignalBlocker(row.enabled):
                 row.enabled.setChecked(asset.status == "Enabled")
@@ -312,6 +328,7 @@ class DataPanel(QWidget):
         if self._update_task:
             return
         self.check_updates.setEnabled(False)
+        self.update_notice.hide()
         self._update_task = UpdateCheck(self.owner.directory, self)
         self._update_task.finished.connect(self.updates_checked)
         self._update_task.thread.start()
@@ -322,7 +339,18 @@ class DataPanel(QWidget):
         self.check_updates.setEnabled(True)
         self.updates = {update.identity: update for update in updates}
         self.update_all.setEnabled(any(update.status == "Update available" for update in updates))
-        self.owner.status.setText("\n".join(update.title + ": " + update.status for update in updates))
+        available = sum(update.status == "Update available" for update in updates)
+        manual = sum(update.status == "Replace from ZIP" for update in updates)
+        failed = sum(update.status not in {"Update available", "Up to date", "Replace from ZIP"} for update in updates)
+        summary = f"{available} update{'s' if available != 1 else ''} available." if available else "No updates found."
+        if not updates:
+            summary = "No dictionaries installed."
+        if manual:
+            summary += f" Update checks unavailable for {manual} dictionar{'ies' if manual != 1 else 'y'}; use Replace from ZIP."
+        if failed:
+            summary += f" {failed} update check{'s' if failed != 1 else ''} failed."
+        self.update_summary.setText(summary)
+        self.update_notice.show()
         self._update(self.assets)
 
     def install_updates(self):
