@@ -278,7 +278,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         actions.addWidget(self.down)
         self.remove_button = QPushButton("Remove")
         self.remove_button.clicked.connect(lambda: self.tabs.setCurrentWidget(self.data_tab))
-        self.remove_button.setText("Storage?")
+        self.remove_button.setText("Storage")
         actions.addWidget(self.remove_button)
         actions.addStretch()
         dictionary_layout.insertLayout(0, actions)
