@@ -1185,6 +1185,10 @@ class SetupDialog(SettingsNavigation, QDialog):
             self.profile.setCurrentIndex(self.profile.findData(code))
         self.profile_changed()
         if hasattr(self, "navigation"):
+            current = self.navigation.currentItem()
+            value = current.data(0, Qt.ItemDataRole.UserRole) if current else None
+            if value and value[0] is None:
+                return
             from PyQt6.QtWidgets import QTreeWidgetItemIterator
             iterator = QTreeWidgetItemIterator(self.navigation)
             target = None

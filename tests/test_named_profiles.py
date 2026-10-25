@@ -93,6 +93,28 @@ class NamedProfileTests(unittest.TestCase):
         dialog.sync_profile("ja")
         self.assertEqual(window.active_profile, duplicate)
 
+    def test_reopening_global_settings_preserves_page_and_hides_profile_details(self):
+        from wordcel.gui.dictionary_manager import SetupDialog
+        migrate(self.settings, self.directory)
+        duplicate = create_profile(self.settings, "ja", "Anime", duplicate="ja")
+        dialog = SetupDialog(self.directory, self.settings, Mock())
+        self.addCleanup(dialog.deleteLater)
+        for index, page in ((0, dialog.app_tab), (1, dialog.data_tab)):
+            for identity in ("ja", duplicate):
+                with self.subTest(page=index, profile=identity):
+                    item = dialog.navigation.topLevelItem(index)
+                    dialog.navigation.setCurrentItem(item)
+                    dialog.close()
+                    dialog.sync_profile(identity)
+                    self.assertIs(dialog.navigation.currentItem(), item)
+                    self.assertIs(dialog.tabs.currentWidget(), page)
+                    self.assertTrue(dialog.profile_details.isHidden())
+                    self.assertEqual(dialog.profile.currentData(), identity)
+        entry = dialog.navigation.topLevelItem(2).child(0)
+        dialog.navigation.setCurrentItem(entry.child(0))
+        self.assertIs(dialog.tabs.currentWidget(), dialog.lookup_tab)
+        self.assertFalse(dialog.profile_details.isHidden())
+
     def test_usage_follows_profile_dictionary_choices_and_external_resources(self):
         from wordcel.data_assets import inventory, resource_usage, DataAsset
         migrate(self.settings, self.directory)
