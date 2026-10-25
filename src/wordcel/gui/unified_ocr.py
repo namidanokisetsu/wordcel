@@ -649,6 +649,8 @@ class UnifiedOCR(QObject):
         if self.input:
             self.input.popup_handle = (int(self.window.winId())
                 if sys.platform == "win32" and self.window.isVisible() else None)
+            self.input.popup_mouse_handle = (self.input.popup_handle
+                if getattr(self.window, "_source_overlay", False) else None)
             self.input.navigation_source = (getattr(self.window, "_previous_foreground", None)
                 if (getattr(self.window, "_source_overlay", False)
                     and (self.window.is_pinned or self.window._selected_reading_browser() is not None)

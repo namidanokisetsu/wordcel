@@ -76,6 +76,8 @@ class DesktopInput(QObject):
         self._consumed_pin_keys = set()
         self.navigation_source = None
         self.popup_handle = None
+        self.popup_mouse_handle = None
+        self._popup_mouse_buttons = {}
         self.block_scan_keys = False
         self._consumed_scan_keys = {}
         self.popup_bindings = {}
@@ -233,20 +235,43 @@ class DesktopInput(QObject):
                 return False
         event = {0x201: ("left", True), 0x202: ("left", False),
                  0x207: ("middle", True), 0x208: ("middle", False)}.get(message)
-        if event is None:
-            return True
-        button, down = event
-        if down and self._request_pin(button):
-            self._consumed_pin = button
-            self.clicks.suppress_event()
-            return False
-        if not down and button == self._consumed_pin:
-            # Consume the matching release even if the scan key was released
-            # first, so the foreground application never receives half a click.
-            self._consumed_pin = None
+        if event is not None:
+            button, down = event
+            if down and self._request_pin(button):
+                self._consumed_pin = button
+                self.clicks.suppress_event()
+                return False
+            if not down and button == self._consumed_pin:
+                # Keep the release paired even after the scan key is released.
+                self._consumed_pin = None
+                self.clicks.suppress_event()
+                return False
+        if self._route_popup_mouse(message, data):
             self.clicks.suppress_event()
             return False
         return True
+
+    def _route_popup_mouse(self, message, data):
+        from wordcel.utils.window_focus import route_popup_mouse
+        buttons = {0x201: (1, True), 0x202: (1, False),
+                   0x204: (2, True), 0x205: (2, False),
+                   0x207: (3, True), 0x208: (3, False)}
+        if message in (0x20B, 0x20C):
+            button, down = 3 + ((data.mouseData >> 16) & 0xffff), message == 0x20B
+        elif message in buttons:
+            button, down = buttons[message]
+        else:
+            return False
+        if not down and button in self._popup_mouse_buttons:
+            handle = self._popup_mouse_buttons.pop(button)
+            if self.visible.is_set() and handle == self.popup_handle:
+                route_popup_mouse(handle, message, data, captured=True)
+            return True
+        if down and self.popup_mouse_handle and self.visible.is_set():
+            if route_popup_mouse(self.popup_mouse_handle, message, data):
+                self._popup_mouse_buttons[button] = self.popup_mouse_handle
+                return True
+        return False
 
     def darwin_intercept(self, event_type, event):
         """Suppress only a pin click's down/up pair on macOS."""

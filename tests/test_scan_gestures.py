@@ -115,6 +115,36 @@ class ScanGestureTests(unittest.TestCase):
         self.input.move(30, 40)
         self.assertEqual(moved.call_count, 2)
 
+    def test_popup_click_drag_and_release_are_consumed_as_one_gesture(self):
+        self.input.visible.set()
+        self.input.popup_handle = 123
+        self.input.popup_mouse_handle = 123
+        with patch("wordcel.utils.window_focus.route_popup_mouse", return_value=True) as route:
+            self.assertFalse(self.input.filter_mouse(0x201, None))
+            route.assert_called_once_with(123, 0x201, None)
+            self.assertTrue(self.input.filter_mouse(0x200, None))
+            route.assert_called_once_with(123, 0x201, None)
+            self.input.popup_mouse_handle = None  # Editing may activate the popup mid-click.
+            route.return_value = False
+            self.assertFalse(self.input.filter_mouse(0x202, None))
+            route.assert_called_with(123, 0x202, None, captured=True)
+            self.assertTrue(self.input.filter_mouse(0x201, None))
+            self.assertTrue(self.input.filter_mouse(0x202, None))
+        self.assertFalse(self.input._popup_mouse_buttons)
+
+    def test_popup_dismissal_still_consumes_release_without_posting_to_hidden_window(self):
+        self.input.visible.set()
+        self.input.popup_handle = 123
+        self.input.popup_mouse_handle = 123
+        with patch("wordcel.utils.window_focus.route_popup_mouse", return_value=True) as route:
+            self.assertFalse(self.input.filter_mouse(0x201, None))
+            self.input.visible.clear()
+            self.input.popup_mouse_handle = None
+            route.reset_mock()
+            self.assertFalse(self.input.filter_mouse(0x202, None))
+            route.assert_not_called()
+            self.assertTrue(self.input.filter_mouse(0x202, None))
+
     def test_native_wheel_routing_uses_hit_window_and_preserves_signed_delta(self):
         from ctypes import wintypes
         from wordcel.utils.window_focus import route_popup_wheel

@@ -158,7 +158,10 @@ Optional Windows fullscreen scan-key blocking consumes configured modifiers'
 down/up pairs while still updating scan state. It defaults off per profile;
 consumed modifiers remain available to popup shortcuts.
 Wheel input over the popup is posted to its native window and suppressed at the
-mouse hook. Native Z-order checks avoid synchronous hit-test messages from the hook.
+mouse hook. Source-preserving popups also route button presses and releases;
+each captured release stays consumed after dismissal or leaving the popup.
+Pointer movement retains normal Windows delivery and Qt's mouse grab during drags.
+Native Z-order checks avoid synchronous hit-test messages from the hook.
 Copy text uses these same configurable bindings without activating the popup;
 an unpinned fullscreen preview routes only Copy text while a reading pane has a
 selection. Source window and child-focus restoration on dismissal remains unchanged.

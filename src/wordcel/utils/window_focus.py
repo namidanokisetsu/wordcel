@@ -99,7 +99,11 @@ def mouse_buttons_down():
 
 
 def route_popup_wheel(handle, message, data):
-    """Post wheel input only to the native popup beneath the pointer."""
+    return route_popup_mouse(handle, message, data)
+
+
+def route_popup_mouse(handle, message, data, *, captured=False):
+    """Post popup input without synchronous hit tests on the UI thread."""
     import ctypes
     from ctypes import wintypes
     user32 = ctypes.WinDLL("user32")
@@ -108,18 +112,31 @@ def route_popup_wheel(handle, message, data):
     user32.ChildWindowFromPointEx.argtypes = [wintypes.HWND, wintypes.POINT, wintypes.UINT]
     user32.ChildWindowFromPointEx.restype = wintypes.HWND
     user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-    desktop = user32.GetDesktopWindow()
     point = wintypes.POINT(data.pt.x, data.pt.y)
-    # Avoid sending WM_NCHITTEST to another thread from the input hook.
-    if not user32.ScreenToClient(desktop, ctypes.byref(point)):
-        return False
-    target = user32.ChildWindowFromPointEx(desktop, point, 0x07)
-    if target != handle:
-        return False
-    modifiers = sum(flag for vk, flag in ((0x01, 1), (0x02, 2), (0x10, 4), (0x11, 8), (0x04, 16))
+    if not captured:
+        desktop = user32.GetDesktopWindow()
+        if not user32.ScreenToClient(desktop, ctypes.byref(point)):
+            return False
+        if user32.ChildWindowFromPointEx(desktop, point, 0x07) != handle:
+            return False
+    modifiers = sum(flag for vk, flag in ((0x01, 1), (0x02, 2), (0x10, 4), (0x11, 8),
+                                        (0x04, 16), (0x05, 32), (0x06, 64))
                     if user32.GetAsyncKeyState(vk) & 0x8000)
-    position = (data.pt.x & 0xffff) | ((data.pt.y & 0xffff) << 16)
-    return bool(user32.PostMessageW(target, message, (data.mouseData & 0xffff0000) | modifiers, position))
+    wheel = message in (0x20A, 0x20E)
+    point = wintypes.POINT(data.pt.x, data.pt.y)
+    if not wheel and not user32.ScreenToClient(handle, ctypes.byref(point)):
+        return False
+    button = (data.mouseData >> 16) & 0xffff
+    flag = {0x201: 1, 0x202: 1, 0x204: 2, 0x205: 2, 0x207: 16, 0x208: 16,
+            0x20B: 32 if button == 1 else 64, 0x20C: 32 if button == 1 else 64}.get(message, 0)
+    # Low-level hooks run before Windows updates the physical button state.
+    if message in (0x201, 0x204, 0x207, 0x20B):
+        modifiers |= flag
+    elif message in (0x202, 0x205, 0x208, 0x20C):
+        modifiers &= ~flag
+    high = data.mouseData & 0xffff0000 if wheel or message in (0x20B, 0x20C) else 0
+    position = (point.x & 0xffff) | ((point.y & 0xffff) << 16)
+    return bool(user32.PostMessageW(handle, message, high | modifiers, position))
 
 
 def foreground_is_fullscreen():

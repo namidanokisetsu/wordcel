@@ -11,6 +11,54 @@ from wordcel.utils.window_focus import (configure_macos_popup, focus_pinned_popu
 
 
 class PopupSpaceTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "win32", "Windows native mouse dispatch")
+    def test_posted_popup_click_reaches_button_without_activation(self):
+        code = textwrap.dedent('''
+            import ctypes
+            from ctypes import wintypes
+            from types import SimpleNamespace
+            from PyQt6.QtCore import Qt, QTimer
+            from PyQt6.QtWidgets import QApplication, QDialog, QPushButton, QVBoxLayout
+            from wordcel.utils.window_focus import route_popup_mouse, foreground_window
+
+            app = QApplication([])
+            popup = QDialog(None, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
+                            | Qt.WindowType.WindowStaysOnTopHint)
+            popup.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+            layout = QVBoxLayout(popup)
+            button = QPushButton("Pin")
+            layout.addWidget(button)
+            clicks = []
+            button.clicked.connect(lambda: clicks.append(True))
+            popup.resize(180, 80)
+            area = app.primaryScreen().availableGeometry()
+            popup.move(area.right() - 180, area.bottom() - 80)
+            previous = foreground_window()
+            popup.show()
+            app.processEvents()
+            handle = int(popup.winId())
+            user32 = ctypes.WinDLL("user32")
+            user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+            rect = wintypes.RECT()
+            assert user32.GetWindowRect(handle, ctypes.byref(rect))
+            data = SimpleNamespace(pt=wintypes.POINT((rect.left + rect.right) // 2,
+                                                    (rect.top + rect.bottom) // 2), mouseData=0)
+            try:
+                assert route_popup_mouse(handle, 0x201, data)
+                app.processEvents()
+                assert route_popup_mouse(handle, 0x202, data, captured=True)
+                QTimer.singleShot(50, app.quit)
+                app.exec()
+                assert clicks == [True], clicks
+                assert foreground_window() == previous
+            finally:
+                popup.close()
+        ''')
+        result = subprocess.run([sys.executable, "-X", "faulthandler", "-c", code],
+                                env={**os.environ, "QT_QPA_PLATFORM": "windows"},
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     @unittest.skipUnless(sys.platform == "win32", "Windows native event dispatch")
     def test_native_popup_handles_window_creation_and_capture_without_crashing(self):
         code = textwrap.dedent('''
