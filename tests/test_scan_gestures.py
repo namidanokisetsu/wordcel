@@ -439,6 +439,7 @@ class ScanSettingsTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp:
             window = Window()
+            window.active_profile = "ja"
             window.set_compact_preview = Mock()
             window.set_mode = Mock()
             window._render = Mock()
@@ -546,8 +547,9 @@ class ScanSettingsTests(unittest.TestCase):
                 dialog.pin_shortcut.recorder.editingFinished.emit()
                 self.assertEqual(dialog.pin_shortcut.text(), "x")
                 self.assertTrue(dialog.status.text())
+                dialog.shortcut.recorder.clear()
                 dialog.shortcut.recorder.editingFinished.emit()
-                self.assertFalse(dialog.shortcut.enabled.isChecked())
+                self.assertTrue(dialog.shortcut.enabled.isChecked())
                 self.assertTrue(dialog.status.text())
             finally:
                 dialog.deleteLater()

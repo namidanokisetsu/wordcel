@@ -294,7 +294,7 @@ class HitWorker(threading.Thread):
                 job = self.queue.get()
                 if job is None or self.stopped.is_set():
                     return
-                generation, frame, hit, morphology = job if job != "refresh" else (-1, None, None, False)
+                generation, frame, hit, morphology, *preferences = job if job != "refresh" else (-1, None, None, False)
                 try:
                     if job != "refresh" and self.generation is not None and generation != self.generation:
                         continue
@@ -305,6 +305,12 @@ class HitWorker(threading.Thread):
                         engine.refresh()
                     if job == "refresh":
                         continue
+                    from wordcel.dictionary.library import Library
+                    if isinstance(engine.library, Library):
+                        before = engine.library.revision
+                        engine.library.set_preferences(preferences[0] if preferences else None)
+                        if before != engine.library.revision:
+                            engine.cache.clear()
                     mark("hit_lookup_begin", frame.request.revision)
                     options = {"morphology": True, "context": (hit.text, hit.start, hit.end)} if morphology else {}
                     if get_profile(frame.language).word_mode == "unspaced":
@@ -576,19 +582,22 @@ class UnifiedOCR(QObject):
         self.screenai_directory = settings.value("screenai_directory", "") if settings else ""
         if previous != self.screenai_directory:
             self.invalidate()
-        profile = self.window.preferred_foreign
+        profile = getattr(self.window, "active_profile", self.window.preferred_foreign)
+        from wordcel.config.profiles import dictionary_preferences
+        self.dictionary_options = dictionary_preferences(settings, profile) if settings is not None else None
+        language = self.window.preferred_foreign
         frozen = settings.value(f"profiles/{profile}/freeze_while_held", True, bool) if settings else True
         if frozen != self.freeze_while_held:
             self.invalidate()
         self.freeze_while_held = frozen
         from wordcel.language.morphology import model_available
-        morphology = model_available(profile)
+        morphology = model_available(language)
         if morphology != getattr(self, "morphology", False):
             self.invalidate()
         self.morphology = morphology
         previous_profile_provider = getattr(self, "profile_ocr_provider", None)
         from wordcel.language.support import default_ocr_provider, ocr_supported
-        default = default_ocr_provider(profile)
+        default = default_ocr_provider(language)
         self.profile_ocr_provider = settings.value(f"profiles/{profile}/ocr_provider", default) if settings else default
         if previous_profile_provider != self.profile_ocr_provider:
             self.invalidate()
@@ -611,7 +620,7 @@ class UnifiedOCR(QObject):
             if self.input and bindings != previous_bindings:
                 self.input.activation.set_bindings(bindings)
                 self.holding = False
-            enabled = (bool(bindings) or self.hover_enabled) and ocr_supported(profile, self.profile_ocr_provider)
+            enabled = (bool(bindings) or self.hover_enabled) and ocr_supported(language, self.profile_ocr_provider)
             if enabled != self.enabled:
                 self.set_enabled(enabled)
         self._sync_timer()
@@ -621,8 +630,10 @@ class UnifiedOCR(QObject):
         if self.input is None or sys.platform != "win32" or settings is None:
             return
         from wordcel.gui.popup_shortcuts import popup_bindings, native_chord
-        profile, bindings = self.window.preferred_foreign, {}
+        profile, bindings = getattr(self.window, "active_profile", self.window.preferred_foreign), {}
         for action, value in popup_bindings(settings, profile).items():
+            if action == "translate" and not self.window.translation_available():
+                continue
             if not value or action == "anki" and not settings.value(f"profiles/{profile}/anki/enabled", False, bool):
                 continue
             try:
@@ -849,7 +860,7 @@ class UnifiedOCR(QObject):
         if (getattr(self.window, "_peek", False) and not self.session.scanning(self.window.is_pinned) and not self.window.is_pinned and
                 not self.window.geometry().contains(QCursor.pos())):
             settings = getattr(self.window, "settings", None)
-            if settings is not None and settings.value("close_on_cursor_leave", False, bool):
+            if settings is not None and settings.value(f"profiles/{getattr(self.window, 'active_profile', self.window.preferred_foreign)}/close_on_cursor_leave", False, bool):
                 self.window._check_cursor_leave()
             else:
                 self.window.hide()
@@ -1040,7 +1051,7 @@ class UnifiedOCR(QObject):
             return
         self._hit_key, self._last_dictionary_at = key, now
         if self.hit_worker:
-            self.hit_worker.queue.put((self.generation, self.frame, hit, self.morphology))
+            self.hit_worker.queue.put((self.generation, self.frame, hit, self.morphology, getattr(self, "dictionary_options", None)))
 
     def _hide_preview(self):
         self.window._capture_visibility = True

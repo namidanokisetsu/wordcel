@@ -161,14 +161,28 @@ def load_profile_settings(preferences, profile):
             return replace(options, auto_start=True, profile=model)
         return options
     try:
-        options = TranslationSettings(**json.loads(value)).validated()
+        values = json.loads(value)
+        from wordcel.config.profiles import connection
+        shared = connection(preferences, "translation", preferences.value(f"profiles/{profile}/translation_connection", ""))
+        if values.get("provider") == "custom" and shared:
+            values.update({key: shared[key] for key in ("endpoint", "model") if key in shared})
+        options = TranslationSettings(**values).validated()
         return replace(options, auto_start=True) if options.provider == "server" else options
     except (TypeError, ValueError) as error:
         raise ValueError("Invalid translation settings. Save them again in Settings.") from error
 
 
 def save_profile_settings(preferences, profile, settings):
-    preferences.setValue(f"profiles/{profile}/translation", json.dumps(asdict(settings.validated())))
+    settings = settings.validated()
+    if settings.provider == "custom":
+        from wordcel.config.profiles import connection, save_connection
+        identity = preferences.value(f"profiles/{profile}/translation_connection", "")
+        record = connection(preferences, "translation", identity)
+        values = {"endpoint": settings.endpoint, "model": settings.model}
+        if any(record.get(key) != value for key, value in values.items()):
+            identity = save_connection(preferences, "translation", values)
+        preferences.setValue(f"profiles/{profile}/translation_connection", identity)
+    preferences.setValue(f"profiles/{profile}/translation", json.dumps(asdict(settings)))
 
 
 def _translation_content(response):

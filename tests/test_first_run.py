@@ -11,6 +11,7 @@ import zipfile
 
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication, QWidget
+from wordcel.config.profiles import profile_language
 from wordcel.gui.first_run import FirstLanguage, LanguageSuggestion, complete_first_setup, needs_setup
 
 
@@ -83,6 +84,7 @@ class FirstRunTests(unittest.TestCase):
         wizard.translation.setCurrentIndex(wizard.translation.findData("quality"))
         task, check = next((task, check) for task, check in wizard.choices if task.kind == "translation")
         self.assertTrue(check.isEnabled())
+        check.setChecked(True)
         self.assertEqual([task.value for task in wizard.selected_tasks() if task.kind == "translation"], ["quality"])
 
     def test_first_language_keeps_dictionary_languages_and_existing_profiles(self):
@@ -133,9 +135,11 @@ class FirstRunTests(unittest.TestCase):
                 dialog = SetupDialog(self.directory.name, self.settings, Mock())
                 try:
                     self.app.processEvents()
-                    self.assertEqual(configured_profiles(self.settings), (code,))
-                    self.assertEqual([popup.source.itemData(i) for i in range(popup.source.count())], [code])
-                    self.assertEqual([dialog.profile.itemData(i) for i in range(dialog.profile.count())], [code])
+                    identity = self.settings.value("profile")
+                    self.assertEqual(profile_language(self.settings, identity), code)
+                    self.assertEqual(configured_profiles(self.settings), (identity,))
+                    self.assertEqual([popup.source.itemData(i) for i in range(popup.source.count())], [identity])
+                    self.assertEqual([dialog.profile.itemData(i) for i in range(dialog.profile.count())], [identity])
                     self.assertFalse(self.settings.value(f"profiles/{code}/selection_lookup", False, bool))
                     self.assertFalse(self.settings.value(f"profiles/{code}/auto_translate_miss", False, bool))
                 finally:
@@ -155,8 +159,9 @@ class FirstRunTests(unittest.TestCase):
         self.assertFalse(self.settings.allKeys())
         picker.language.setCurrentIndex(picker.language.findData("tr"))
         picker.accept()
-        self.assertEqual(self.settings.value("profile"), "tr")
-        self.assertEqual(configured_profiles(self.settings), ("tr",))
+        identity = self.settings.value("profile")
+        self.assertEqual(profile_language(self.settings, identity), "tr")
+        self.assertEqual(configured_profiles(self.settings), (identity,))
         self.assertFalse(needs_setup(self.settings))
 
     def test_reopening_setup_preserves_existing_profile_preferences(self):
@@ -242,7 +247,8 @@ class FirstRunTests(unittest.TestCase):
         self.assertIsNone(self.wizard.operation)
 
     def test_dictionary_is_optional_and_translation_uses_selected_size(self):
-        self.assertTrue(all(check.isChecked() for task, check in self.wizard.choices))
+        self.assertTrue(all(check.isChecked() == (task.kind != "translation") for task, check in self.wizard.choices))
+        next(check for task, check in self.wizard.choices if task.kind == "translation").setChecked(True)
         for task, check in self.wizard.choices:
             check.setChecked(task.kind == "translation")
         self.wizard.translation.setCurrentIndex(1)
@@ -280,6 +286,7 @@ class FirstRunTests(unittest.TestCase):
         install.assert_called_once_with(progress, stop)
 
     def test_setup_starts_once_with_only_selected_resources(self):
+        next(check for task, check in self.wizard.choices if task.kind == "translation").setChecked(True)
         with patch("wordcel.gui.language_setup.LanguageSetup") as setup:
             self.wizard.accept()
             self.wizard.accept()
@@ -289,6 +296,7 @@ class FirstRunTests(unittest.TestCase):
         self.wizard.operation = None
 
     def test_partial_setup_retries_only_unfinished_tasks_including_translation(self):
+        next(check for task, check in self.wizard.choices if task.kind == "translation").setChecked(True)
         from wordcel.gui.language_setup import SetupTask
         translation = SetupTask("translation", "Local translation", "lightweight")
         completed = [(task, "") for task in self.wizard.selected_tasks() if task.kind != "translation"]
@@ -304,6 +312,7 @@ class FirstRunTests(unittest.TestCase):
         self.assertFalse(self.wizard.selected_tasks())
 
     def test_successful_translation_is_not_repeated_when_dictionary_setup_failed(self):
+        next(check for task, check in self.wizard.choices if task.kind == "translation").setChecked(True)
         task = next(task for task in self.wizard.selected_tasks() if task.kind == "translation")
         self.wizard.operation = Mock(cancelled=threading.Event())
         self.wizard.download_finished([(task, "")], ["Dictionary: fixture failure"])
@@ -355,8 +364,10 @@ class ModelInstallerTests(unittest.TestCase):
 
     def test_frozen_morphology_uses_bundled_worker(self):
         from wordcel.scripts.setup_morphology import install
-        with patch("sys.frozen", True, create=True), patch("wordcel.scripts.setup_morphology._run") as run:
+        with patch("sys.frozen", True, create=True), patch("wordcel.scripts.setup_morphology._run") as run, \
+                patch("wordcel.optional_runtimes.install") as engine:
             install("tr")
+        engine.assert_called_once_with("stanza", None, None)
         run.assert_called_once_with(["--setup-morphology", "tr"], None)
 
     def test_cancelled_ocr_does_not_start_downloader(self):

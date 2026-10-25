@@ -2,9 +2,10 @@
 import sys
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QColor, QFont
-from PyQt6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QFontComboBox, QFormLayout,
+from PyQt6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QFontComboBox, QFormLayout, QLabel,
                             QPushButton, QSpinBox, QVBoxLayout, QWidget)
 from wordcel.config.config import config
+from wordcel.config.profiles import profile_language
 from wordcel.gui.themes import THEMES, theme_name
 from wordcel.gui.settings_section import SettingsSection, align_form_columns
 from wordcel.gui.typography import default_family
@@ -35,7 +36,7 @@ def load_appearance(settings, profile):
     palette = custom if name == "Custom" else THEMES[name]
     for key, default in DEFAULTS.items():
         if key == "font_family" and not _configured_font:
-            default = default_family(profile)
+            default = default_family(profile_language(settings, profile))
         if key in palette:
             value = palette[key]
         else:
@@ -44,7 +45,7 @@ def load_appearance(settings, profile):
             value = name
         if key == "background_opacity":
             value = settings.value(f"profiles/{profile}/{key}", value, type=int)
-        if key in ("pitch_colors", "kanji_stroke_order") and profile != "ja":
+        if key in ("pitch_colors", "kanji_stroke_order") and profile_language(settings, profile) != "ja":
             value = False
         if key.startswith("font_size"):
             value = round(value * scale)
@@ -68,6 +69,10 @@ class ProfileAppearance(QWidget):
             control = QCheckBox(label)
             self.action_controls[name] = control
             actions_form.addRow(control)
+        self.translation_hint = QLabel('Requires a translation model. <a href="translation">Set up translation</a>')
+        self.translation_hint.setWordWrap(True)
+        actions_form.addRow(self.translation_hint)
+        self.translation_hint.hide()
         form = self.form = self.detail_form = QFormLayout(general)
         detail_form = form
         preview_form = self.preview_form = QFormLayout(preview)
@@ -181,8 +186,8 @@ class ProfileAppearance(QWidget):
         for name in ("pinned_frequency", "pinned_pitch", "pinned_grammar"):
             getattr(self, name).setChecked(self.settings.value(prefix + name, True, bool))
         self.preview_definitions.setValue(self.settings.value(prefix + "preview_definitions", 1, int))
-        self.preview_form.setRowVisible(self.preview_pitch, self.profile() == "ja")
-        self.pinned_form.setRowVisible(self.pinned_pitch, self.profile() == "ja")
+        self.preview_form.setRowVisible(self.preview_pitch, profile_language(self.settings, self.profile()) == "ja")
+        self.pinned_form.setRowVisible(self.pinned_pitch, profile_language(self.settings, self.profile()) == "ja")
         custom = custom_palette(self.settings, self.profile())
         self.theme.blockSignals(True)
         name = theme_name(self.settings.value(f"profiles/{self.profile()}/theme_name", DEFAULTS["theme_name"]))
@@ -193,18 +198,18 @@ class ProfileAppearance(QWidget):
         self.snap_scrolling.setChecked(self.settings.value(f"profiles/{self.profile()}/snap_scrolling", True, bool))
         self.side_button_scrolling.setChecked(self.settings.value(f"profiles/{self.profile()}/side_button_scrolling", True, bool))
         self.font.setCurrentFont(QFont(self.settings.value(f"profiles/{self.profile()}/font_family",
-                                                         _configured_font or default_family(self.profile()))))
-        self.headword_furigana.setChecked(self.settings.value("profiles/ja/headword_furigana", False, bool))
-        self.detail_form.setRowVisible(self.headword_furigana, self.profile() == "ja")
-        self.definition_furigana.setChecked(self.settings.value("profiles/ja/definition_furigana", True, bool))
-        self.detail_form.setRowVisible(self.definition_furigana, self.profile() == "ja")
-        self.pitch_colors.setChecked(self.settings.value("profiles/ja/pitch_colors", DEFAULTS["pitch_colors"], bool))
-        self.detail_form.setRowVisible(self.pitch_colors, self.profile() == "ja")
-        self.kanji_stroke_order.setChecked(self.settings.value("profiles/ja/kanji_stroke_order", DEFAULTS["kanji_stroke_order"], bool))
-        self.detail_form.setRowVisible(self.kanji_stroke_order, self.profile() == "ja")
+                                                         _configured_font or default_family(profile_language(self.settings, self.profile())))))
+        self.headword_furigana.setChecked(self.settings.value(f"profiles/{self.profile()}/headword_furigana", False, bool))
+        self.detail_form.setRowVisible(self.headword_furigana, profile_language(self.settings, self.profile()) == "ja")
+        self.definition_furigana.setChecked(self.settings.value(f"profiles/{self.profile()}/definition_furigana", True, bool))
+        self.detail_form.setRowVisible(self.definition_furigana, profile_language(self.settings, self.profile()) == "ja")
+        self.pitch_colors.setChecked(self.settings.value(f"profiles/{self.profile()}/pitch_colors", DEFAULTS["pitch_colors"], bool))
+        self.detail_form.setRowVisible(self.pitch_colors, profile_language(self.settings, self.profile()) == "ja")
+        self.kanji_stroke_order.setChecked(self.settings.value(f"profiles/{self.profile()}/kanji_stroke_order", DEFAULTS["kanji_stroke_order"], bool))
+        self.detail_form.setRowVisible(self.kanji_stroke_order, profile_language(self.settings, self.profile()) == "ja")
         from wordcel.utils.stroke_order_font import font_ready
-        self.detail_form.setRowVisible(self.font_install, self.profile() == "ja" and not font_ready())
-        self.detail_form.setRowVisible(self.controls["furigana_scale"], self.profile() == "ja")
+        self.detail_form.setRowVisible(self.font_install, profile_language(self.settings, self.profile()) == "ja" and not font_ready())
+        self.detail_form.setRowVisible(self.controls["furigana_scale"], profile_language(self.settings, self.profile()) == "ja")
         for key, widget in self.controls.items():
             value = self.settings.value(f"profiles/{self.profile()}/{key}", DEFAULTS.get(key, 100))
             value = (custom if name == "Custom" else THEMES[name]).get(key, value)
@@ -222,6 +227,10 @@ class ProfileAppearance(QWidget):
     def set_color(self, key, color):
         self.controls[key].setText(color)
         self.controls[key].setStyleSheet(f"border:2px solid {color};padding:4px;")
+
+    def set_translation_available(self, available):
+        self.action_controls["translate"].setEnabled(available)
+        self.translation_hint.setVisible(not available)
 
     def pick_color(self, key):
         color = QColorDialog.getColor(QColor(self.controls[key].text()), self)
@@ -258,13 +267,13 @@ class ProfileAppearance(QWidget):
         self.settings.setValue(prefix + "snap_scrolling", self.snap_scrolling.isChecked())
         self.settings.setValue(prefix + "side_button_scrolling", self.side_button_scrolling.isChecked())
         self.settings.setValue(prefix + "font_family", self.font.currentFont().family())
-        if self.profile() == "ja":
+        if profile_language(self.settings, self.profile()) == "ja":
             self.settings.setValue(prefix + "headword_furigana", self.headword_furigana.isChecked())
             self.settings.setValue(prefix + "definition_furigana", self.definition_furigana.isChecked())
             self.settings.setValue(prefix + "pitch_colors", self.pitch_colors.isChecked())
             self.settings.setValue(prefix + "kanji_stroke_order", self.kanji_stroke_order.isChecked())
         for key, widget in self.controls.items():
-            if key == "furigana_scale" and self.profile() != "ja":
+            if key == "furigana_scale" and profile_language(self.settings, self.profile()) != "ja":
                 continue
             value = widget.text() if key.startswith("color") else widget.value()
             if key == "background_opacity":

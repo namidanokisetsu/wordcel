@@ -75,13 +75,13 @@ class InputPermissionTests(unittest.TestCase):
         from wordcel.utils.macos import InputMonitoringPermissionError
         settings = Mock()
         settings.value.return_value = ""
-        window = SimpleNamespace(settings=settings, _keys=None, hotkey_requested=Mock(), show_message=Mock())
+        window = SimpleNamespace(settings=settings, active_profile="ja", _keys=None, hotkey_requested=Mock(), show_message=Mock())
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as listener:
             listener.return_value.start.side_effect = InputMonitoringPermissionError("Input Monitoring denied")
             warning = QuickLookupWindow.apply_shortcut(window, "<cmd>+d", "Ctrl+D")
         self.assertEqual(warning, "Input Monitoring denied")
-        settings.setValue.assert_any_call("hotkey", "<cmd>+d")
-        settings.setValue.assert_any_call("hotkey_preset", "Ctrl+D")
+        settings.setValue.assert_any_call("profiles/ja/hotkey", "<cmd>+d")
+        settings.setValue.assert_any_call("profiles/ja/hotkey_preset", "Ctrl+D")
         self.assertIsNone(window._keys)
 
     def test_denied_monitoring_is_actionable_and_never_starts_thread(self):

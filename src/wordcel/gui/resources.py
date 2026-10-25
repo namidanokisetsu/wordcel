@@ -1,5 +1,6 @@
 """Resource readiness and explicit downloads beside each feature."""
 import json
+from functools import lru_cache
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
@@ -23,6 +24,9 @@ def ocr_ready(provider, component_directory=""):
         except RuntimeError:
             return False
     if provider == "paddle":
+        from wordcel.optional_runtimes import ready
+        if not ready("paddle"):
+            return False
         from wordcel.ocr.turkish_paddle import MODELS, PADDLE_FILES, model_root
         root = model_root()
         try:
@@ -50,6 +54,31 @@ def translation_ready(profile):
     return model_installed(profile)
 
 
+@lru_cache(maxsize=8)
+def managed_translation_available(model):
+    return translation_ready(model)
+
+
+def profile_translation_available(settings, identity):
+    from wordcel.config.profiles import profile_language
+    from wordcel.dictionary.translation import load_profile_settings, local_endpoint
+    from wordcel.language.support import translation_supported
+    try:
+        options = load_profile_settings(settings, identity)
+        prefix = f"profiles/{identity}/"
+        source = settings.value(prefix + "translation_source", "auto")
+        target = settings.value(prefix + "translation_target", "auto")
+        source = profile_language(settings, identity) if source == "auto" else source
+        target = settings.value(prefix + "target", "en") if target == "auto" else target
+        if not (translation_supported(source, options.provider) and translation_supported(target, options.provider)):
+            return False
+        if options.provider == "custom":
+            return bool(local_endpoint(options.endpoint) and options.model.strip())
+        return managed_translation_available(options.profile)
+    except (ValueError, TypeError):
+        return False
+
+
 class ResourcesPanel(QWidget):
     def __init__(self, owner):
         super().__init__(owner)
@@ -71,7 +100,7 @@ class ResourcesPanel(QWidget):
         self.base_install = QPushButton("Download word-form support")
         self.base_install.setFlat(True)
         self.base_install.setToolTip("Recognize inflected words using an optional offline model")
-        self.base_install.clicked.connect(lambda: owner.begin_operation([], morphology=owner.profile.currentData()))
+        self.base_install.clicked.connect(lambda: owner.begin_operation([], morphology=owner.editing_language))
         layout.addWidget(self.base_install, alignment=Qt.AlignmentFlag.AlignLeft)
 
         self.ocr_section = QWidget(self)
@@ -107,7 +136,7 @@ class ResourcesPanel(QWidget):
 
     def refresh(self):
         owner = self.owner
-        code = owner.profile.currentData()
+        code = owner.editing_language
         if not code:
             return
         from wordcel.utils.stroke_order_font import font_ready
@@ -116,6 +145,8 @@ class ResourcesPanel(QWidget):
         from wordcel.dictionary.library import Library
         library = Library(owner.directory)
         try:
+            from wordcel.config.profiles import dictionary_preferences
+            library.set_preferences(dictionary_preferences(owner.settings, owner.profile.currentData()))
             packs = [meta for path, meta, db in library.packs if meta['language'] == code]
         finally:
             library.close()
@@ -169,3 +200,9 @@ class ResourcesPanel(QWidget):
             self.downloads[name].setVisible(supported and not ready)
             self.downloads[name].setEnabled(supported and not ready and not owner.operation_busy("translation"))
         self.translation_section.setVisible(any(not row.isHidden() for row in self.model_rows.values()))
+        ready = profile_translation_available(owner.settings, owner.profile.currentData())
+        owner.appearance.set_translation_available(ready)
+        owner.translation_shortcut.enabled.setEnabled(ready)
+        owner.translation_shortcut.recorder.setEnabled(ready and owner.translation_shortcut.enabled.isChecked())
+        if hasattr(owner, "translation_connection"):
+            owner.translation_form.setRowVisible(owner.translation_connection, owner.translation_mode.currentData() == "custom")

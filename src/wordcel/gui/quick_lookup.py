@@ -23,6 +23,8 @@ from wordcel.gui.action_icons import action_button, action_icon
 from wordcel.gui.ruby import RubyBrowser, TAG_PREFIX, ruby_html
 from wordcel.gui.gloss_content import normalize_definitions
 from wordcel.language.profiles import configured_profiles, default_partner, visible_profiles
+from wordcel.config.profiles import (profile_ids, profile_language, profile_name, languages as profile_languages,
+                                     dictionary_preferences)
 from wordcel.dictionary.structured_content import StructuredContentConverter
 from wordcel.utils.timing import mark
 
@@ -74,12 +76,12 @@ class LookupWorker(QObject):
         self._thread.start()
 
     def request(self, revision, text, source, foreign, translate=False, target=None, pair=None, translation_settings=None,
-                morphology=False, context=None, exact_only=False):
+                morphology=False, context=None, exact_only=False, dictionary_options=None):
         self.cancel()
         mark("dispatch", revision, translation=translate)
         with self._condition:
             self._pending = (revision, text, source, foreign, translate, target, pair, translation_settings, morphology,
-                             context, exact_only, threading.Event())
+                             context, exact_only, dictionary_options, threading.Event())
             self._condition.notify()
 
     def cancel(self):
@@ -139,7 +141,12 @@ class LookupWorker(QObject):
                         codes = sorted({meta["language"] for _, meta, _ in engine.library.packs})
                         self._emit(self.languages, codes)
                     if pending is not None:
-                        revision, text, source, foreign, translate, target, pair, translation_settings, morphology, context, exact_only, cancelled = pending
+                        revision, text, source, foreign, translate, target, pair, translation_settings, morphology, context, exact_only, dictionary_options, cancelled = pending
+                        if isinstance(engine, SearchEngine):
+                            before = engine.library.revision
+                            engine.library.set_preferences(dictionary_options)
+                            if before != engine.library.revision:
+                                engine.cache.clear()
                         mark("dequeue", revision)
                         options = {"target": target} if target else {}
                         if pair:
@@ -850,6 +857,9 @@ class QuickLookupWindow(QDialog):
     hotkey_requested = pyqtSignal()
     translation_requested = pyqtSignal()
     hover_toggle_requested = pyqtSignal()
+    next_profile_requested = pyqtSignal()
+    previous_profile_requested = pyqtSignal()
+    profile_activated = pyqtSignal(str)
     selection_requested = pyqtSignal()
     clipboard_requested = pyqtSignal()
 
@@ -862,6 +872,8 @@ class QuickLookupWindow(QDialog):
             self.setWindowFlag(Qt.WindowType.X11BypassWindowManagerHint)
         self.directory = directory
         self.settings = settings or QSettings("wordcel", "wordcel")
+        from wordcel.config.profiles import migrate
+        migrate(self.settings, directory)
         from wordcel.gui.profile_appearance import load_appearance
         load_appearance(self.settings, self.settings.value("profile", ""))
         self.revision = 0
@@ -982,6 +994,7 @@ class QuickLookupWindow(QDialog):
         self.settings_button = self._action("settings", "Settings")
         self.settings_menu = QMenu(self.settings_button)
         self.settings_menu.addAction("Settings", self.open_settings)
+        self.settings_menu.addAction("Resume setup", self.resume_setup)
         self.settings_button.setMenu(self.settings_menu)
         self.settings_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.settings_button.setParent(self)
@@ -993,8 +1006,8 @@ class QuickLookupWindow(QDialog):
         controls = QHBoxLayout(self.mode_row)
         controls.setContentsMargins(0, 0, 0, 0)
         self.source = QComboBox()
-        self.source.setAccessibleName("Language profile")
-        self.source.setToolTip("Language profile for OCR and dictionaries")
+        self.source.setAccessibleName("Profile")
+        self.source.setToolTip("Active profile")
         self.foreign = QComboBox()
         self.foreign.setAccessibleName("Translation pair")
         self.foreign.setToolTip("Translate in either direction within this pair")
@@ -1004,7 +1017,7 @@ class QuickLookupWindow(QDialog):
         self.update_languages(())
         initial_profile = self.settings.value("profile", "")
         self.source.setCurrentIndex(max(0, self.source.findData(initial_profile)))
-        self.update_translation_languages(self.settings.value(f"profiles/{initial_profile}/target", default_partner(initial_profile)))
+        self.update_translation_languages(self.settings.value(f"profiles/{initial_profile}/target", default_partner(profile_language(self.settings, initial_profile))))
         self.translate = self._action("translate", "Translate")
         self.translate.setEnabled(False)
         self.translate.clicked.connect(self._translate_clicked)
@@ -1174,6 +1187,10 @@ class QuickLookupWindow(QDialog):
         self.translation_requested.connect(self.open_translation)
         self._translation_keys = None
         self._hover_keys = None
+        self._cycle_keys = None
+        self._shortcuts_restored = False
+        self.next_profile_requested.connect(lambda: self.cycle_profile(1))
+        self.previous_profile_requested.connect(lambda: self.cycle_profile(-1))
         from wordcel.gui.selection import SelectionCapture
         self.selection = SelectionCapture(self)
         self.selection.completed.connect(self._selected_text_ready)
@@ -1215,8 +1232,12 @@ class QuickLookupWindow(QDialog):
                           pinned=self.is_pinned, passive=self._passive_text)
 
     @property
+    def active_profile(self):
+        return self.source.currentData() or self.settings.value("profile", "")
+
+    @property
     def preferred_foreign(self):
-        return self.source.currentData() or ""
+        return profile_language(self.settings, self.active_profile)
 
     def apply_style(self):
         colors = surface_colors(config.color_background, config.color_foreground)
@@ -1257,7 +1278,7 @@ class QuickLookupWindow(QDialog):
         self.kanji_browser.setFont(font)
         self.translation_browser.setFont(document_font(config.font_family, config.font_size_sentence, self.preferred_foreign))
         self.translation_panel.source.setFont(self.translation_browser.font())
-        self.translation_panel.set_side_by_side(self.settings.value("translation_side_by_side", False, bool))
+        self.translation_panel.set_side_by_side(self.settings.value(f"profiles/{self.active_profile}/translation_side_by_side", False, bool))
         self.search.setFont(font)
         for button in self.findChildren(QToolButton):
             name = button.property("action_name")
@@ -1266,8 +1287,8 @@ class QuickLookupWindow(QDialog):
 
     def reload_appearance(self, render=True):
         from wordcel.gui.profile_appearance import load_appearance
-        load_appearance(self.settings, self.preferred_foreign)
-        self.browser.section_scroll.set_enabled(self.settings.value(f"profiles/{self.preferred_foreign}/snap_scrolling", True, bool))
+        load_appearance(self.settings, self.active_profile)
+        self.browser.section_scroll.set_enabled(self.settings.value(f"profiles/{self.active_profile}/snap_scrolling", True, bool))
         self.apply_style()
         if hasattr(self, "_popup_shortcuts"):
             self.reload_popup_shortcuts()
@@ -1278,20 +1299,24 @@ class QuickLookupWindow(QDialog):
             self._render(static=changed, preserve_scroll=changed)
 
     def compact_preview(self):
-        return self.settings.value(f"profiles/{self.preferred_foreign}/compact_preview", True, type=bool)
+        return self.settings.value(f"profiles/{self.active_profile}/compact_preview", True, type=bool)
 
     def update_languages(self, languages=None):
         if languages is not None:
             self._imported_languages = tuple(languages)
         languages = getattr(self, "_imported_languages", ())
-        codes = visible_profiles(self.settings, languages)
-        if "en" in codes and not self.settings.contains("profiles/en/target"):
-            self.settings.setValue("profiles/en/target", "ja")
+        codes = profile_ids(self.settings)
+        from wordcel.dictionary.library import Library
+        library = Library(self.directory)
+        try:
+            self._dictionary_titles = {meta["resource_id"]: meta["title"] for _, meta, _ in library.packs}
+        finally:
+            library.close()
         current_source = self.source.currentData() or self.settings.value("profile", "")
         with QSignalBlocker(self.source):
             self.source.clear()
             for code in codes:
-                self.source.addItem(language_name(code), code)
+                self.source.addItem(profile_name(self.settings, code), code)
             self.source.setCurrentIndex(max(0, self.source.findData(current_source)))
         self.update_translation_languages()
 
@@ -1307,7 +1332,7 @@ class QuickLookupWindow(QDialog):
         if provider == "server":
             target = translation_language(target)
         codes = sorted(translation_languages(provider, getattr(self, "_imported_languages", ()),
-                                             (*configured_profiles(self.settings), profile, target)) - {"", None})
+                                             (*profile_languages(self.settings), profile_language(self.settings, profile), target)) - {"", None})
         tooltip = "Language support depends on your server model" if provider == "custom" else ""
         with QSignalBlocker(self.foreign):
             self.foreign.clear()
@@ -1321,46 +1346,59 @@ class QuickLookupWindow(QDialog):
                                            else "The selected model does not support this language"))
 
     def translation_available(self):
-        from wordcel.dictionary.translation import load_profile_settings
-        from wordcel.language.support import translation_supported
-        try:
-            provider = load_profile_settings(self.settings, self.preferred_foreign).provider
-            source = self.settings.value(f"profiles/{self.preferred_foreign}/translation_source", "auto")
-            target = self.settings.value(f"profiles/{self.preferred_foreign}/translation_target", "auto")
-            source = self.preferred_foreign if source == "auto" else source
-            target = self.foreign.currentData() if target == "auto" else target
-            return translation_supported(source, provider) and translation_supported(target, provider)
-        except ValueError:
-            return False
+        from wordcel.gui.resources import profile_translation_available
+        return profile_translation_available(self.settings, self.active_profile)
 
-    def set_mode(self, source):
-        index = self.source.findData(source)
+    def set_mode(self, identity):
+        index = self.source.findData(identity)
         if index < 0:
-            self.source.addItem(language_name(source), source)
-            index = self.source.count() - 1
-        self.source.setCurrentIndex(index)
+            index = next((i for i in range(self.source.count())
+                          if profile_language(self.settings, self.source.itemData(i)) == identity), -1)
+        if index < 0:
+            from wordcel.language.support import profile_languages as supported_languages
+            if identity in supported_languages(getattr(self, "_imported_languages", ()), profile_languages(self.settings)):
+                from wordcel.config.profiles import create_profile
+                identity = create_profile(self.settings, identity)
+                self.update_languages()
+                index = self.source.findData(identity)
+        if index >= 0:
+            self.source.setCurrentIndex(index)
+
+    def cycle_profile(self, offset):
+        count = self.source.count()
+        if count:
+            self.source.setCurrentIndex((self.source.currentIndex() + offset) % count)
+            self.profile_activated.emit(self.source.currentText())
 
     def _update_target_visibility(self):
         self.foreign.setVisible(True)
         self.target_label.setVisible(True)
 
     def _mode_changed(self):
-        mode = self.source.currentData()
+        mode = self.active_profile
         if not mode:
             return
-        if self.sender() is self.source:
-            self.update_translation_languages(self.settings.value(f"profiles/{mode}/target", default_partner(mode)))
+        if self.settings.value("profile", "") != mode or self.sender() is self.source:
+            self.update_translation_languages(self.settings.value(f"profiles/{mode}/target", default_partner(self.preferred_foreign)))
             self.settings.setValue("profile", mode)
         self._update_target_visibility()
         if self.foreign.currentData() == self.preferred_foreign:
             with QSignalBlocker(self.foreign):
-                self.foreign.setCurrentIndex(self.foreign.findData(default_partner(mode)))
-        self.settings.setValue(f"profiles/{self.preferred_foreign}/target", self.foreign.currentData())
-        self.browser.selection_lookup = self.settings.value(f"profiles/{self.preferred_foreign}/selection_lookup", False, bool)
-        self.mode_changed.emit(self.source.currentData())
+                self.foreign.setCurrentIndex(self.foreign.findData(default_partner(self.preferred_foreign)))
+        self.settings.setValue(f"profiles/{self.active_profile}/target", self.foreign.currentData())
+        self.browser.selection_lookup = self.settings.value(f"profiles/{self.active_profile}/selection_lookup", False, bool)
+        self._invalidate()
+        if self.audio:
+            self.audio.cancel()
+        self.mode_changed.emit(self.preferred_foreign)
         self.reload_appearance()
+        if self._shortcuts_restored:
+            try:
+                self.restore_shortcut()
+            except (ValueError, OSError, RuntimeError) as error:
+                self.show_message(str(error))
         if self._setup is not None:
-            self._setup.sync_profile(self.preferred_foreign)
+            self._setup.update_active_label()
         self.scan_settings_changed.emit()
         self._edited()
 
@@ -1478,7 +1516,7 @@ class QuickLookupWindow(QDialog):
     def _set_translation_language(self, role, code):
         if not self._translation_view or role not in ("source", "target"):
             return
-        self.settings.setValue(f"profiles/{self.preferred_foreign}/translation_{role}", code)
+        self.settings.setValue(f"profiles/{self.active_profile}/translation_{role}", code)
         direction = list(self._translation_direction)
         direction[0 if role == "source" else 1] = code
         self._translation_direction = tuple(direction)
@@ -1500,7 +1538,7 @@ class QuickLookupWindow(QDialog):
                 self.pin.setChecked(True)
         else:
             self.open_search()
-        prefix = f"profiles/{self.preferred_foreign}/translation_"
+        prefix = f"profiles/{self.active_profile}/translation_"
         source = self.settings.value(prefix + "source", "auto")
         target = self.settings.value(prefix + "target", "auto")
         if text and self._result is not None:
@@ -1548,7 +1586,7 @@ class QuickLookupWindow(QDialog):
         content = self._translation_content
         if content.source == "auto":
             return
-        prefix = f"profiles/{self.preferred_foreign}/translation_"
+        prefix = f"profiles/{self.active_profile}/translation_"
         self.settings.setValue(prefix + "source", content.target)
         self.settings.setValue(prefix + "target", content.source)
         self._translation_direction = (content.target, content.source)
@@ -1557,7 +1595,7 @@ class QuickLookupWindow(QDialog):
         self._translation_source_edited(text)
 
     def _restore_actions(self):
-        current = (self._result is not None and getattr(self, "_result_profile", None) == self.preferred_foreign
+        current = (self._result is not None and getattr(self, "_result_profile", None) == self.active_profile
                    and (self._peek or self._result_input == self.search.text().strip()))
         self._display_revision = self.revision if current else None
         self.audio_button.setEnabled(bool(current and self._result.entries))
@@ -1670,7 +1708,7 @@ class QuickLookupWindow(QDialog):
         source = self._result.source if context and self._result else "auto"
         target = None
         if translate:
-            prefix = f"profiles/{self.preferred_foreign}/translation_"
+            prefix = f"profiles/{self.active_profile}/translation_"
             selected_source = self.settings.value(prefix + "source", "auto")
             selected_target = self.settings.value(prefix + "target", "auto")
             if translation_text is not None and self._translation_view:
@@ -1697,7 +1735,7 @@ class QuickLookupWindow(QDialog):
             self._show_translation(text, display_source, display_target)
         from wordcel.dictionary.translation import load_profile_settings
         try:
-            translation_settings = load_profile_settings(self.settings, self.preferred_foreign) if translate else None
+            translation_settings = load_profile_settings(self.settings, self.active_profile) if translate else None
         except (ValueError, TypeError) as error:
             self._failed(self.revision, str(error))
             return
@@ -1709,6 +1747,7 @@ class QuickLookupWindow(QDialog):
                        translation_settings=translation_settings,
                        context=lookup_context if not translate else None,
                        morphology=not translate and not exact_only and model_available(self.preferred_foreign),
+                       dictionary_options=dictionary_preferences(self.settings, self.active_profile),
                        exact_only=exact_only)
 
     def deliver(self, revision, result):
@@ -1793,8 +1832,13 @@ class QuickLookupWindow(QDialog):
         if at_end:
             bar.setValue(bar.maximum())
 
+    def dictionary_display_titles(self, mode):
+        selected = set(self.settings.value(f"profiles/{self.active_profile}/{mode}_dictionaries", [], type=list))
+        mapping = getattr(self, "_dictionary_titles", {})
+        return {mapping.get(identity, identity) for identity in selected}
+
     def collapsed_dictionaries(self):
-        return set(self.settings.value(f"profiles/{self.preferred_foreign}/collapsed_dictionaries", [], type=list))
+        return self.dictionary_display_titles("collapsed")
 
     def set_dictionary_display(self, source, mode):
         if self._result is not None:
@@ -1818,7 +1862,7 @@ class QuickLookupWindow(QDialog):
 
     def _display(self, result, remember=True, expanded=None, details_expanded=None, collapsed=None, kanji_details=None):
         remember = remember and not self._translation_view
-        same = self._result is not None and (self._result.text, self._result.source, self._result.target) == (
+        same = self._result is not None and getattr(self, "_result_profile", None) == self.active_profile and (self._result.text, self._result.source, self._result.target) == (
             result.text, result.source, result.target)
         previous_context = getattr(self, "_result_context", "")
         if remember and not self._new_chain and self._result is not None and not same:
@@ -1843,12 +1887,11 @@ class QuickLookupWindow(QDialog):
         if expanded is not None:
             self._expanded = set(expanded)
         elif self._new_chain or not same:
-            self._expanded = set(self.settings.value(
-                f"profiles/{self.preferred_foreign}/expanded_dictionaries", [], type=list))
+            self._expanded = self.dictionary_display_titles("expanded")
         self._new_chain = False
         self._result = result
         self._display_revision = self.revision
-        self._result_profile = self.preferred_foreign
+        self._result_profile = self.active_profile
         self._result_target = self.foreign.currentData()
         self._result_context = previous_context if same else ""
         if not same:
@@ -1877,7 +1920,7 @@ class QuickLookupWindow(QDialog):
             static, self._static_disclosure = self._static_disclosure, False
             preserve_scroll, self._preserve_scroll = self._preserve_scroll, False
             compact = self.compact_preview()
-            prefix = f"profiles/{self.preferred_foreign}/"
+            prefix = f"profiles/{self.active_profile}/"
             preview_options = dict(
                 preview_frequency=self.settings.value(prefix + "preview_frequency", True, bool),
                 preview_pitch=self.settings.value(prefix + "preview_pitch", True, bool),
@@ -1895,7 +1938,7 @@ class QuickLookupWindow(QDialog):
             self._place_actions()
             show_source, source_text = self._peek, None
             if self._peek and self.is_pinned:
-                show_source = self.settings.value(f"profiles/{self.preferred_foreign}/pinned_sentence", False, bool)
+                show_source = self.settings.value(f"profiles/{self.active_profile}/pinned_sentence", False, bool)
                 source_text = self._result_context or (self._result.text if self._result.translation else "")
                 if show_source and source_text:
                     width = (self.browser.viewport().width() - 2 * self.browser.document().documentMargin()
@@ -1909,9 +1952,9 @@ class QuickLookupWindow(QDialog):
                         self._peek, self.is_pinned, compact, tuple(preview_options.values()),
                         tuple(getattr(config, key) for key in DEFAULTS), self.devicePixelRatioF(),
                         self.audio_actions.sizeHint().width(), show_source, source_text if show_source else None,
-                        self.settings.value("profiles/ja/headword_furigana", False, bool),
-                        self.settings.value("profiles/ja/definition_furigana", True, bool),
-                        self.settings.value(f"profiles/{self.preferred_foreign}/combine_frequencies", True, bool),
+                        self.settings.value(f"profiles/{self.active_profile}/headword_furigana", False, bool),
+                        self.settings.value(f"profiles/{self.active_profile}/definition_furigana", True, bool),
+                        self.settings.value(f"profiles/{self.active_profile}/combine_frequencies", True, bool),
                         tuple(sorted(self._collapsed)), separate_headwords, self._headword_clearance())
             if identity == self._render_identity:
                 mark("render_reused", self.revision)
@@ -1928,11 +1971,11 @@ class QuickLookupWindow(QDialog):
                                                preview=self._peek and not self.is_pinned and compact,
                                                show_source=show_source, source_text=source_text,
                                                details_expanded=self._details_expanded,
-                                               headword_furigana=self.settings.value("profiles/ja/headword_furigana", False, bool),
-                                               definition_furigana=self.settings.value("profiles/ja/definition_furigana", True, bool),
+                                               headword_furigana=self.settings.value(f"profiles/{self.active_profile}/headword_furigana", False, bool),
+                                               definition_furigana=self.settings.value(f"profiles/{self.active_profile}/definition_furigana", True, bool),
                                                collapsed=self._collapsed,
                                                separate_headwords=separate_headwords,
-                                               combine_frequencies=self.settings.value(f"profiles/{self.preferred_foreign}/combine_frequencies", True, bool)))
+                                               combine_frequencies=self.settings.value(f"profiles/{self.active_profile}/combine_frequencies", True, bool)))
             self._action_heading = None
             self._headword_blocks = []
             reservations = {}
@@ -2039,7 +2082,7 @@ class QuickLookupWindow(QDialog):
         self._auto_fit_size = self.size()
 
     def set_compact_preview(self, enabled):
-        self.settings.setValue(f"profiles/{self.preferred_foreign}/compact_preview", bool(enabled))
+        self.settings.setValue(f"profiles/{self.active_profile}/compact_preview", bool(enabled))
         self._render()
 
     def _failed(self, revision, message):
@@ -2082,7 +2125,7 @@ class QuickLookupWindow(QDialog):
     def _save_kanji_split(self, *_):
         sizes = self.kanji_splitter.sizes()
         if not self.kanji_panel.isHidden() and sum(sizes):
-            self.settings.setValue("profiles/ja/kanji_height_ratio", sizes[1] / sum(sizes))
+            self.settings.setValue(f"profiles/{self.active_profile}/kanji_height_ratio", sizes[1] / sum(sizes))
 
     def _set_kanji_visible(self, visible):
         if visible == (not self.kanji_panel.isHidden()):
@@ -2102,7 +2145,7 @@ class QuickLookupWindow(QDialog):
                            + margins.top() + margins.bottom()
                            + browser_margins.top() + browser_margins.bottom())
             available = self.kanji_splitter.contentsRect().height() - self.kanji_splitter.handleWidth()
-            ratio = self.settings.value("profiles/ja/kanji_height_ratio", 0., float)
+            ratio = self.settings.value(f"profiles/{self.active_profile}/kanji_height_ratio", 0., float)
             pane_height = round(available * ratio) if 0 < ratio < 1 else (
                 self._kanji_glyph_height() + pane_chrome)
             self.kanji_splitter.setSizes([max(self.content_stack.minimumHeight(), available - pane_height),
@@ -2281,13 +2324,16 @@ class QuickLookupWindow(QDialog):
             self.source.setCurrentIndex(self.source.findData(profile))
             self.foreign.setCurrentIndex(self.foreign.findData(target))
         self._update_target_visibility()
-        self.mode_changed.emit(self.source.currentData())
+        self._invalidate()
+        if self.audio:
+            self.audio.cancel()
+        self.mode_changed.emit(self.preferred_foreign)
         self.settings.setValue("profile", profile)
         self.settings.setValue("source", self.source.currentData())
         self.settings.setValue(f"profiles/{profile}/target", target)
         self.reload_appearance(render=False)
         if self._setup is not None:
-            self._setup.sync_profile(profile)
+            self._setup.update_active_label()
         self.scan_settings_changed.emit()
         self._display(result, remember=False, expanded=expanded,
                       details_expanded=previous[6] if len(previous) > 6 else (),
@@ -2389,9 +2435,11 @@ class QuickLookupWindow(QDialog):
         self._sync_headword_actions()
         self.mode_row.hide()
         for name, button in self._popup_actions.items():
-            visible = self.settings.value(f"profiles/{self.preferred_foreign}/buttons/{name}", name != "audio_sentence", bool)
+            visible = self.settings.value(f"profiles/{self.active_profile}/buttons/{name}", name != "audio_sentence", bool)
             if name == "anki":
-                visible = visible and self.settings.value(f"profiles/{self.preferred_foreign}/anki/enabled", False, bool)
+                visible = visible and self.settings.value(f"profiles/{self.active_profile}/anki/enabled", False, bool)
+            if name == "translate":
+                visible = visible and self.translation_available()
             if name == "back":
                 visible = visible and (bool(self._history) or self._translation_view)
             if name in ("translate", "copy") and self._translation_view:
@@ -2492,7 +2540,7 @@ class QuickLookupWindow(QDialog):
                 layout.addWidget(audio)
                 self._headword_rows[key] = row, anki, audio
             row, anki, audio = self._headword_rows[key]
-            prefix = f"profiles/{self.preferred_foreign}/"
+            prefix = f"profiles/{self.active_profile}/"
             anki.setVisible(self.settings.value(prefix + "anki/enabled", False, bool)
                             and self.settings.value(prefix + "buttons/anki", True, bool))
             audio.setVisible(self.settings.value(prefix + "buttons/audio", True, bool))
@@ -2655,7 +2703,7 @@ class QuickLookupWindow(QDialog):
     def _autoplay_lookup(self):
         if (self._result is not None and self._result.entries
                 and (self._peek or self._selection_lookup)
-                and audio_autoplay_mode(self.settings, self.preferred_foreign) == "lookup"):
+                and audio_autoplay_mode(self.settings, self.active_profile) == "lookup"):
             self._autoplay()
 
     def _autoplay(self):
@@ -2699,7 +2747,7 @@ class QuickLookupWindow(QDialog):
 
     def update_anki(self):
         from wordcel.anki import load_settings
-        options = load_settings(self.settings, self.preferred_foreign)
+        options = load_settings(self.settings, self.active_profile)
         enabled = options.enabled
         groups = self._headword_groups()
         first = next(iter(groups), None)
@@ -2730,7 +2778,7 @@ class QuickLookupWindow(QDialog):
         self.anki_button.setToolTip(description)
         self.anki_button.setAccessibleName(description)
         self.anki_button.setVisible(enabled and self.settings.value(
-            f"profiles/{self.preferred_foreign}/buttons/anki", True, bool) and not self._headword_rows)
+            f"profiles/{self.active_profile}/buttons/anki", True, bool) and not self._headword_rows)
         self.anki_button.setEnabled(ready)
         for key, (_, button, _) in self._headword_rows.items():
             saved_word = key in saved_words or key in existing
@@ -2743,7 +2791,7 @@ class QuickLookupWindow(QDialog):
             button.setAccessibleName(description)
             button.setEnabled(ready)
         if hasattr(self, "anki_shortcut"):
-            binding = self.settings.value(f"profiles/{self.preferred_foreign}/anki/shortcut", "Shift+A")
+            binding = self.settings.value(f"profiles/{self.active_profile}/anki/shortcut", "Shift+A")
             self.anki_shortcut.setKey(QKeySequence(binding))
             self.anki_shortcut.setEnabled(ready and not browse and bool(binding))
 
@@ -2762,7 +2810,7 @@ class QuickLookupWindow(QDialog):
             return
         (identity, saved_snapshot), found, error = response
         from wordcel.anki import load_settings
-        current = (self.revision, load_settings(self.settings, self.preferred_foreign), tuple(self._headword_groups()))
+        current = (self.revision, load_settings(self.settings, self.active_profile), tuple(self._headword_groups()))
         if identity == current:
             self._anki_existing_identity = identity
             self._anki_existing_notes = {key: found[key[0]] for key in identity[2] if not error and key[0] in found}
@@ -2778,7 +2826,7 @@ class QuickLookupWindow(QDialog):
     def add_to_anki(self, *, headword=None):
         from wordcel.anki import AnkiClient, load_settings
         from wordcel.gui.anki import AnkiTask, export_note
-        options = load_settings(self.settings, self.preferred_foreign)
+        options = load_settings(self.settings, self.active_profile)
         if not options.enabled or self._display_revision != self.revision or not self._result or not self._result.entries:
             return
         if self._anki_task is not None or self._anki_browse_task is not None:
@@ -2865,9 +2913,9 @@ class QuickLookupWindow(QDialog):
             if not entries:
                 return
             options = {"source": source} if source else {}
-            self.audio.play(entries[0], self.revision, self.settings, profile=self.preferred_foreign, **options)
+            self.audio.play(entries[0], self.revision, self.settings, profile=self.active_profile, **options)
             return
-        self.audio.play_text(text, language, self.revision, self.settings, profile=self.preferred_foreign)
+        self.audio.play_text(text, language, self.revision, self.settings, profile=self.active_profile)
 
     def show_entries(self, entries, text="", source="ja", peek=False, kanji=(), analyses=(), suggestions=(), message=""):
         if peek and self.is_pinned:
@@ -2878,7 +2926,7 @@ class QuickLookupWindow(QDialog):
                 and self._result.analyses == tuple(analyses) and self._result.suggestions == tuple(suggestions)
                 and self._result.message == message
                 and self._result.kanji == tuple(kanji) and self.isVisible()):
-            if self._autoplayed is not None and audio_autoplay_mode(self.settings, self.preferred_foreign) == "lookup":
+            if self._autoplayed is not None and audio_autoplay_mode(self.settings, self.active_profile) == "lookup":
                 self._autoplay()
             return True
         self._invalidate()
@@ -2951,7 +2999,7 @@ class QuickLookupWindow(QDialog):
             self._pin_transition = False
             self.setUpdatesEnabled(updates)
 
-        if checked and self._peek and audio_autoplay_mode(self.settings, self.preferred_foreign) == "pin":
+        if checked and self._peek and audio_autoplay_mode(self.settings, self.active_profile) == "pin":
             self._autoplay()
 
     def _apply_pin(self, checked):
@@ -2986,7 +3034,7 @@ class QuickLookupWindow(QDialog):
 
     def reload_popup_shortcuts(self):
         from wordcel.gui.popup_shortcuts import popup_bindings
-        for action, binding in popup_bindings(self.settings, self.preferred_foreign).items():
+        for action, binding in popup_bindings(self.settings, self.active_profile).items():
             shortcut = self._popup_shortcuts[action]
             shortcut.setKey(QKeySequence(binding))
             shortcut.setEnabled(bool(binding))
@@ -3028,7 +3076,7 @@ class QuickLookupWindow(QDialog):
             return True
         if (event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease)
                 and event.button() in (Qt.MouseButton.BackButton, Qt.MouseButton.ForwardButton)
-                and self.settings.value(f"profiles/{self.preferred_foreign}/side_button_scrolling", True, bool)
+                and self.settings.value(f"profiles/{self.active_profile}/side_button_scrolling", True, bool)
                 and (not self._peek or self.is_pinned)):
             if event.type() == QEvent.Type.MouseButtonPress:
                 direction = -1 if event.button() == Qt.MouseButton.BackButton else 1
@@ -3195,12 +3243,12 @@ class QuickLookupWindow(QDialog):
         super().enterEvent(event)
 
     def cursor_close_bounds(self):
-        margin = max(0, self.settings.value("cursor_close_margin", 24, int))
+        margin = max(0, self.settings.value(f"profiles/{self.active_profile}/cursor_close_margin", 24, int))
         return self.frameGeometry().adjusted(-margin, -margin, margin, margin)
 
     def _check_cursor_leave(self):
         point = QCursor.pos()
-        if (not self.settings.value("close_on_cursor_leave", False, bool) or not self.isVisible()
+        if (not self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", False, bool) or not self.isVisible()
                 or not (self._peek or self._manual_at_cursor) or self._capture_visibility
                 or self._shutting_down or self.frameGeometry().contains(point)):
             self.cursor_leave_timer.stop()
@@ -3226,7 +3274,7 @@ class QuickLookupWindow(QDialog):
     def _dismiss_if_inactive(self):
         if self._opening_search or self._passive_text or self._fullscreen_overlay:
             return
-        bounds = self.cursor_close_bounds() if self.settings.value("close_on_cursor_leave", False, bool) else self.geometry()
+        bounds = self.cursor_close_bounds() if self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", False, bool) else self.geometry()
         if bounds.contains(QCursor.pos()):
             return
         setup_open = self._setup is not None and self._setup.isVisible()
@@ -3296,15 +3344,21 @@ class QuickLookupWindow(QDialog):
         if self._setup is None:
             self._setup = SetupDialog(self.directory, self.settings, self.apply_shortcut, self)
             self._setup.dictionaries_changed.connect(self.refresh_library)
-        self._setup.sync_profile(self.preferred_foreign)
+        if not self._setup.isVisible():
+            self._setup.sync_profile(self.active_profile)
         self._setup.showNormal()
         self._setup.raise_()
         from wordcel.utils.window_focus import activate_application
         activate_application()
         self._setup.activateWindow()
 
+    def resume_setup(self):
+        from wordcel.gui.first_run import offer_resources
+        offer_resources(self, self.active_profile, force=True)
+
     def refresh_library(self):
         self._render_identity = None
+        self.refresh_translation_availability()
         self.worker.refresh()
         if self.translation_worker is not None:
             self.translation_worker.refresh()
@@ -3315,7 +3369,7 @@ class QuickLookupWindow(QDialog):
         from wordcel.gui.text_shortcuts import TextHotKeys, validate_shortcuts
         from wordcel.utils.macos import InputMonitoringPermissionError
         bindings = {value: self.hotkey_requested.emit} if value else {}
-        validate_shortcuts([value, self.settings.value("translation_hotkey", ""), self.settings.value("hover_hotkey", "")])
+        validate_shortcuts([value, self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""), self.settings.value(f"profiles/{self.active_profile}/hover_hotkey", "")])
         replacement = TextHotKeys(bindings) if bindings else None
         warning = ""
         if replacement:
@@ -3329,16 +3383,40 @@ class QuickLookupWindow(QDialog):
         if previous:
             previous.stop()
             previous.join(timeout=2)
-        self.settings.setValue("hotkey", value)
+        self.settings.setValue(f"profiles/{self.active_profile}/hotkey", value)
         if preset is not None:
-            self.settings.setValue("hotkey_preset", preset)
+            self.settings.setValue(f"profiles/{self.active_profile}/hotkey_preset", preset)
         return warning
 
     def restore_shortcut(self, explicit=None):
-        binding = explicit if explicit is not None else self.settings.value("hotkey", "")
+        self._shortcuts_restored = True
+        binding = explicit if explicit is not None else self.settings.value(f"profiles/{self.active_profile}/hotkey", "")
         self.apply_shortcut(binding)
-        self.apply_translation_shortcut(self.settings.value("translation_hotkey", ""))
-        self.apply_hover_shortcut(self.settings.value("hover_hotkey", ""))
+        self.apply_translation_shortcut(self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""))
+        self.apply_hover_shortcut(self.settings.value(f"profiles/{self.active_profile}/hover_hotkey", ""))
+        self.restore_cycle_shortcuts()
+
+    def restore_cycle_shortcuts(self):
+        from wordcel.gui.text_shortcuts import TextHotKeys, validate_shortcuts
+        values = [self.settings.value(name + "_hotkey", "") for name in ("next_profile", "previous_profile")]
+        validate_shortcuts([*values, *(self.settings.value(f"profiles/{self.active_profile}/" + key, "")
+                                      for key in ("hotkey", "translation_hotkey", "hover_hotkey"))])
+        bindings = {value: signal.emit for value, signal in zip(values, (self.next_profile_requested, self.previous_profile_requested)) if value}
+        previous, self._cycle_keys = self._cycle_keys, None
+        if previous:
+            previous.stop()
+        if bindings:
+            self._cycle_keys = TextHotKeys(bindings)
+            self._cycle_keys.start()
+
+    def refresh_translation_availability(self):
+        from wordcel.gui.resources import managed_translation_available
+        managed_translation_available.cache_clear()
+        self._place_actions()
+        self.reload_popup_shortcuts()
+        if self._shortcuts_restored:
+            self.apply_translation_shortcut(self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""))
+        self.scan_settings_changed.emit()
 
     def apply_translation_shortcut(self, value, preset=None):
         return self._apply_auxiliary_shortcut("translation", value, preset)
@@ -3349,11 +3427,12 @@ class QuickLookupWindow(QDialog):
     def _apply_auxiliary_shortcut(self, name, value, preset):
         from wordcel.gui.text_shortcuts import TextHotKeys, validate_shortcuts
         from wordcel.utils.macos import InputMonitoringPermissionError
-        key = name + "_hotkey"
-        validate_shortcuts([value, *(self.settings.value(other, "") for other in
-                                   ("hotkey", "translation_hotkey", "hover_hotkey") if other != key)])
+        key = f"profiles/{self.active_profile}/" + name + "_hotkey"
+        validate_shortcuts([value, *(self.settings.value(f"profiles/{self.active_profile}/" + other, "") for other in
+                                   ("hotkey", "translation_hotkey", "hover_hotkey") if not key.endswith("/" + other))])
         signal = self.translation_requested if name == "translation" else self.hover_toggle_requested
-        replacement = TextHotKeys({value: signal.emit}) if value else None
+        available = name != "translation" or self.translation_available()
+        replacement = TextHotKeys({value: signal.emit}) if value and available else None
         warning = ""
         if replacement:
             try:
@@ -3394,6 +3473,8 @@ class QuickLookupWindow(QDialog):
         if self._setup is not None:
             self._setup.cancel_operation()
             self._setup.audio_sources.shutdown()
+        if self._cycle_keys:
+            self._cycle_keys.stop()
         if self._keys:
             self._keys.stop()
             self._keys = None

@@ -17,6 +17,7 @@ from PyQt6.QtGui import QKeyEvent, QTextCursor, QTextFormat
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
+from wordcel.config.profiles import create_profile, dictionary_preferences, profile_ids, profile_language
 from wordcel.dictionary.library import Entry, Library
 from wordcel.dictionary.kanji import KanjiEntry
 from wordcel.dictionary.metadata import Frequency
@@ -57,7 +58,6 @@ class FakeEngine:
 
 
 class QuickLookupTests(unittest.TestCase):
-    def test_input_click_looks_up_japanese_suffix_and_selects_only_match(self):
     def test_input_click_starts_chinese_lookup_at_cursor_with_utf16_offsets(self):
         text = "𠮷 学习中文。"
         self.window.search.setText(text)
@@ -80,6 +80,7 @@ class QuickLookupTests(unittest.TestCase):
             self.window._lookup_input_position(3)
         request.assert_not_called()
 
+    def test_input_click_looks_up_japanese_suffix_and_selects_only_match(self):
         text = "𠮷 突然現れる無人島のゲーム"
         self.window.search.setText(text)
         start = text.index("無")
@@ -431,7 +432,7 @@ class QuickLookupTests(unittest.TestCase):
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
             self.window.apply_translation_shortcut("<ctrl>+<shift>+t", "Ctrl+Shift+T")
             self.assertIsNone(self.window._keys)
-            self.assertEqual(self.settings.value("translation_hotkey"), "<ctrl>+<shift>+t")
+            self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/translation_hotkey"), "<ctrl>+<shift>+t")
             with self.assertRaises(ValueError):
                 self.window.apply_shortcut("<shift>+<ctrl>+t")
             self.window.apply_translation_shortcut("")
@@ -441,12 +442,12 @@ class QuickLookupTests(unittest.TestCase):
     def test_translation_settings_round_trip_and_shortcut_do_not_enable_ocr(self):
         dialog = SetupDialog(self.temp.name, self.settings, self.window.apply_shortcut, self.window)
         dialog.translation_split.setChecked(True)
-        self.assertTrue(self.settings.value("translation_side_by_side", False, bool))
+        self.assertTrue(self.settings.value(f"profiles/{self.window.active_profile}/translation_side_by_side", False, bool))
         self.assertEqual(self.window.translation_panel.splitter.orientation(), Qt.Orientation.Horizontal)
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as listener:
             dialog.translation_shortcut.enabled.setChecked(True)
             import sys
-            self.assertEqual(self.settings.value("translation_hotkey"),
+            self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/translation_hotkey"),
                              "<cmd>+<shift>+t" if sys.platform == "darwin" else "<ctrl>+<shift>+t")
             self.assertIsNone(self.window._keys)
             dialog.translation_shortcut.enabled.setChecked(False)
@@ -474,7 +475,7 @@ class QuickLookupTests(unittest.TestCase):
                 patch.object(self.window, "hide") as hide:
             self.window.leaveEvent(leave)
             hide.assert_not_called()
-            self.settings.setValue("close_on_cursor_leave", True)
+            self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
             with patch.object(QApplication, "activePopupWidget", return_value=Mock()):
                 self.window.leaveEvent(leave)
             hide.assert_not_called()
@@ -489,14 +490,14 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_corner_search_ignores_cursor_leave(self):
         self.window.open_search()
-        self.settings.setValue("close_on_cursor_leave", True)
+        self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
         with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
                 patch.object(self.window, "hide") as hide:
             self.window.leaveEvent(QEvent(QEvent.Type.Leave))
             hide.assert_not_called()
 
     def test_translation_cursor_leave_preserves_corner_windows(self):
-        self.settings.setValue("close_on_cursor_leave", True)
+        self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
         for origin in ("shortcut", "corner", "ocr"):
             with self.subTest(origin=origin):
                 self.window.hide()
@@ -533,7 +534,7 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_translation_native_pointer_closes_after_missed_qt_release_and_leave(self):
         from wordcel.gui.unified_ocr import UnifiedOCR
-        self.settings.setValue("close_on_cursor_leave", True)
+        self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
         self.window.show_entries((entry(),), peek=True)
         self.window.open_translation()
         self.window.translation_browser.selecting = True
@@ -549,7 +550,7 @@ class QuickLookupTests(unittest.TestCase):
             controller.input.pointer_pending.clear.assert_called()
 
     def test_cursor_leave_closes_retained_selection_after_drag_release(self):
-        self.settings.setValue("close_on_cursor_leave", True)
+        self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
         for pinned in (False, True):
             with self.subTest(pinned=pinned):
                 self.window.show_entries((entry(definitions=("Selected definition",)),), peek=True)
@@ -569,8 +570,8 @@ class QuickLookupTests(unittest.TestCase):
     def test_cursor_grace_area_tracks_distance_return_and_resizing(self):
         self.window.show_entries((entry(),), peek=True)
         self.window.pin.setChecked(True)
-        self.settings.setValue("close_on_cursor_leave", True)
-        self.settings.setValue("cursor_close_margin", 36)
+        self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
+        self.settings.setValue(f"profiles/{self.window.active_profile}/cursor_close_margin", 36)
         frame = self.window.frameGeometry()
         near = QPoint(frame.right() + 36, frame.center().y())
         with patch('wordcel.gui.quick_lookup.QCursor.pos', return_value=near) as cursor, \
@@ -589,8 +590,8 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_zero_cursor_grace_area_closes_at_edge(self):
         self.window.show_entries((entry(),), peek=True)
-        self.settings.setValue("close_on_cursor_leave", True)
-        self.settings.setValue("cursor_close_margin", 0)
+        self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
+        self.settings.setValue(f"profiles/{self.window.active_profile}/cursor_close_margin", 0)
         frame = self.window.frameGeometry()
         with patch('wordcel.gui.quick_lookup.QCursor.pos', return_value=QPoint(frame.right() + 1, frame.center().y())), \
                 patch.object(self.window, 'hide') as hide:
@@ -604,10 +605,10 @@ class QuickLookupTests(unittest.TestCase):
         dialog.close_on_cursor_leave.setChecked(True)
         self.assertTrue(dialog.cursor_close_margin.isEnabled())
         dialog.cursor_close_margin.setValue(48)
-        self.assertEqual(self.settings.value('cursor_close_margin', type=int), 48)
+        self.assertEqual(self.settings.value(f'profiles/{self.window.active_profile}/cursor_close_margin', type=int), 48)
         dialog.close_on_cursor_leave.setChecked(False)
         self.assertFalse(dialog.cursor_close_margin.isEnabled())
-        self.assertEqual(self.settings.value('cursor_close_margin', type=int), 48)
+        self.assertEqual(self.settings.value(f'profiles/{self.window.active_profile}/cursor_close_margin', type=int), 48)
         dialog.hide()
 
     def test_lookup_translation_shows_startup_and_completion_in_output_pane(self):
@@ -654,7 +655,7 @@ class QuickLookupTests(unittest.TestCase):
         view.set_content("cat")
         view.setTextCursor(view.document().find("cat"))
         view.selecting = True
-        self.settings.setValue("close_on_cursor_leave", True)
+        self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
         with patch.object(self.window, "lookup_word") as lookup, patch.object(self.window, "hide") as hide, \
                 patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)):
             self.window.leaveEvent(QEvent(QEvent.Type.Leave))
@@ -679,39 +680,25 @@ class QuickLookupTests(unittest.TestCase):
         QTest.keyClick(self.window.search, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
         self.assertEqual(QApplication.clipboard().text(), "input")
 
-    def test_profile_removal_cleans_language_data_and_survives_library_refresh(self):
-        self.settings.setValue("profiles/tr/target", "en")
-        self.window.update_languages(("ja", "tr"))
-        self.window.set_mode("tr")
-        self.window._display(SearchResult("old", "tr", "en", (entry("old", language="tr"),)))
-        self.window._display(SearchResult("new", "tr", "en", (entry("new", language="tr"),)))
-        download = Path(self.temp.name) / "kept-model"
+    def test_profile_removal_preserves_language_data_and_does_not_reappear_on_refresh(self):
+        download = Path(self.temp.name) / "download.bin"
         download.write_bytes(b"download")
+        self.window.set_mode("tr")
         dialog = SetupDialog(self.temp.name, self.settings, Mock(), self.window)
         try:
-            dialog.sync_profile("tr")
             with patch("wordcel.gui.dictionary_manager.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes), \
                     patch("wordcel.data_assets.remove_language_data") as remove:
                 dialog.remove_profile()
-                self.wait_until(lambda: dialog.operation is None)
-                self.assertEqual(remove.call_args.args[0], "tr")
-            self.assertEqual(self.window.preferred_foreign, "ja")
-            self.assertEqual(self.settings.value("profile"), "ja")
+                remove.assert_not_called()
+            self.assertNotEqual(self.window.active_profile, "tr")
             self.assertFalse(self.settings.contains("profiles/tr/target"))
-            self.assertFalse(self.window._history)
-            self.assertIsNone(self.window._result)
             self.assertEqual(download.read_bytes(), b"download")
             self.window.update_languages(("ja", "tr"))
-            pack = (Path("tr-pack"), {"language": "tr", "title": "Turkish", "entries": 1, "enabled": True}, None)
-            with patch("wordcel.gui.dictionary_manager.Library", return_value=SimpleNamespace(
-                    packs=[pack], errors=[], close=Mock())):
-                dialog.reload()
             self.assertEqual(self.window.source.findData("tr"), -1)
-            self.assertEqual(dialog.profile.findData("tr"), -1)
-            with patch("wordcel.gui.first_run.offer_resources"):
-                dialog.add_profile("tr")
-            self.assertGreaterEqual(self.window.source.findData("tr"), 0)
-            self.assertEqual(self.settings.value("removed_profiles", [], type=list), [])
+            dialog.add_profile("tr")
+            identity = dialog.profile.currentData()
+            self.assertEqual(profile_language(self.settings, identity), "tr")
+            self.assertNotEqual(self.window.active_profile, identity)
         finally:
             dialog.deleteLater()
 
@@ -928,6 +915,9 @@ class QuickLookupTests(unittest.TestCase):
         self.model_status_patch = patch("wordcel.language.stanza_analyzer.model_status", return_value="Model needed")
         self.model_status = self.model_status_patch.start()
         self.addCleanup(self.model_status_patch.stop)
+        availability = patch("wordcel.gui.resources.managed_translation_available", return_value=True)
+        availability.start()
+        self.addCleanup(availability.stop)
         self.engine = FakeEngine()
         self.window = QuickLookupWindow(self.temp.name, lambda: self.engine, self.settings)
 
@@ -989,7 +979,7 @@ class QuickLookupTests(unittest.TestCase):
             self.assertTrue(self.window.browser.section_scroll.enabled)
             dialog.sync_profile("tr")
             self.assertFalse(dialog.appearance.snap_scrolling.isChecked())
-            self.assertFalse(self.window.browser.section_scroll.enabled)
+            self.assertTrue(self.window.browser.section_scroll.enabled)
             dialog.sync_profile("ja")
             self.assertTrue(dialog.appearance.snap_scrolling.isChecked())
             self.assertTrue(self.window.browser.section_scroll.enabled)
@@ -1060,7 +1050,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertIn("last meaning", self.window.browser.toPlainText())
         self.window._render()
         self.assertIn("last meaning", self.window.browser.toPlainText())
-        self.assertEqual(self.settings.value("profiles/ja/collapsed_dictionaries", [], type=list), ["Monolingual"])
+        self.assertEqual(self.settings.value("profiles/ja/collapsed_dictionaries", [], type=list), [item.data(Qt.ItemDataRole.UserRole + 4)])
 
         self.window._link(QUrl("expand:1"))
         self.assertNotIn("first meaning", self.window.browser.toPlainText())
@@ -1210,7 +1200,7 @@ class QuickLookupTests(unittest.TestCase):
             dialog.packs.setCurrentRow(0)
             self.assertTrue(dialog.dictionary_display.isEnabled())
             dialog.dictionary_display.setCurrentIndex(dialog.dictionary_display.findData("collapsed"))
-            self.assertEqual(self.settings.value("profiles/ja/collapsed_dictionaries", [], type=list), ["Monolingual"])
+            self.assertEqual(self.settings.value("profiles/ja/collapsed_dictionaries", [], type=list), [item.data(Qt.ItemDataRole.UserRole + 4)])
             self.assertEqual(dialog.packs.currentItem().checkState(), Qt.CheckState.Checked)
             self.assertNotIn("mono definition", self.window.browser.toPlainText())
             dialog.sync_profile("tr")
@@ -1288,6 +1278,8 @@ class QuickLookupTests(unittest.TestCase):
         dialog.appearance.save()
         self.assertEqual(config.color_highlight_word, "#eeeeee")
         dialog.profile.setCurrentIndex(dialog.profile.findData("ja"))
+        self.assertEqual(self.window.preferred_foreign, "tr")
+        dialog.activate_profile()
         self.assertEqual(self.window.preferred_foreign, "ja")
         self.assertEqual(dialog.appearance.theme.currentText(), "Light")
         self.assertEqual(config.color_background, "#FFFFFF")
@@ -1442,21 +1434,24 @@ class QuickLookupTests(unittest.TestCase):
         translator.cancel.assert_called_once()
 
     def test_installed_languages_are_available_as_source_and_english_target(self):
-        self.wait_until(lambda: self.window.source.findData("de") >= 0)
+        self.window.set_mode("de")
+        self.wait_until(lambda: self.window.preferred_foreign == "de")
         self.assertGreaterEqual(self.window.foreign.findData("de"), 0)
         self.window.set_mode("de")
         self.assertEqual(self.window.preferred_foreign, "de")
 
     def test_dictionary_only_profiles_do_not_enable_managed_translation(self):
         self.window.update_languages(("de", "yi"))
-        self.assertGreaterEqual(self.window.source.findData("yi"), 0)
+        self.window.set_mode("yi")
+        self.assertEqual(self.window.preferred_foreign, "yi")
         self.assertEqual(self.window.foreign.findData("yi"), -1)
         self.window.set_mode("yi")
         self.window.search.setText("ייִדיש")
         self.assertFalse(self.window.translate.isEnabled())
         self.assertIn("does not support", self.window.translate.toolTip())
         self.window.update_languages()
-        self.assertGreaterEqual(self.window.source.findData("yi"), 0)
+        self.window.set_mode("yi")
+        self.assertEqual(self.window.preferred_foreign, "yi")
 
     def test_saved_unsupported_translation_partner_is_preserved(self):
         self.settings.setValue("profiles/ja/target", "yi")
@@ -1760,7 +1755,7 @@ class QuickLookupTests(unittest.TestCase):
         self.window.set_mode("tr")
         self.window.set_mode("en")
         self.assertEqual(self.window.preferred_foreign, "en")
-        self.assertEqual(self.settings.value("profile"), "en")
+        self.assertEqual(profile_language(self.settings, self.settings.value("profile")), "en")
 
     def test_selected_sentence_waits_for_explicit_translation(self):
         self.window.lookup_selected("Yesterday I skipped breakfast.")
@@ -2031,16 +2026,20 @@ class QuickLookupTests(unittest.TestCase):
         dialog = SetupDialog(self.temp.name, self.settings, Mock(), self.window)
         try:
             dialog.add_profile("de")
+            german = dialog.profile.currentData()
+            self.assertEqual(self.window.preferred_foreign, "ja")
+            dialog.activate_profile()
             self.assertEqual(self.window.preferred_foreign, "de")
             self.window.update_languages(("ja", "tr"))
-            self.assertGreaterEqual(self.window.source.findData("de"), 0)
-            self.assertEqual(self.settings.value("profiles/de/scan_bindings"), "shift,middle")
+            self.assertGreaterEqual(self.window.source.findData(german), 0)
             dialog.add_profile("en")
+            english = dialog.profile.currentData()
+            dialog.activate_profile()
             self.assertEqual(self.window.preferred_foreign, "en")
             self.assertEqual(self.window.foreign.currentData(), "ja")
             reopened = SetupDialog(self.temp.name, self.settings, Mock(), self.window)
-            self.assertGreaterEqual(reopened.profile.findData("de"), 0)
-            self.assertEqual(reopened.profile.currentData(), "en")
+            self.assertGreaterEqual(reopened.profile.findData(german), 0)
+            self.assertEqual(reopened.profile.currentData(), english)
             reopened.deleteLater()
         finally:
             dialog.deleteLater()
@@ -2225,8 +2224,11 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(self.window._context, "別の文。")
         self.assertFalse(self.settings.value("profiles/ja/pinned_sentence", True, bool))
         self.window.set_mode("tr")
+        self.assertFalse(appearance.pinned_sentence.isChecked())
+        self.window._setup.sync_profile("tr")
         self.assertTrue(appearance.pinned_sentence.isChecked())
         self.window.set_mode("ja")
+        self.window._setup.sync_profile("ja")
         self.assertFalse(appearance.pinned_sentence.isChecked())
 
     def test_long_pinned_sentence_keeps_definitions_visible_and_full_context(self):
@@ -3434,12 +3436,12 @@ class QuickLookupTests(unittest.TestCase):
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
             self.window.restore_shortcut()
             hotkeys.assert_not_called()
-            self.assertEqual(self.settings.value("hotkey"), "")
+            self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/hotkey"), "")
             import sys
             chosen = "<cmd>+<shift>+d" if sys.platform == "darwin" else "<ctrl>+<shift>+d"
-            self.settings.setValue("hotkey", chosen)
+            self.settings.setValue(f"profiles/{self.window.active_profile}/hotkey", chosen)
             self.window.restore_shortcut()
-            self.assertEqual(self.settings.value("hotkey"),
+            self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/hotkey"),
                              chosen)
             hotkeys.return_value.start.assert_called_once()
             self.window.apply_shortcut("")
@@ -3512,7 +3514,7 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_recording_active_shortcut_does_not_open_search(self):
         import sys
-        self.settings.setValue('hotkey', '<cmd>+<shift>+d' if sys.platform == 'darwin' else '<ctrl>+<shift>+d')
+        self.settings.setValue(f'profiles/{self.window.active_profile}/hotkey', '<cmd>+<shift>+d' if sys.platform == 'darwin' else '<ctrl>+<shift>+d')
         self.window.open_settings()
         dialog = self.window._setup
         dialog.tabs.setCurrentWidget(dialog.shortcuts_tab)
@@ -3809,17 +3811,17 @@ class DictionaryManagerTests(unittest.TestCase):
         self.dialog.sync_profile("ja")
         self.assertFalse(self.dialog.freeze_while_held.isChecked())
 
-    def test_new_profiles_inherit_scan_shortcut_and_preserve_explicit_disable(self):
-        self.dialog.sync_profile("tr")
-        self.settings.setValue("profiles/tr/scan_bindings", "shift,middle")
+    def test_new_profiles_use_defaults_and_duplication_preserves_explicit_disable(self):
         self.dialog.add_profile("id")
-        self.assertEqual(self.settings.value("profiles/id/scan_bindings"), "shift,middle")
-        self.settings.setValue("profiles/id/scan_bindings", "")
+        identity = self.dialog.profile.currentData()
+        self.assertEqual(self.dialog.scan_key.currentData(), "shift")
+        self.settings.setValue(f"profiles/{identity}/scan_bindings", "")
+        self.dialog.duplicate_profile()
+        copied = self.dialog.profile.currentData()
+        self.assertNotEqual(identity, copied)
+        self.assertEqual(self.settings.value(f"profiles/{copied}/scan_bindings"), "")
         self.dialog.add_profile("ru")
-        self.assertEqual(self.settings.value("profiles/ru/scan_bindings"), "")
-        self.dialog.sync_profile("tr")
-        self.dialog.add_profile("id")
-        self.assertEqual(self.settings.value("profiles/id/scan_bindings"), "")
+        self.assertEqual(self.dialog.scan_key.currentData(), "shift")
 
     def test_base_form_setup_is_explicit_and_follows_selected_profile(self):
         with patch("wordcel.language.stanza_analyzer.model_status", return_value="Not installed"), \
@@ -3868,15 +3870,16 @@ class DictionaryManagerTests(unittest.TestCase):
     def test_disable_and_order_are_saved(self):
         self.dialog.begin_operation([self.archive("A", "tr"), self.archive("B", "tr")])
         self.wait_for_operation()
+        self.dialog.add_profile("tr")
+        identity = self.dialog.profile.currentData()
         self.dialog.packs.setCurrentRow(1)
-        self.dialog.profile.setCurrentIndex(self.dialog.profile.findData("tr"))
-        name = self.dialog.packs.item(1).data(Qt.ItemDataRole.UserRole)
+        resource = self.dialog.packs.item(1).data(Qt.ItemDataRole.UserRole + 4)
         self.dialog.move_pack(-1)
-        self.assertEqual(json.loads((self.directory / "preferences.json").read_text())["order"][0], name)
+        self.assertEqual(dictionary_preferences(self.settings, identity)["order"][0], resource)
         self.dialog.packs.item(0).setCheckState(Qt.CheckState.Unchecked)
-        saved = json.loads((self.directory / "preferences.json").read_text())
-        self.assertEqual(saved["order"][0], name)
-        self.assertEqual(saved["disabled"], [name])
+        saved = dictionary_preferences(self.settings, identity)
+        self.assertEqual(saved["order"][0], resource)
+        self.assertEqual(saved["disabled"], [resource])
 
     def test_cancelled_operation_keeps_completed_imports(self):
         first, second = self.archive("A", "tr"), self.archive("B", "tr")

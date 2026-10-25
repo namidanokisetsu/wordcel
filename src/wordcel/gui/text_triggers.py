@@ -25,7 +25,7 @@ class TextTriggers(QObject):
     def reload(self, *_):
         self.capture_timer.stop()
         self.press = self.last_click = None
-        enabled = self.window.settings.value(f"profiles/{self.window.preferred_foreign}/selected_text", False, type=bool)
+        enabled = self.window.settings.value(f"profiles/{getattr(self.window, 'active_profile', self.window.preferred_foreign)}/selected_text", False, type=bool)
         if enabled and self.listener is None:
             from wordcel.utils.macos import require_input_monitoring_permission, InputMonitoringPermissionError
             try:
@@ -69,7 +69,7 @@ class TextTriggers(QObject):
         if (not self.window._scan_hold_active and not self.window.selection.pending and QApplication.activeWindow() is None
                 and QApplication.activePopupWidget() is None and QApplication.activeModalWidget() is None
                 and not (self.window.isVisible() and self.window.geometry().contains(QCursor.pos()))
-                and self.window.settings.value(f"profiles/{self.window.preferred_foreign}/selected_text", False, type=bool)):
+                and self.window.settings.value(f"profiles/{getattr(self.window, 'active_profile', self.window.preferred_foreign)}/selected_text", False, type=bool)):
             self.window._selection_for_search = False
             self.window._selection_passive = True
             self.window.selection.start()

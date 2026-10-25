@@ -120,7 +120,8 @@ class AnkiSettingsPanel(QWidget):
         connection_form = QFormLayout(connection)
         connection_form.addRow("Address", self.endpoint)
         connection_form.addRow("API key", self.api_key)
-        options_layout.addWidget(SettingsSection("Connection", connection))
+        self.connection_section = SettingsSection("Connection", connection)
+        options_layout.addWidget(self.connection_section)
         duplicates = QWidget()
         self.duplicate_form = QFormLayout(duplicates)
         self.duplicate_action, self.duplicate_scope = QComboBox(), QComboBox()
@@ -272,6 +273,9 @@ class AnkiSettingsPanel(QWidget):
                       check_all_models=self.check_all_models.isChecked(),
                       shortcut=shortcut if self.shortcut.enabled.isChecked() else "",
                       shortcut_preset=shortcut)
+        if self.settings.contains(self._prefix + "connection"):
+            values.pop("endpoint")
+            values.pop("api_key")
         if self.shortcut_form.indexOf(self.shortcut) < 0:
             # The Shortcuts tab owns validation after taking this control.
             values.pop("shortcut")

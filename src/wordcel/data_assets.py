@@ -19,6 +19,9 @@ class DataAsset:
     size: int = 0
     status: str = "Not installed"
     removable: bool = True
+    identity: str = ""
+    source: str = ""
+    revision: str = ""
 
 
 def _roots(data_root, cache_root):
@@ -48,6 +51,7 @@ def _size(path):
 
 def _pending_paths(data, cache):
     parents = [data, data / "translation", data / "translation/models", data / "fonts",
+               data / "engines",
                cache / "huggingface", cache / "huggingface/hub", cache / "paddlex/official_models"]
     parents.extend((data / "languages").glob("*"))
     for parent in parents:
@@ -76,12 +80,22 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
     data, cache = _roots(data_root, cache_root)
     assets, languages, installed_packs = [], set(profiles), []
 
-    def add(key, title, language="", kind="", value="", paths=(), *, removable=True, status=None):
+    def add(key, title, language="", kind="", value="", paths=(), *, removable=True, status=None,
+            identity="", source="", revision=""):
         paths = tuple(Path(path) for path in paths)
         size = sum(_size(path) for path in paths) if removable else 0
         present = size > 0 if removable else any(path.exists() for path in paths)
         assets.append(DataAsset(key, title, language, kind, value, paths, size,
-                                status or ("Installed" if present else "Not installed"), removable))
+                                status or ("Installed" if present else "Not installed"), removable, identity, source, revision))
+
+    from wordcel.optional_runtimes import manifest as engine_manifest, runtime_root, ready as engine_ready
+    engine_config = engine_manifest()
+    if engine_config:
+        for feature in engine_config["features"]:
+            root = runtime_root(feature, data)
+            state = "Installed" if engine_ready(feature, data) else "Incomplete" if root.exists() else "Not installed"
+            add("engine:" + feature, "Paddle OCR engine" if feature == "paddle" else "Word-form engine",
+                kind="engine", value=feature, paths=(root,), status=state)
 
     for name, model in MODELS.items():
         path = data / "translation/models" / model["file"]
@@ -110,7 +124,7 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
     paddle = data / "languages/tr/paddle/3.7.0"
     try:
         manifest = json.loads((paddle / "manifest.json").read_text(encoding="utf-8"))
-        ready = manifest.get("models") == PADDLE_MODELS and all(
+        ready = engine_ready("paddle", data) and manifest.get("models") == PADDLE_MODELS and all(
             (paddle / name / filename).is_file() for name in PADDLE_MODELS.values() for filename in PADDLE_FILES)
     except (OSError, ValueError):
         ready = False
@@ -126,6 +140,8 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
             removable=False, status="Linked")
     if (cache / "huggingface/xet").exists():
         add("cache:downloads", "Model download cache", kind="cache", paths=(cache / "huggingface/xet",))
+    if (cache / "engine-wheels").exists():
+        add("cache:engines", "Engine download cache", kind="cache", paths=(cache / "engine-wheels",))
     if (data / "translation/downloads").exists():
         add("cache:translation", "Translation download cache", kind="cache", paths=(data / "translation/downloads",))
     for path in _pending_paths(data, cache):
@@ -138,7 +154,9 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
             code = meta["language"]
             languages.add(code)
             add("dictionary:" + path.name, meta["title"], code, "dictionary", path.name,
-                (path, path.with_suffix(".assets")), status="Enabled" if meta["enabled"] else "Disabled")
+                (path, path.with_suffix(".assets")), status="Enabled" if meta["enabled"] else "Disabled",
+                identity=meta["resource_id"], source=meta.get("source", "") or meta.get("index_url", ""),
+                revision=meta.get("revision", ""))
     finally:
         library.close()
     for path in (data / "languages").glob("*/stanza"):
@@ -175,6 +193,37 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
             state = None if not path.exists() else "Installed" if font_ready(data) else "Incomplete"
             add("font:ja", "Kanji stroke-order font", "ja", "fonts", paths=(path,), status=state)
     return tuple(assets)
+
+
+def resource_usage(settings, asset):
+    from wordcel.config.profiles import dictionary_preferences, profile_ids, profile_language
+    from wordcel.dictionary.translation import load_profile_settings
+    from wordcel.language.support import default_ocr_provider
+    using = []
+    for identity in profile_ids(settings):
+        language = profile_language(settings, identity)
+        prefix = f"profiles/{identity}/"
+        selected = False
+        if asset.kind == "dictionary" and asset.language == language:
+            preferences = dictionary_preferences(settings, identity)
+            selected = preferences is None or asset.identity not in preferences["disabled"]
+        elif asset.kind in {"translation", "runtime"}:
+            try:
+                options = load_profile_settings(settings, identity)
+                selected = options.provider == "server" and (asset.kind == "runtime" or options.profile == asset.value)
+            except ValueError:
+                pass
+        elif asset.kind == "ocr":
+            selected = settings.value(prefix + "ocr_provider", default_ocr_provider(language)) == asset.value
+        elif asset.kind == "engine":
+            from wordcel.language.support import STANZA_LANGUAGES
+            selected = (settings.value(prefix + "ocr_provider", default_ocr_provider(language)) == "paddle"
+                        if asset.value == "paddle" else language in STANZA_LANGUAGES and language not in {"ja", "tr"})
+        elif asset.kind in {"fonts", "morphology"} or asset.key.startswith("builtin:"):
+            selected = asset.language == language
+        if selected:
+            using.append(identity)
+    return tuple(using)
 
 
 def remove_asset(key, directory, refresh, cancelled, *, data_root=None, cache_root=None):

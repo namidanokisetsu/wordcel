@@ -1,7 +1,7 @@
 """One-time resource suggestions for a newly added language profile."""
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFormLayout, QHBoxLayout,
-                            QLabel, QPushButton, QProgressBar, QVBoxLayout)
+                            QLabel, QPushButton, QProgressBar, QVBoxLayout, QWidget)
 
 
 def needs_setup(settings):
@@ -38,7 +38,7 @@ class FirstLanguage(QDialog):
         layout = QVBoxLayout(self)
         self.language = LanguageComboBox()
         self.language.addItem("Choose a language…", None)
-        for code in sorted(profile_languages(imported, configured_profiles(settings)),
+        for code in sorted(profile_languages(imported, (__import__("wordcel.config.profiles", fromlist=["languages"]).languages(settings))),
                            key=lambda code: language_name(code).casefold()):
             self.language.add_language(code, language_name(code))
         form = QFormLayout()
@@ -58,10 +58,10 @@ class FirstLanguage(QDialog):
         code = self.language.selected_code()
         if code is None:
             return
-        from wordcel.language.profiles import default_partner
-        self.settings.setValue("profile", code)
-        if not self.settings.contains(f"profiles/{code}/target"):
-            self.settings.setValue(f"profiles/{code}/target", default_partner(code))
+        from wordcel.config.profiles import create_profile
+        identity = create_profile(self.settings, code)
+        self.settings.setValue("profile", identity)
+        self.settings.setValue("initial_profile", identity)
         self.settings.sync()
         super().accept()
 
@@ -70,7 +70,9 @@ class LanguageSuggestion(QDialog):
     def __init__(self, window, language=None):
         super().__init__(window)
         self.window = window
-        self.language = language or window.preferred_foreign
+        from wordcel.config.profiles import profile_language
+        self.profile = language or getattr(window, "active_profile", window.preferred_foreign)
+        self.language = profile_language(window.settings, self.profile)
         self.operation = None
         self.completed_tasks = []
         from wordcel.dictionary.library import Library
@@ -84,19 +86,28 @@ class LanguageSuggestion(QDialog):
         self.setWindowTitle(language_name(self.language))
         self.resize(480, 300)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Choose what to download."))
+        layout.addWidget(QLabel("Install recommended essentials"))
+        layout.addWidget(QLabel("Dictionary and screen recognition"))
+        self.customize = QCheckBox("Customize")
+        layout.addWidget(self.customize)
+        self.details = QWidget()
+        detail_layout = QVBoxLayout(self.details)
+        detail_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.details)
+        self.details.hide()
+        self.customize.toggled.connect(self.details.setVisible)
         self.choices = []
         resource_rows = {}
         for task in language_plan(self.language):
             check = QCheckBox(task.label)
-            check.setChecked(True)
+            check.setChecked(task.kind != "translation")
             if task.kind in {"ocr", "translation"}:
                 row = QHBoxLayout()
                 row.addWidget(check)
-                layout.addLayout(row)
+                (layout if task.kind == "translation" else detail_layout).addLayout(row)
                 resource_rows[task.kind] = row
             else:
-                layout.addWidget(check)
+                detail_layout.addWidget(check)
             self.choices.append((task, check))
         self.translation = QComboBox(self)
         self.translation.addItem("Lightweight (1.9 GB)", "lightweight")
@@ -106,12 +117,12 @@ class LanguageSuggestion(QDialog):
         from wordcel.gui.resources import translation_ready
         from wordcel.dictionary.translation import load_profile_settings
         try:
-            preferred = load_profile_settings(window.settings, self.language).profile
+            preferred = load_profile_settings(window.settings, self.profile).profile
         except ValueError:
             preferred = "lightweight"
         installed = [name for name in ("lightweight", "quality") if translation_ready(name)]
         selected = preferred if preferred in installed else next(iter(installed), "lightweight")
-        if window.settings.contains(f"profiles/{self.language}/translation"):
+        if window.settings.contains(f"profiles/{self.profile}/translation"):
             selected = preferred
         self.translation.setCurrentIndex(self.translation.findData(selected))
         self.translation.currentIndexChanged.connect(self.refresh_choices)
@@ -119,7 +130,7 @@ class LanguageSuggestion(QDialog):
             resource_rows["translation"].addWidget(self.translation, 1)
         else:
             self.translation.hide()
-        self.translation.setEnabled(any(task.kind == "translation" for task, check in self.choices))
+        self.translation.setEnabled(any(task.kind == "translation" and check.isChecked() for task, check in self.choices))
         from wordcel.gui.resources import ocr_ready
         from wordcel.language.support import default_ocr_provider, ocr_supported
         self.ocr = QComboBox(self)
@@ -131,7 +142,7 @@ class LanguageSuggestion(QDialog):
         for provider, label in providers:
             if provider in available:
                 self.ocr.addItem(label, provider)
-        saved = window.settings.value(f"profiles/{self.language}/ocr_provider", "")
+        saved = window.settings.value(f"profiles/{self.profile}/ocr_provider", "")
         installed = [provider for provider in available if ocr_ready(provider, window.settings.value("screenai_directory", ""))]
         selected = saved if saved in available else next(iter(installed), default_ocr_provider(self.language))
         self.ocr.setCurrentIndex(max(0, self.ocr.findData(selected)))
@@ -163,6 +174,7 @@ class LanguageSuggestion(QDialog):
         buttons.addWidget(self.install)
         layout.addLayout(buttons)
         self.refresh_choices()
+        self.adjustSize()
 
     def selected_tasks(self):
         from dataclasses import replace
@@ -202,8 +214,8 @@ class LanguageSuggestion(QDialog):
     def use_translation(self, profile):
         from dataclasses import replace
         from wordcel.dictionary.translation import load_profile_settings, save_profile_settings
-        settings = load_profile_settings(self.window.settings, self.language)
-        save_profile_settings(self.window.settings, self.language, replace(settings, provider="server", profile=profile))
+        settings = load_profile_settings(self.window.settings, self.profile)
+        save_profile_settings(self.window.settings, self.profile, replace(settings, provider="server", profile=profile))
 
     def accept(self):
         if self.operation is not None:
@@ -218,11 +230,11 @@ class LanguageSuggestion(QDialog):
         if self.ocr.currentData() is not None and any(task.kind == "ocr" and check.isChecked() for task, check in self.choices):
             from wordcel.gui.resources import ocr_ready
             if ocr_ready(self.ocr.currentData(), self.window.settings.value("screenai_directory", "")):
-                self.window.settings.setValue(f"profiles/{self.language}/ocr_provider", self.ocr.currentData())
+                self.window.settings.setValue(f"profiles/{self.profile}/ocr_provider", self.ocr.currentData())
                 self.window.scan_settings_changed.emit()
         tasks = self.selected_tasks()
         if not tasks:
-            super().accept()
+            self.finish_setup()
             return
         self.operation = LanguageSetup(tasks, self.window.directory or default_library_path())
         self.bar.setRange(0, len(tasks))
@@ -244,7 +256,7 @@ class LanguageSuggestion(QDialog):
         self.status.setText(label)
 
     def download_finished(self, completed, errors):
-        code = self.language
+        code = self.profile
         for task, value in completed:
             if task.kind == "ocr":
                 self.window.settings.setValue(f"profiles/{code}/ocr_provider", task.value)
@@ -256,7 +268,7 @@ class LanguageSuggestion(QDialog):
         self.window.scan_settings_changed.emit()
         if self.window._setup is not None:
             self.window._setup.reload(preserve=True)
-            self.window._setup.sync_profile(self.window.preferred_foreign)
+            self.window._setup.resources.refresh()
         cancelled = self.operation.cancelled.is_set()
         self.operation = None
         self.completed_tasks.extend(task for task, _ in completed if task not in self.completed_tasks)
@@ -273,7 +285,14 @@ class LanguageSuggestion(QDialog):
         self.later.setText("Later")
         self.status.setText("\n".join(errors) if errors else "Installed items were kept." if cancelled else "Ready.")
         if not errors and not cancelled:
-            super().accept()
+            self.finish_setup()
+
+    def finish_setup(self):
+        self.window.settings.setValue(f"profiles/{self.profile}/setup_completed", True)
+        handoff = FirstLookup(self.window, self.profile)
+        self.window._first_lookup = handoff
+        handoff.show()
+        super().accept()
 
     def reject(self):
         if self.operation is not None:
@@ -288,6 +307,9 @@ def offer_resources(window, code, *, force=False):
     suggestions = getattr(window, "_resource_suggestions", None)
     if suggestions is None:
         window._resource_suggestions = suggestions = {}
+    if code in suggestions and suggestions[code].isVisible():
+        suggestions[code].raise_()
+        return suggestions[code]
     suggestion = LanguageSuggestion(window, code)
     suggestions[code] = suggestion
     suggestion.show()
@@ -298,3 +320,63 @@ def offer_resources(window, code, *, force=False):
     window.settings.setValue(key, True)
     window.settings.sync()
     return suggestion
+
+
+class FirstLookup(QDialog):
+    def __init__(self, window, identity):
+        super().__init__(window)
+        from wordcel.config.profiles import profile_language
+        from wordcel.gui.resources import ocr_ready
+        from wordcel.language.support import default_ocr_provider
+        from wordcel.dictionary.library import Library
+        self.setWindowTitle("Try a lookup")
+        language = profile_language(window.settings, identity)
+        layout = QVBoxLayout(self)
+        example = {"ja": "?", "tr": "merhaba", "en": "hello", "zh": "??", "ru": "??????",
+                   "de": "Hallo", "fr": "bonjour", "es": "hola", "ko": "??"}.get(language, "hello")
+        sample = QLabel(example)
+        sample.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(sample)
+        bindings = window.settings.value(f"profiles/{identity}/scan_bindings", "shift,middle")
+        key = next(iter(bindings.split(",")), "")
+        text = "Hold " + key.replace("+", " + ").title() + " and point at a word" if key else "Open Search to look up a word"
+        layout.addWidget(QLabel(text))
+        provider = window.settings.value(f"profiles/{identity}/ocr_provider", default_ocr_provider(language))
+        library = Library(window.directory)
+        try:
+            dictionary_ready = any(meta["language"] == language and int(meta.get("entries", 0)) > 0 for _, meta, _ in library.packs)
+        finally:
+            library.close()
+        screen_ready = ocr_ready(provider, window.settings.value("screenai_directory", ""))
+        permission_ready = True
+        import sys
+        if sys.platform == "darwin":
+            from wordcel.utils.macos import require_screen_capture_permission, require_input_monitoring_permission
+            try:
+                require_screen_capture_permission()
+                require_input_monitoring_permission()
+            except RuntimeError:
+                permission_ready = False
+        if not dictionary_ready or not screen_ready:
+            repair = QPushButton("Resume setup")
+            repair.clicked.connect(lambda: offer_resources(window, identity, force=True))
+            layout.addWidget(repair)
+        if not permission_ready:
+            repair = QPushButton("Screen access?")
+            repair.clicked.connect(window.open_settings)
+            layout.addWidget(repair)
+        # Voices are optional and never gate dictionary or screen lookup.
+        from PyQt6.QtCore import QLocale
+        from PyQt6.QtTextToSpeech import QTextToSpeech
+        self.speech = QTextToSpeech(self)
+        voices = [voice for voice in self.speech.availableVoices() if voice.locale().language() == QLocale(language).language()]
+        if not voices:
+            layout.addWidget(QLabel("Sentence audio voice unavailable"))
+        search = QPushButton("Open Search")
+        search.clicked.connect(lambda: self.try_lookup(window, identity, example))
+        layout.addWidget(search)
+
+    def try_lookup(self, window, identity, example):
+        window.set_mode(identity)
+        window.open_search(example)
+        self.accept()

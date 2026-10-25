@@ -171,6 +171,11 @@ def main(argv=None):
     from wordcel.gui.first_run import FirstLanguage, complete_first_setup, needs_setup, offer_resources
     settings = QSettings("wordcel", "wordcel")
     settings.setFallbacksEnabled(False)
+    from wordcel.config.profiles import migrate, profile_ids
+    migrate(settings, args.library)
+    initial = settings.value("initial_profile", "")
+    if initial in profile_ids(settings):
+        settings.setValue("profile", initial)
     fresh_install = needs_setup(settings)
     if (fresh_install or args.setup) and FirstLanguage(settings).exec() != 1:
         instance.shutdown()
@@ -220,7 +225,7 @@ def main(argv=None):
             code = window.source.itemData(index)
             action = profiles.addAction(window.source.itemText(index))
             action.setCheckable(True)
-            action.setChecked(code == window.preferred_foreign)
+            action.setChecked(code == window.active_profile)
             profile_group.addAction(action)
             action.triggered.connect(lambda _, code=code: window.set_mode(code))
     profiles.aboutToShow.connect(populate_profiles)
@@ -231,6 +236,7 @@ def main(argv=None):
     if sys.platform != "darwin":
         tray.activated.connect(lambda reason: window.open_search()
                                if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
+    window.profile_activated.connect(lambda name: tray.showMessage("Wordcel", name, QSystemTrayIcon.MessageIcon.NoIcon, 1200))
     tray.show()
     app.aboutToQuit.connect(window.shutdown)
     from wordcel.scripts.translation_server import shutdown_server
@@ -255,7 +261,7 @@ def main(argv=None):
     except (ValueError, OSError, RuntimeError) as error:
         window.show_message(str(error))
     if first_run:
-        QTimer.singleShot(0, lambda: offer_resources(window, window.preferred_foreign, force=args.setup))
+        QTimer.singleShot(0, lambda: offer_resources(window, window.active_profile, force=args.setup))
     elif not background and (args.text or sys.platform != "darwin"):
         QTimer.singleShot(0, lambda: open_requested(args.text))
     return app.exec()

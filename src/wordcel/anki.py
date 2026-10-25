@@ -98,9 +98,11 @@ def load_settings(settings, profile):
             decks = []
     except (ValueError, TypeError):
         decks = []
+    from wordcel.config.profiles import connection
+    shared = connection(settings, "anki", settings.value(prefix + "connection", ""))
     return AnkiSettings(settings.value(prefix + "enabled", False, bool),
-                        settings.value(prefix + "endpoint", DEFAULT_ENDPOINT),
-                        settings.value(prefix + "api_key", ""), settings.value(prefix + "deck", ""),
+                        shared.get("endpoint", settings.value(prefix + "endpoint", DEFAULT_ENDPOINT)),
+                        shared.get("api_key", settings.value(prefix + "api_key", "")), settings.value(prefix + "deck", ""),
                         settings.value(prefix + "model", ""), fields,
                         tuple(settings.value(prefix + "tags", "wordcel").split()),
                         settings.value(prefix + "duplicate_action", "prevent"),

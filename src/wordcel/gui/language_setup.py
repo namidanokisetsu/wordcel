@@ -69,6 +69,8 @@ class LanguageSetup(QObject):
     def __init__(self, tasks, directory):
         super().__init__()
         self.tasks, self.directory = tasks, directory
+        from wordcel.gui.resource_jobs import jobs
+        self.jobs = jobs
         self.cancelled = threading.Event()
         self.thread = threading.Thread(target=self.run, daemon=True, name="language-setup")
 
@@ -82,11 +84,16 @@ class LanguageSetup(QObject):
             if now - last_update >= 0.1 or text.endswith((" 0%", " 100%")):
                 last_update = now
                 self.progress.emit(text)
+                self.jobs.progress(self, text)
 
         for index, task in enumerate(self.tasks):
             if self.cancelled.is_set():
                 break
             self.stage.emit(index, task.label)
+            from wordcel.gui.resource_jobs import task_key
+            if not self.jobs.claim((task_key(task),), self, self.cancelled, task.label):
+                errors.append(f"{task.label}: already downloading")
+                continue
             try:
                 value = install_task(task, self.directory, progress, self.cancelled)
                 completed.append((task, value))
@@ -96,4 +103,6 @@ class LanguageSetup(QObject):
                 import logging
                 logging.getLogger(__name__).exception("Setup failed for %s", task.label)
                 errors.append(f"{task.label}: {error}")
+            finally:
+                self.jobs.finish(self)
         self.finished.emit(completed, errors)
