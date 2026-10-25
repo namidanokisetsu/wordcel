@@ -90,7 +90,8 @@ Dictionary display preferences only control whether a section starts collapsed.
 Popup actions share the first visible sentence or headword line, reserving their
 measured width and centering on the text line after Qt leading. Icon actions use
 one square button geometry; reading surfaces share a zero document margin.
-Action SVGs render at the requested display scale with matching audio/Anki bounds.
+Action SVGs render at the requested display scale; audio keeps natural proportions
+and Close uses a smaller drawing within the shared button geometry.
 Reading fonts prefer antialiased outlines without grid hinting; family and size remain configurable.
 Button visibility and sentence size are saved per profile.
 Multiple headword/reading groups have their own audio and Anki controls anchored
