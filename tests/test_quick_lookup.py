@@ -80,7 +80,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(request.call_args.args[1], "beautiful")
         self.assertEqual(request.call_args.kwargs["context"], ("a beautiful sea", 2, 11))
 
-    def test_small_heading_actions_center_on_text_and_clear_the_next_block(self):
+    def test_small_heading_actions_align_with_text_and_clear_the_next_block(self):
         for size in (10, 14, 18):
             with self.subTest(size=size):
                 self.settings.setValue('profiles/ja/font_size_header', size)
@@ -93,9 +93,37 @@ class QuickLookupTests(unittest.TestCase):
                 rect = layout.blockBoundingRect(block)
                 line = block.layout().lineAt(0)
                 controls = self.window.audio_actions.geometry()
-                self.assertLessEqual(abs(controls.y() + controls.height() / 2
-                                         - rect.top() - line.y() - line.height() / 2), .5)
+                expected = rect.top() + line.y() + max(0, (line.height() - controls.height()) / 2)
+                self.assertLessEqual(abs(controls.y() - expected), .5)
                 self.assertLess(controls.bottom(), layout.blockBoundingRect(block.next()).top())
+
+    def test_heading_baseline_survives_pinning_and_sticky_scrolling(self):
+        self.settings.setValue("profiles/ja/font_size_header", 14)
+        self.settings.setValue("profiles/ja/snap_scrolling", True)
+        self.window.reload_appearance()
+        entries = tuple(Entry(str(i), "海", "かい", source, "ja", ("meaning\n" * 40,))
+                        for i, source in enumerate(("First", "Second")))
+        self.window.show_entries(entries, "海", peek=True)
+        self.app.processEvents()
+        browser = self.window.browser
+
+        def baseline(view):
+            block = view.document().begin()
+            rect = view.document().documentLayout().blockBoundingRect(block)
+            line = block.layout().lineAt(0)
+            return rect.top() + line.y() + line.ascent()
+
+        original = baseline(browser)
+        self.window.pin.setChecked(True)
+        self.app.processEvents()
+        self.assertEqual(baseline(browser), original)
+        scroller = browser.section_scroll
+        for scroll in (1, 40, scroller.section_starts()[1], 40, 1):
+            browser.verticalScrollBar().setValue(scroll)
+            self.app.processEvents()
+            self.assertTrue(scroller.header.isVisible())
+            self.assertEqual(scroller.header.y() + baseline(scroller.header), original)
+            self.assertLess(self.window.audio_actions.geometry().bottom(), scroller.header.height())
 
     def test_translation_default_split_is_equal_and_user_split_survives_resize(self):
         self.window.open_translation()

@@ -88,7 +88,8 @@ Nested document updates leave inherited paint suppression to the parent window.
 Preview defaults to one definition without grammar labels; pinned results have no definition cutoff.
 Dictionary display preferences only control whether a section starts collapsed.
 Popup actions share the first visible sentence or headword line, reserving their
-measured width and centering on the text line after Qt leading. Icon actions use
+measured width. Taller actions align to the line top and reserve space below it;
+smaller actions center on the line. Pinning preserves the text baseline. Icon actions use
 one square button geometry; reading surfaces share a zero document margin.
 Action SVGs render at the requested display scale; audio keeps natural proportions
 and Close uses a smaller drawing within the shared button geometry.

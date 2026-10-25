@@ -10,7 +10,7 @@ import threading
 import unicodedata
 
 from PyQt6.QtCore import QObject, QEvent, QLocale, QPointF, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QCursor, QFont, QFontMetricsF, QImage, QKeyEvent, QKeySequence, QShortcut, QTextBlockFormat, QTextCursor, QTextDocument, QTextFormat, QTextLayout, QTextOption
+from PyQt6.QtGui import QCursor, QFont, QFontMetricsF, QImage, QKeyEvent, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat, QTextLayout, QTextOption
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel,
     QKeySequenceEdit, QLineEdit, QMenu, QSizePolicy, QSplitter, QStackedWidget, QTextEdit, QToolButton, QToolTip, QVBoxLayout, QWidget,
@@ -1957,10 +1957,10 @@ class QuickLookupWindow(QDialog):
                 document.documentLayout().blockBoundingRect(block)
                 line = block.layout().lineAt(0) if block.layout().lineCount() else None
                 fmt = block.blockFormat()
-                fmt.setLineHeight(height, QTextBlockFormat.LineHeightTypes.MinimumHeight.value)
                 if line is not None:
-                    # Minimum line height puts the extra leading above the text.
-                    fmt.setBottomMargin(max(fmt.bottomMargin(), math.ceil((height - line.height()) / 2)))
+                    # Taller actions need room below the text, not extra leading
+                    # that changes the heading baseline when pinning.
+                    fmt.setBottomMargin(max(fmt.bottomMargin(), math.ceil(height - line.height())))
                 formats.append((block, fmt))
             if formats:
                 document.setLayoutEnabled(False)
@@ -2451,7 +2451,7 @@ class QuickLookupWindow(QDialog):
         size = self.audio_actions.sizeHint()
         margin = self.browser.document().documentMargin()
         self.audio_actions.setGeometry(round(viewport.width() - margin - size.width()),
-                                       round(top + (height - size.height()) / 2), size.width(), size.height())
+                                       round(top + max(0, (height - size.height()) / 2)), size.width(), size.height())
         self.audio_actions.setVisible(top + height > 0 and top < viewport.height())
         self.audio_actions.raise_()
 
@@ -2525,7 +2525,7 @@ class QuickLookupWindow(QDialog):
             top += line.y() if line else 0
             height = line.height() if line else rect.height()
             row.setGeometry(round(viewport.width() - document.documentMargin() - size.width() - shared_width),
-                            round(top + (height - size.height()) / 2), size.width(), size.height())
+                            round(top + max(0, (height - size.height()) / 2)), size.width(), size.height())
             row.setVisible(top + height > 0 and top < viewport.height() and not self._translation_view)
             row.raise_()
 
