@@ -1,215 +1,55 @@
 # Using Wordcel
 
-## Install
+## Get started
 
-[Download](https://github.com/namidanokisetsu/wordcel/releases) the Windows
-installer or the macOS DMG for your Mac's processor. Open Wordcel, choose a
-language, and select the dictionaries and models to download. You can skip
-downloads and add them later in **Settings**. Wordcel runs in the system tray.
-Use **Settings > Lookup > Resume setup** if you skipped the wizard.
-**Customize** lets you choose each dictionary, the OCR engine and optional
-translation model, which is off by default. Installed resources are reused;
-Japanese setup also offers the stroke-order font. Dictionary imports and model downloads can run alongside
-each other while lookup and unrelated settings remain available.
-New profiles open resource setup without repeating the tutorial. Use **Tutorial**
-at the bottom left of Settings for sample text and the text lookup shortcut.
-Right-click Wordcel's tray icon for Search or Settings; on Windows it may be
-under **Show hidden icons**. **Find tray icon** in the tutorial points to
-the icon when its position is available.
-Wordcel starts with fresh settings and data. Existing Meikipop data and Anki
-notes, tags and note types stay unchanged. New Anki exports default to the
-`wordcel` tag and use your selected note type and field mapping.
+[Download](https://github.com/namidanokisetsu/wordcel/releases) Wordcel, open it,
+and choose a language. Setup offers dictionaries and an OCR model to download.
+See [supported languages](LANGUAGES.md) for coverage.
 
-The installer includes the app and core libraries. Paddle OCR and optional
-word-form support download their engines with their models during setup.
-Once installed, these features work offline. Windows OCR uses installed Windows
-language packs; system speech uses installed voices.
+Wordcel runs in the system tray. Right-click its icon to open **Search**,
+**Translate** or **Settings**.
 
-For another offline computer, use **Settings > Storage > Export resources**,
-then carry the archive and installer on USB. Install Wordcel and use **Import
-resources**. Use the same Wordcel build, operating system and processor type.
-The archive includes installed dictionaries, models and optional engines, but
-not settings, linked external resources, Windows language packs or system voices.
-Import preserves existing resources; remove a conflicting resource before importing.
+On macOS, allow Screen Recording, Input Monitoring and Accessibility in
+**System Settings > Privacy & Security**, then reopen Wordcel.
 
-On macOS, allow **Screen Recording**, **Input Monitoring** and **Accessibility**
-in System Settings → Privacy & Security, then reopen the app. If permissions
-stop working after an update, remove the old app from those lists and add it
-again. The app is not Apple-notarized, so Gatekeeper may show a warning.
+## Look up a word
 
-Windows OCR uses your installed Windows OCR language packs. Select it or
-Chrome Screen AI under **Settings ? Lookup ? OCR model**. Add missing Windows
-languages in **Windows Settings ? Time & language**, then restart Wordcel.
+- Hold **Shift** and point at a word on screen. Click while holding Shift to
+  keep the result open. **Escape** closes it.
+- For subtitles or a dialogue box, turn on **Hover scan** in the tray menu
+  and select an area. Hover over words there without holding a key.
+- For typed text, open **Search** from the tray.
 
-## Look up words
+Point at the first character of Japanese or Chinese words. If subtitles change
+while you're holding Shift, release it and press again to capture the new text.
 
-- **On screen:** hold Shift and point at a word. While holding it, click to pin
-  the result. Escape or a click outside closes it. Change or disable shortcuts
-  in **Settings → Lookup**.
-- **In a dialogue box:** enable **Hover scan** from the tray and select an area.
-  Point at words inside it without holding a key. The area is remembered between
-  sessions while the display layout and scaling match. Enable it from the tray or assign **Toggle hover scan** in **Shortcuts**.
-  **Enable hover scan at startup** optionally reuses a valid saved area.
-  Clicking outside a pinned result resumes hover lookup in the same area,
-  including after saving to Anki. Close or Escape pauses it until you leave and return.
-- **Typed or copied text:** open **Search** from the tray. The configurable text
-  shortcut defaults to **Ctrl+Shift+D** and opens selected text, or an empty input
-  when nothing is selected. Change or disable it in **Settings > Shortcuts**.
-  Select a word in the search input and press Enter to look it up with the
-  surrounding sentence.
-  Japanese Search accepts kanji, hiragana, katakana and romaji such as `neko`,
-  `tabemashita` or `kōhī`. Romaji matches appear alongside English matches;
-  your input stays unchanged. English words find Japanese dictionary meanings.
-- **Read more:** pin the popup to show all definitions. Dictionary headings
-  collapse or reopen a dictionary; its own detail links open examples and notes.
-  **Back** returns to the previous lookup. **Copy sentence** copies the context.
-  Multiple headwords have separate pronunciation and Anki buttons. Each uses that
-  headword and reading, combining its definitions across dictionaries.
-- **Kanji:** click a character in the headword or bottom cards to open its detail
-  pane. Another character replaces it. Click the same character again or use
-  the pane's close button to hide it.
-  Drag the thin divider to resize the panes; the split is remembered. By default,
-  Kanji gets enough room for the stroke diagram where space allows. The popup
-  keeps its size; longer details scroll.
-  The pane combines shared meanings and readings from your dictionaries;
-  **More** reveals reference fields and tags, grouped by source.
+Pinning a result shows its full definitions. Click a dictionary heading to
+collapse it, or a kanji to see its details. Hover over an icon to see what it does.
 
-Screen lookup freezes the image while Shift is held. For changing subtitles,
-release and press Shift again, or turn off **Freeze capture while holding the
-lookup key** in Lookup.
-Automatic lookup of selected text is separate and optional.
-**Lookup → Close popup when cursor leaves** also closes pinned popups when you
-move away. Corner search stays open, as does text selection or an open menu.
-**Cursor grace area** sets how far beyond the popup edge you can move before it
-closes (24 px by default; 0 closes at the edge).
-Ctrl+C copies selected popup text, or the first headword when nothing is selected.
-On Windows, closing a focused popup returns focus to the app used before lookup.
-Corner search keeps its size between lookups. Drag an edge to resize it.
+## Settings
 
-## Dictionaries and appearance
+Choose your profile in Settings to change its dictionaries, OCR, audio or Anki
+options. In **Dictionaries**, use **Import ZIPs** to add Yomitan packs.
+If a bundle contains several ZIPs, extract the outer archive first.
 
-Switch languages from the tray or Settings. In **Dictionaries**, download
-recommended packs or use **Import ZIPs** for Yomitan dictionaries. Enable and
-reorder them there. For a bundle containing several dictionary ZIPs, extract
-the outer archive first. Japanese recommendations include definitions, kanji,
-frequency and pitch accent; available features depend on the installed packs.
-Select a supported Wiktionary pack to toggle **Show grammar sections** and
-**Show etymology** per profile. These hide the sections from the popup;
-Anki exports retain the full definitions.
-**Data** lists shared models first, then dictionaries and models for each language.
-Download, repair, open or remove them there; dictionary checkboxes enable or disable
-packs. Built-in resources and linked external files are labeled separately.
-Removed files still in use are cleared after restarting Wordcel.
-**Remove language** deletes its settings, dictionaries and language-specific models
-after confirmation. Shared OCR and translation downloads remain available to other
-languages. Keep at least one language.
+Shared shortcuts are under **App > Shortcuts**. **Storage** manages downloads.
 
-Japanese word forms work through bundled rules; Turkish uses bundled Zeyrek.
-Other supported languages offer an optional **Download word-form support**
-action. OCR and translation coverage depend on the selected provider/model;
-Settings shows the available choices for your language.
-Dictionary availability does not guarantee inflected forms or screen recognition.
-Point at a word's first character for Chinese and Japanese lookup.
-Both Chinese scripts and readings depend on the installed dictionary.
-Arabic lookup retains exact readings before trying spelling without vowel marks
-or tatweel; attached forms still need dictionary entries or word-form support.
+## Listen or translate
 
-**Appearance** controls fonts, themes and readings, with separate options for
-preview and pinned results. Scrolling is continuous by default; enable
-**Snap scrolling** to move between sections. Drag the progress bar to jump
-between reading positions. Within a section, the wheel and arrows move by whole
-text lines. Over the popup, the rear (Back) mouse button pages down and the front (Forward)
-button pages up;
-**Side-button scrolling** disables this per profile. Over fullscreen Windows
-apps, a pinned popup accepts arrows, Page Up/Down and Home/End while the source
-keeps focus. **Esc** closes the popup. In **Settings > Shortcuts**, record or
-disable lookup and popup bindings. Only **Copy text** is enabled by default
-(**Ctrl+C**), including selected preview text over fullscreen Windows apps. Replay,
-Anki, Copy sentence and Back shortcuts are optional.
-Close a pinned popup before starting another lookup with a keyboard hold.
-Windows passes scan keys through to games by default. Enable **Block scan keys
-in fullscreen** in Shortcuts to reserve them for lookup, or choose another scan
-binding if the game needs Shift. Scrolling over the popup stays in the popup.
-**Buttons** controls each popup action independently. **Sentence size** controls
-sentence and translation text. Click the compact sentence to read it in full.
-Tokyo Night and Dracula use darker, high-contrast palettes. EVA pairs dark purple
-with lime headwords and violet readings. Pitch coloring is optional. Background
-opacity defaults to 98%; changing themes keeps your chosen opacity.
-Preview shows one definition without grammar labels by default; change **Definitions** or select **All**.
-Pinned results have no definition limit. Turkish misses can still show the analyzed root and
-grammar, and screen lookup keeps available spelling suggestions.
-These include accent alternatives of recovered Turkish roots, shown as links
-without replacing the original analysis.
-Settings save immediately. The sidebar lists **App**, **Storage**, then **Profiles**.
-Use **+** beside Profiles to add a profile. Right-click a profile name to activate,
-duplicate, reorder or delete it. The active profile has a highlighted name and checkmark.
-Editing a profile does not
-activate it; deleting it keeps downloaded resources. Startup and shared connections
-are under App. **App > Appearance**, **Shortcuts**, **Popup** and **Audio playback**
-set shared defaults. Profiles initially use these defaults with their controls hidden.
-Uncheck **Use global** in a profile to customize that group. Checking it again applies
-the global settings and keeps your custom values for later. Existing profiles retain
-overrides where their saved settings differ. Dictionaries, OCR, audio sources,
-translation and Anki destinations remain profile-specific.
-The text shortcut starts disabled. **First dictionary only** limits preview to the first matching
-dictionary; **Text scale** scales word, definition and sentence sizes together.
+Use the popup's audio icons to hear a word or sentence. Choose voices and
+recordings in your profile's **Audio** settings.
 
-## Audio and translation
-
-Use **Read word** for pronunciation and **Read sentence** for system speech.
-In **Audio**, choose and reorder system voices, optional online recordings and
-local audio databases. Autoplay can be off, on lookup or only when pinned.
-Online pronunciation sends the word and language to Wikimedia; lookup, OCR
-and translation run locally after setup.
-
-In **Translation**, download **Lightweight** (Hy-MT2 1.8B, about 2 GB) or
-**Quality** (7B, about 8 GB). These are download sizes; running a model needs
-additional memory. Models are shared across languages; new-language setup
-reuses installed models. Each language can choose its model and translation pair.
-**Translate** opens editable input and translated output. Open it directly from
-the tray, or enable **Translate** in **Shortcuts** with the Ctrl+Shift+T preset
-(Command+Shift+T on macOS). Click a language name to change it; language search
-accepts codes, English names and native names. The swap button reverses direction
-and uses the output as the new input. Copy buttons stay beside the language labels. Copying briefly shows **Copied**
-without closing the popup.
-Edits translate automatically after a short pause; Ctrl+Enter submits immediately. **Back** returns to the
-dictionary with its selection and scroll position preserved.
-Text panes start equally sized. Drag the divider to adjust them; each layout remembers its split. **Translation → Side-by-side text panes**
-puts input on the left and output on the right; resize the window as needed.
-Long text translates in passages. **Advanced → Passage size** controls their
-maximum length; the model's context and output limits still apply per passage.
-To translate an English word or phrase into Japanese, use **Translate** and
-choose **English → 日本語** when the automatic direction is ambiguous.
-With an automatic source, a target that matches the detected language switches
-to the other language in the pair.
-Typing searches dictionaries and offers available spelling suggestions.
-Translation starts only when you choose **Translate**, including for sentences
-and words without dictionary matches.
-The first request loads the model. **Keep model warm** avoids later reloads
-but keeps its memory allocated.
+Download a model in **Translation**, then open **Translate** from the tray.
+Choose the languages and enter text. Translation runs offline after setup.
 
 ## Save to Anki
 
-Install [AnkiConnect](https://ankiweb.net/shared/info/2055492159) and keep Anki
-open. Enable **Settings → Anki**, reload decks and fields, choose a deck and
-note type, and map the first field to **Word**. Click **+** in the popup to save
-immediately; click the checkmark to open the saved note in Anki. Map **glossary-first** to the first
-entry's full definitions, **glossary** to all entries from the lookup, or
-**popup-selection-text** to selected popup text (blank when nothing is selected).
-Glossaries include definitions hidden by popup cutoffs or collapsed sections.
-Map **Kanji details** to a note field and place that field below the definitions
-in your Anki card template (for example, `{{Kanji}}` for a field named Kanji).
-It includes the word's kanji readings, meanings, examples and components available
-in your dictionaries, even when collapsed in the popup; missing data stays blank.
-Sentence, screenshot and available word recordings are included when mapped.
-Hover scan screenshots include the full active screen.
-**Anki → Duplicates** can prevent or allow duplicate words. Checks can cover the
-current deck, its top-level deck and subdecks, selected decks, or the collection,
-optionally across all note types. Selected decks always include the destination.
-Duplicates are checked before preparing definitions and media. Existing notes are
-not overwritten. If saving times out, check Anki before retrying.
-Existing words show a checkmark after a background check using the selected scope.
-With **Prevent**, clicking opens matching notes; with **Allow**, it adds another note.
+Install [AnkiConnect](https://ankiweb.net/shared/info/2055492159) and keep Anki open.
 
-For source installation, custom OCR and release procedures, see
-[development notes](DEVELOPMENT.md).
+1. Open your profile's **Anki** settings, tick **Enable Anki**, and click **Refresh**.
+2. Choose your deck and note type, then map the fields. Use **Word** for the first field.
+3. Click the popup's **+** icon to save. The checkmark opens the saved note.
+
+Map sentence, screenshot and audio fields if you want those on your cards.
+
+[Development notes](DEVELOPMENT.md) cover running from source and building the app.

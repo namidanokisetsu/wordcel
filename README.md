@@ -1,20 +1,17 @@
-﻿# Wordcel
+# Wordcel
 
-Windows and macOS popup dictionary for games, subtitles and other screen text.
+Multilingual OCR popup dictionary for Windows and macOS. Look up screen or selected text, hear pronunciations, translate sentences and save words to Anki with context, screenshots and audio. Works fully offline after setup, with optional online recordings.
 
-[Download](https://github.com/namidanokisetsu/wordcel/releases) · [User guide](docs/USER_GUIDE.md)
+[Download](https://github.com/namidanokisetsu/wordcel/releases) · [Supported languages](docs/LANGUAGES.md) · [User guide](docs/USER_GUIDE.md)
 
 ![Wordcel lookup demo](docs/images/lookup-demo.gif)
 
-Look up words by holding a shortcut or hovering over a chosen scan area, or search typed / selected text. You can hear pronunciations, translate sentences, and save words to Anki with definitions, sentence context, screenshots and available audio.
+## Where to get dictionaries
 
-Works fully offline after initial setup, with optional online pronunciation recordings.
+Try Yomitan dictionaries from:
 
-- App: Python, PyQt6, SQLite.
-- Dictionaries: Yomitan.
-- OCR: MeikiOCR, PaddleOCR PP-OCRv6, Chrome Screen AI, Windows OCR, Apple Vision.
-- Translation: Hy-MT2 1.8B / 7B via llama.cpp.
-- Word forms: Japanese deconjugation rules, Turkish Zeyrek, optional Stanza for other languages.
-- Audio: system TTS, Wikimedia recordings, local audio databases.
+- Turkish: [Turkdict](https://github.com/namidanokisetsu/turkdict) (Yomitan version!).
+- Japanese, Chinese and other languages: [MarvNC's Yomitan dictionaries](https://github.com/MarvNC/yomitan-dictionaries).
+- Other languages: built-in Wiktionary packs available to download in the app.
 
 Fork of [rtr46/meikipop](https://github.com/rtr46/meikipop). GPL-3.0.
