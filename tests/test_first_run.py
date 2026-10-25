@@ -312,15 +312,17 @@ class FirstRunTests(unittest.TestCase):
         tasks = self.wizard.selected_tasks()
         self.assertEqual([(task.kind, task.value) for task in tasks], [("translation", "quality")])
 
-    def test_setup_reuses_installed_windows_ocr_without_a_model_download(self):
+    def test_turkish_setup_prefers_paddle_over_installed_windows_ocr(self):
         with patch("sys.platform", "win32"), \
                 patch("wordcel.ocr.windows_native.supported_languages", return_value=("tr",)), \
                 patch("wordcel.gui.resources.ocr_ready", side_effect=lambda provider, *_: provider == "windows"):
             wizard = LanguageSuggestion(self.window, "tr")
             self.addCleanup(wizard.deleteLater)
-            self.assertEqual(wizard.ocr.currentData(), "windows")
+            self.assertEqual(wizard.ocr.currentData(), "paddle")
             for task, check in wizard.choices:
                 check.setChecked(task.kind == "ocr")
+            self.assertEqual([(task.kind, task.value) for task in wizard.selected_tasks()], [("ocr", "paddle")])
+            wizard.ocr.setCurrentIndex(wizard.ocr.findData("windows"))
             self.assertFalse(wizard.selected_tasks())
             with patch("wordcel.gui.language_setup.LanguageSetup") as setup:
                 wizard.accept()
@@ -328,6 +330,16 @@ class FirstRunTests(unittest.TestCase):
             self.assertEqual(self.settings.value("profiles/tr/ocr_provider"), "windows")
             wizard.ocr.setCurrentIndex(wizard.ocr.findData("paddle"))
             self.assertEqual([(task.kind, task.value) for task in wizard.selected_tasks()], [("ocr", "paddle")])
+
+    def test_turkish_setup_preserves_saved_ocr_choice(self):
+        self.settings.setValue("profiles/tr/ocr_provider", "screenai")
+        wizard = LanguageSuggestion(self.window, "tr")
+        self.addCleanup(wizard.deleteLater)
+        self.assertEqual(wizard.ocr.currentData(), "screenai")
+
+    def test_turkish_default_precedes_apple_vision(self):
+        from wordcel.language.support import default_ocr_provider
+        self.assertEqual(default_ocr_provider("tr", "darwin", ("tr",)), "paddle")
 
     def test_setup_can_skip_ocr_and_translation_and_offers_japanese_font(self):
         for task, check in self.wizard.choices:

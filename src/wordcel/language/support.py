@@ -108,6 +108,8 @@ def ocr_supported(code, provider=None, platform=None, vision_languages=None):
 
 
 def default_ocr_provider(code, platform=None, vision_languages=None):
+    if code == "tr":
+        return "paddle"
     if platform is None:
         import sys
         platform = sys.platform

@@ -148,7 +148,9 @@ class LanguageSuggestion(QDialog):
                 self.ocr.addItem(label, provider)
         saved = window.settings.value(f"profiles/{self.profile}/ocr_provider", "")
         installed = [provider for provider in available if ocr_ready(provider, window.settings.value("screenai_directory", ""))]
-        selected = saved if saved in available else next(iter(installed), default_ocr_provider(self.language))
+        default = default_ocr_provider(self.language)
+        preferred = default if self.language == "tr" else next(iter(installed), default)
+        selected = saved if saved in available else preferred
         self.ocr.setCurrentIndex(max(0, self.ocr.findData(selected)))
         if "ocr" in resource_rows:
             resource_rows["ocr"].addWidget(self.ocr, 1)
