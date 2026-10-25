@@ -1,13 +1,14 @@
 ﻿# Wordcel
 
+Windows and macOS popup dictionary for games, subtitles and other screen text.
+
 [Download](https://github.com/namidanokisetsu/wordcel/releases) · [User guide](docs/USER_GUIDE.md)
 
 ![Wordcel lookup demo](docs/images/lookup-demo.gif)
 
-Wordcel is a Windows and macOS popup dictionary for games, subtitles and other screen text. Look up words by holding a shortcut or hovering over a chosen scan area, or search typed and selected text. You can hear pronunciations, translate sentences and longer passages, and save words to Anki with definitions, sentence context, screenshots and available audio.
+Look up words by holding a shortcut or hovering over a chosen scan area, or search typed / selected text. You can hear pronunciations, translate sentences, and save words to Anki with definitions, sentence context, screenshots and available audio.
 
-Japanese dictionaries provide readings, pitch accent and kanji details. Choose the dictionaries and models to download during setup. OCR, lookup and translation then work offline, with optional online pronunciation recordings.
-
+Works fully offline after initial setup, with optional online pronunciation recordings.
 
 - App: Python, PyQt6, SQLite.
 - Dictionaries: Yomitan.
