@@ -33,8 +33,9 @@ def _shape(name):
     bounds = renderer.boundsOnElement("shape")
     center = bounds.center()
     scale = 20 / max(bounds.width(), bounds.height())
+    # Normalize shape size without cancelling the raster's display-scale transform.
     return (f'<g transform="translate(12 12) scale({scale}) '
-            f'translate({-center.x()} {-center.y()})" vector-effect="non-scaling-stroke">{shape}</g>')
+            f'translate({-center.x()} {-center.y()})" stroke-width="{1.6 / scale}">{shape}</g>')
 
 
 def action_icon(name, color):
