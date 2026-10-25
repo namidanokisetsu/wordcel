@@ -125,6 +125,30 @@ class QuickLookupTests(unittest.TestCase):
             self.assertEqual(scroller.header.y() + baseline(scroller.header), original)
             self.assertLess(self.window.audio_actions.geometry().bottom(), scroller.header.height())
 
+    def test_footer_actions_share_heading_right_edge_with_and_without_scrollbar(self):
+        self.window.show_entries((entry(definitions=("meaning\n" * 80,)),), peek=True)
+        self.window.pin.setChecked(True)
+        browser = self.window.browser
+        for width in (360, 620):
+            self.window.resize(width, 400)
+            for policy in (Qt.ScrollBarPolicy.ScrollBarAlwaysOn, Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
+                           Qt.ScrollBarPolicy.ScrollBarAlwaysOn):
+                with self.subTest(width=width, policy=policy):
+                    browser.setVerticalScrollBarPolicy(policy)
+                    self.app.processEvents()
+                    self.wait_until(lambda: not self.window.render_timer.isActive())
+                    self.app.processEvents()
+                    top = self.window.audio_button
+                    bottom = self.window.dismiss_button
+                    self.assertTrue(top.isVisible())
+                    self.assertTrue(bottom.isVisible())
+                    self.assertEqual(top.mapTo(self.window, top.rect().topRight()).x(),
+                                     bottom.mapTo(self.window, bottom.rect().topRight()).x())
+        self.window.pin.setChecked(False)
+        self.window.show_entries((entry(),))
+        self.app.processEvents()
+        self.assertEqual(self.window.actions_row.layout().contentsMargins().right(), 0)
+
     def test_translation_default_split_is_equal_and_user_split_survives_resize(self):
         self.window.open_translation()
         panel = self.window.translation_panel

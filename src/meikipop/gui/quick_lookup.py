@@ -2429,6 +2429,14 @@ class QuickLookupWindow(QDialog):
         return sum(button.width() for button in buttons) + len(buttons) * self.audio_actions.layout().spacing()
 
     def _position_actions(self, *_):
+        toolbar = self.actions_row.layout()
+        margin = 0
+        if self._inline_actions():
+            viewport = self.browser.viewport()
+            margin = (self.browser.width() - viewport.geometry().right() - 1
+                      + round(self.browser.document().documentMargin()))
+        if toolbar.contentsMargins().right() != margin:
+            toolbar.setContentsMargins(0, 0, margin, 0)
         self._position_headword_actions()
         if not self._inline_actions() or self.audio_actions.parentWidget() is not self.browser.viewport():
             return

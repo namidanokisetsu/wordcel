@@ -93,6 +93,8 @@ smaller actions center on the line. Pinning preserves the text baseline. Icon ac
 one square button geometry; reading surfaces share a zero document margin.
 Action SVGs render at the requested display scale; audio keeps natural proportions
 and Close uses a smaller drawing within the shared button geometry.
+Pinned dictionary footer actions share the heading actions' viewport right edge,
+including the scrollbar gutter as it appears or disappears.
 Reading fonts prefer antialiased outlines without grid hinting; family and size remain configurable.
 Button visibility and sentence size are saved per profile.
 Multiple headword/reading groups have their own audio and Anki controls anchored
