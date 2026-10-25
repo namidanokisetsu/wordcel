@@ -121,10 +121,12 @@ Pinned results have no definition limit. Turkish misses can still show the analy
 grammar, and screen lookup keeps available spelling suggestions.
 These include accent alternatives of recovered Turkish roots, shown as links
 without replacing the original analysis.
-Settings save immediately. The language selector also changes the active lookup
-language; most preferences belong to that language. **Lookup** also contains
-the app-wide text shortcut and Windows startup setting. The text shortcut
-starts disabled. **First dictionary only** limits preview to the first matching
+Settings save immediately. The sidebar lists **App**, **Storage**, then **Profiles**.
+Use **+** beside Profiles to add a profile and its **…** menu to activate,
+duplicate, reorder or delete the selected profile. Editing a profile does not
+activate it; deleting it keeps downloaded resources. Startup and shared connections
+are under App. Lookup and appearance settings belong to each named profile.
+The text shortcut starts disabled. **First dictionary only** limits preview to the first matching
 dictionary; **Text scale** scales word, definition and sentence sizes together.
 
 ## Audio and translation
