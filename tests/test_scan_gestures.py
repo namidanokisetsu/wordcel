@@ -115,15 +115,17 @@ class ScanGestureTests(unittest.TestCase):
         self.input.move(30, 40)
         self.assertEqual(moved.call_count, 2)
 
-    def test_popup_click_drag_and_release_are_consumed_as_one_gesture(self):
+    def test_popup_drag_forwards_moves_without_suppressing_the_cursor(self):
         self.input.visible.set()
         self.input.popup_handle = 123
         self.input.popup_mouse_handle = 123
         with patch("wordcel.utils.window_focus.route_popup_mouse", return_value=True) as route:
             self.assertFalse(self.input.filter_mouse(0x201, None))
             route.assert_called_once_with(123, 0x201, None)
+            suppressed = self.input.clicks.suppress_event.call_count
             self.assertFalse(self.input.filter_mouse(0x200, None))
             route.assert_called_with(123, 0x200, None, captured=True, buttons=1)
+            self.assertEqual(self.input.clicks.suppress_event.call_count, suppressed)
             self.input.popup_mouse_handle = None  # Editing may activate the popup mid-click.
             route.return_value = False
             self.assertFalse(self.input.filter_mouse(0x202, None))

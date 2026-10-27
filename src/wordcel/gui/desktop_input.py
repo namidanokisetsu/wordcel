@@ -250,7 +250,9 @@ class DesktopInput(QObject):
                 self.clicks.suppress_event()
                 return False
         if self._route_popup_mouse(message, data):
-            self.clicks.suppress_event()
+            # Suppressing WM_MOUSEMOVE also freezes the system cursor.
+            if message != 0x200:
+                self.clicks.suppress_event()
             return False
         return True
 
