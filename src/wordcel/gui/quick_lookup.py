@@ -2789,7 +2789,8 @@ class QuickLookupWindow(QDialog):
             self._anki_check_error = ""
             words = tuple(dict.fromkeys(key[0] for key in groups))
             self._anki_check_task = AnkiTask(lambda: AnkiClient(options).existing_notes(words),
-                                            (identity, dict(self._anki_recent_saves)), self)
+                                            (identity, {key: self._anki_recent_saves[key] for key in groups
+                                                        if key in self._anki_recent_saves}), self)
             self._anki_check_task.finished.connect(self._anki_existing_finished)
             self._anki_check_task.thread.start()
         existing = self._existing_anki_notes(identity)
@@ -2867,6 +2868,9 @@ class QuickLookupWindow(QDialog):
                             and self._anki_recent_saves.get(key) == saved
                             and saved[0] not in found.get(key[0], ())):
                         del self._anki_recent_saves[key]
+                        if (self._anki_saved_revision == identity[0]
+                                and self._anki_saved_notes.get(key) == saved):
+                            del self._anki_saved_notes[key]
         self.update_anki()
 
     def add_to_anki(self, *, headword=None):

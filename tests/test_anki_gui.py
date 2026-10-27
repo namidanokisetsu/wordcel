@@ -418,6 +418,28 @@ class AnkiGuiTests(unittest.TestCase):
         self.wait_until(lambda: window._anki_check_task is None)
         self.assertEqual(window.anki_button.property('action_name'), 'anki')
 
+    def test_deleted_saved_note_can_be_added_again_in_same_lookup(self):
+        window = self.anki_window()
+        word = Entry("1", "cat", "", "Words", "ja", ("cat",))
+        with patch("wordcel.anki.AnkiClient.existing_notes", return_value={"cat": (123,)}), \
+                patch("wordcel.gui.anki.export_note", return_value=123):
+            window.show_entries([word], "cat")
+            self.wait_until(lambda: window._anki_check_task is None)
+            window._anki_existing_notes = {}
+            window.add_to_anki()
+            self.wait_until(lambda: window._anki_task is None and window._anki_check_task is None)
+        with patch("wordcel.anki.AnkiClient.existing_notes", return_value={}):
+            window._anki_check_identity = None
+            window.update_anki()
+            self.wait_until(lambda: window._anki_check_task is None)
+            self.assertEqual(window.anki_button.toolTip(), "Add to Anki")
+            self.assertEqual(window._anki_saved_notes, {})
+            self.assertEqual(window._anki_recent_saves, {})
+            with patch("wordcel.gui.anki.export_note", return_value=456) as save:
+                window.add_to_anki()
+                self.wait_until(lambda: window._anki_task is None and window._anki_check_task is None)
+                save.assert_called_once()
+
     def test_one_click_snapshots_all_entries_context_and_selection_without_a_dialog(self):
         from PyQt6.QtGui import QTextCursor
         window = self.anki_window()
@@ -431,11 +453,14 @@ class AnkiGuiTests(unittest.TestCase):
         window.browser.setTextCursor(cursor)
         gate = threading.Event()
         threads = []
+        saved = threading.Event()
         def add(values):
             threads.append(threading.get_ident())
             gate.wait(2)
+            saved.set()
             return 123
-        with patch("wordcel.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client, \
+                patch("wordcel.anki.AnkiClient.existing_notes", side_effect=lambda words: {"cat": (123,)} if saved.is_set() else {}):
             client.return_value.add.side_effect = add
             window.anki_button.click()
             self.assertIsNotNone(window._anki_task)
@@ -445,7 +470,7 @@ class AnkiGuiTests(unittest.TestCase):
             window.set_context("changed context")
             window.browser.setHtml("changed selection")
             gate.set()
-            self.wait_until(lambda: window._anki_task is None)
+            self.wait_until(lambda: window._anki_task is None and window._anki_check_task is None)
             with patch("wordcel.anki.AnkiClient") as browser_client:
                 window.add_to_anki()
                 self.wait_until(lambda: window._anki_browse_task is None)
@@ -473,7 +498,7 @@ class AnkiGuiTests(unittest.TestCase):
             window.add_to_anki()
             window.show_entries([Entry("2", "dog", "", "Words", "ja", ("dog",))], "dog")
             gate.set()
-            self.wait_until(lambda: window._anki_task is None)
+            self.wait_until(lambda: window._anki_task is None and window._anki_check_task is None)
         self.assertTrue(window.anki_button.isEnabled())
         self.assertEqual(window.anki_button.toolTip(), "Add to Anki")
         self.assertEqual(client.return_value.add.call_args.args[0]["expression"], "cat")
@@ -488,18 +513,19 @@ class AnkiGuiTests(unittest.TestCase):
         first = window._headword_rows[("same", "one")][1]
         second = window._headword_rows[("same", "two")][1]
         self.assertTrue(window.anki_button.isHidden())
-        with patch("wordcel.gui.anki.AnkiClient") as client:
+        with patch("wordcel.gui.anki.AnkiClient") as client, \
+                patch("wordcel.anki.AnkiClient.existing_notes", side_effect=ValueError("offline")):
             client.return_value.add.side_effect = (123, 456)
             second.click()
-            self.wait_until(lambda: window._anki_task is None)
+            self.wait_until(lambda: window._anki_task is None and window._anki_check_task is None)
             values = client.return_value.add.call_args.args[0]
             self.assertIn("second reading", values["glossary"])
             self.assertIn("other dictionary", values["glossary"])
             self.assertNotIn("first reading", values["glossary"])
             self.assertEqual(second.toolTip(), "Show in Anki")
-            self.assertEqual(first.toolTip(), "Add to Anki")
+            self.assertEqual(first.toolTip(), "Add to Anki (status unavailable)")
             first.click()
-            self.wait_until(lambda: window._anki_task is None)
+            self.wait_until(lambda: window._anki_task is None and window._anki_check_task is None)
             self.assertEqual(first.toolTip(), "Show in Anki")
             with patch("wordcel.anki.AnkiClient") as browser_client:
                 second.click()
