@@ -9,7 +9,7 @@ import sys
 import threading
 import unicodedata
 
-from PyQt6.QtCore import QObject, QEvent, QLocale, QPointF, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QObject, QEvent, QLocale, QPoint, QPointF, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QCursor, QFont, QFontMetricsF, QImage, QKeyEvent, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat, QTextLayout, QTextOption
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel,

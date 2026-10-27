@@ -2601,6 +2601,17 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(self.window.pos(), position)
         self.assertEqual(self.settings.value("corner_position", type=QPoint), position)
 
+    def test_startup_restores_saved_corner_position(self):
+        position = QPoint(120, 240)
+        self.settings.setValue("corner_position", position)
+        window = QuickLookupWindow(self.temp.name, lambda: FakeEngine(), self.settings)
+        try:
+            self.assertEqual(window._corner_position, position)
+        finally:
+            window.shutdown()
+            window.worker._thread.join(timeout=2)
+            window.deleteLater()
+
     def test_macos_search_anchors_below_menu_bar_and_windows_stays_at_bottom(self):
         area = QRect(1440, 38, 1440, 840)
         screen = Mock()
