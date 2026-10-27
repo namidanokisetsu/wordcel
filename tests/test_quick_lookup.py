@@ -1600,6 +1600,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(self.window._context, "猫がいる。")
 
     def test_short_preview_fits_content_and_pin_restores_reading_size(self):
+        self.window._manual_at_cursor = True
         self.window.resize(500, 420)
         self.settings.setValue("preview_max_height", 300)
         self.window.show_entries((entry(definitions=("cat",)),), "猫", peek=True)
@@ -2587,6 +2588,11 @@ class QuickLookupTests(unittest.TestCase):
         self.window.hide()
         self.assertEqual(self.settings.value("corner_size", type=QSize), size)
         self.window.show_entries((entry(),), "猫", peek=True)
+        self.assertEqual(self.window._normal_size, QSize(480, 340))
+        self.assertEqual(self.window.width(), 480)
+        self.window.pin.setChecked(True)
+        self.assertEqual(self.window._normal_size, QSize(480, 340))
+        self.window.pin.setChecked(False)
         self.window.open_search()
         self.assertEqual(self.window.size(), size)
 

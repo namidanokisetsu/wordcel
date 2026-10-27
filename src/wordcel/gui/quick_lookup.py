@@ -2467,10 +2467,13 @@ class QuickLookupWindow(QDialog):
                 self.move(*popup_position(point.x(), point.y(), self.size(), area, config.popup_position_mode))
 
     def _set_peek(self, peek):
+        from_corner = peek and not self._peek and not self._manual_at_cursor
         if peek:
             self._remember_corner_size()
         self._source_overlay = bool(peek) and sys.platform == "win32"
-        if peek and not self._peek and (self._reading_size_custom or self.size() != self._auto_fit_size):
+        if from_corner:
+            self.resize(self._normal_size)
+        elif peek and not self._peek and (self._reading_size_custom or self.size() != self._auto_fit_size):
             self._normal_size = self.size()
         elif not peek and self._peek and not self.is_pinned:
             self.setMinimumHeight(190)
@@ -3217,7 +3220,7 @@ class QuickLookupWindow(QDialog):
                     bar.setValue(bar.value() + direction * bar.pageStep())
             return True
         if (event.type() == QEvent.Type.MouseButtonPress and isinstance(watched, QWidget)
-                and watched.inherits("QSizeGrip")):
+                and watched.inherits("QSizeGrip") and (self._peek or self._manual_at_cursor)):
             self._reading_size_custom = True
         if (event.type() == QEvent.Type.KeyPress and watched is getattr(self, "search", None)
                 and self.browser.section_scroll.enabled
@@ -3319,7 +3322,8 @@ class QuickLookupWindow(QDialog):
                        Qt.CursorShape.SizeHorCursor if horizontal else Qt.CursorShape.SizeVerCursor if vertical else
                        Qt.CursorShape.ArrowCursor)
         if event.type() == QEvent.Type.MouseButtonPress and edges and event.button() == Qt.MouseButton.LeftButton:
-            self._reading_size_custom = True
+            if self._peek or self._manual_at_cursor:
+                self._reading_size_custom = True
             if not self.windowHandle() or not self.windowHandle().startSystemResize(edges):
                 self._resize_start = (point, self.geometry(), edges)
             return True
