@@ -9,7 +9,7 @@ import sys
 import threading
 import unicodedata
 
-from PyQt6.QtCore import QObject, QEvent, QLocale, QPoint, QPointF, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QObject, QEvent, QLocale, QPointF, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QCursor, QFont, QFontMetricsF, QImage, QKeyEvent, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat, QTextLayout, QTextOption
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel,
@@ -969,8 +969,6 @@ class QuickLookupWindow(QDialog):
         self.resize(480, 340)
         self._normal_size = QSize(480, 340)
         self._corner_size = self.settings.value("corner_size", QSize(480, 340), type=QSize)
-        self._corner_position = (self.settings.value("corner_position", type=QPoint)
-                                 if self.settings.contains("corner_position") else None)
         self._reading_size_custom = False
         self._auto_fit_size = None
         self._preview_viewport_height = 0
@@ -2452,8 +2450,6 @@ class QuickLookupWindow(QDialog):
         if tray and not tray.isNull():
             point = tray.center()
         screen = QApplication.screenAt(point) or QApplication.primaryScreen()
-        if not self._peek and not self._manual_at_cursor and self._corner_position is not None:
-            screen = QApplication.screenAt(self._corner_position) or screen
         if screen is not None:
             area = screen.availableGeometry()
             self.resize(min(self.width(), area.width()), min(self.height(), area.height()))
@@ -2465,8 +2461,6 @@ class QuickLookupWindow(QDialog):
                     if tray and not tray.isNull():
                         y = max(y, tray.bottom() + 8)
                     y = min(y, area.bottom() + 1 - self.height())
-                if self._corner_position is not None:
-                    x, y = self._corner_position.x() + self.width() // 2, self._corner_position.y()
                 self.move(max(area.left(), min(x - self.width() // 2, area.right() + 1 - self.width())),
                           max(area.top(), min(y, area.bottom() + 1 - self.height())))
             else:
@@ -3447,9 +3441,7 @@ class QuickLookupWindow(QDialog):
     def _remember_corner_size(self, *, force=False):
         if (force or self.isVisible()) and not self._peek and not self._manual_at_cursor:
             self._corner_size = self.size()
-            self._corner_position = self.pos()
             self.settings.setValue("corner_size", self._corner_size)
-            self.settings.setValue("corner_position", self._corner_position)
 
     def remember_foreground(self):
         if QApplication.platformName() != "offscreen":

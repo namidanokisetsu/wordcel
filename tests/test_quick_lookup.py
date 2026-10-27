@@ -2599,15 +2599,26 @@ class QuickLookupTests(unittest.TestCase):
         self.window.open_search()
         self.assertEqual(self.window.size(), size)
         self.assertEqual(self.window.pos(), position)
-        self.assertEqual(self.settings.value("corner_position", type=QPoint), position)
 
-    def test_startup_restores_saved_corner_position(self):
+    def test_corner_search_ignores_saved_position_and_reanchors_after_drag(self):
         position = QPoint(120, 240)
         self.settings.setValue("corner_position", position)
         window = QuickLookupWindow(self.temp.name, lambda: FakeEngine(), self.settings)
         try:
-            self.assertEqual(window._corner_position, position)
+            area = QApplication.primaryScreen().availableGeometry()
+            tray = QRect(area.right() - 30, area.bottom() + 1, 24, 24)
+            window.tray_geometry = lambda: tray
+            with patch("wordcel.gui.quick_lookup.sys.platform", "win32"):
+                window.open_search()
+                expected = window.pos()
+                self.assertEqual(window.geometry().bottom(), area.bottom())
+                self.assertEqual(window.geometry().right(), area.right())
+                window.move(position)
+                window.hide()
+                window.open_search()
+                self.assertEqual(window.pos(), expected)
         finally:
+            window.hide()
             window.shutdown()
             window.worker._thread.join(timeout=2)
             window.deleteLater()
