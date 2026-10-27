@@ -249,8 +249,7 @@ at runtime.
 
 Routine reinstalls are local Windows test builds with source commits pushed to
 GitHub. Public releases follow user testing and an explicit release request;
-retain one public app release and its commit history; remove older app release
-pages/assets and tags.
+mark new releases as latest and retain older releases, assets and tags.
 Windows setup skips the license, welcome, destination and confirmation pages;
 license notices remain bundled with the app.
 

@@ -13,7 +13,7 @@
 - Make small, logical commits with focused validation. Separate independent changes into reviewable commits; do not accumulate unrelated work into enormous diffs.
 - Reinstall means rebuild and install a local Windows test/developer build, preserve settings/data, and commit/push source changes to GitHub. Do not create a release or tag by default.
 - Public releases require an explicit request after user testing and a meaningful batch of changes, typically a day's work. Use one version per finished batch; tag only after validation and local Windows installation succeed. Start GitHub builds without waiting for macOS installers.
-- Publish the app as a single public Wordcel release marked latest. Once its replacement is available, remove older app release pages/assets and tags.
+- Mark new public releases as latest and retain older releases, assets and tags.
 - Keep NLP imports lazy and model/data setup explicit. Runtime Turkish lookup must work offline.
 - Keep validation efficient: use small fixtures and run `python -m unittest discover -s tests` once with the project environment. Avoid computer-use sessions, repeated live checks, heavy model tests and benchmarks unless requested or needed to diagnose a specific failure. Leave broad hands-on acceptance to the user; run actual-model Turkish smoke checks only when needed for an analysis change.
 - Keep documentation slim: update the existing user guide/development notes, avoid repeated status summaries, and add no agent worklogs or extra status documents.
