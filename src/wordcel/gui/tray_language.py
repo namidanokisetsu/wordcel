@@ -1,37 +1,51 @@
 """Language indicator for the system tray."""
-from functools import lru_cache
-
 from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetricsF, QIcon, QPainter, QPixmap
 
 
-@lru_cache(maxsize=128)
-def language_icon(language, mask=False):
-    label = language.split("-", 1)[0].upper() or "?"
-    pixmap = QPixmap(64, 64)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-    if not mask:
+class TrayLanguageIcons:
+    def __init__(self, base_icon, mask=False):
+        self.base_icon = base_icon
+        self.mask = mask
+        self.icons = {}
+
+    def icon(self, language):
+        label = language.split("-", 1)[0].upper() or "?"
+        if label in self.icons:
+            return self.icons[label]
+        pixmap = QPixmap(64, 64)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        self.base_icon.paint(painter, 0, 0, 64, 64)
+        badge = QRectF(29, 40, 35, 24)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#283e52"))
-        painter.drawRoundedRect(QRectF(2, 2, 60, 60), 12, 12)
-    painter.setPen(QColor("black" if mask else "white"))
-    font = QFont()
-    font.setBold(True)
-    font.setPixelSize(35)
-    while QFontMetricsF(font).horizontalAdvance(label) > 56 and font.pixelSize() > 8:
-        font.setPixelSize(font.pixelSize() - 1)
-    painter.setFont(font)
-    painter.drawText(QRectF(2, 2, 60, 60), Qt.AlignmentFlag.AlignCenter, label)
-    painter.end()
-    icon = QIcon(pixmap)
-    icon.setIsMask(mask)
-    return icon
+        if self.mask:
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+            painter.setBrush(Qt.GlobalColor.transparent)
+            painter.drawRoundedRect(badge.adjusted(-2, -2, 0, 0), 6, 6)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        painter.setBrush(QColor("black" if self.mask else "#283e52"))
+        painter.drawRoundedRect(badge, 5, 5)
+        font = QFont()
+        font.setBold(True)
+        font.setPixelSize(21)
+        while QFontMetricsF(font).horizontalAdvance(label) > badge.width() - 4 and font.pixelSize() > 8:
+            font.setPixelSize(font.pixelSize() - 1)
+        painter.setFont(font)
+        if self.mask:
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        painter.setPen(QColor("white"))
+        painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, label)
+        painter.end()
+        icon = QIcon(pixmap)
+        icon.setIsMask(self.mask)
+        self.icons[label] = icon
+        return icon
 
 
-def update_tray_profile(tray, window, mask=False):
+def update_tray_profile(tray, window, icons):
     language = window.preferred_foreign
-    tray.setIcon(language_icon(language, mask))
+    tray.setIcon(icons.icon(language))
     tray.setToolTip(f"Wordcel: {window.source.currentText()} ({language})")

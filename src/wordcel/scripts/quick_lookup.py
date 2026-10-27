@@ -216,10 +216,11 @@ def main(argv=None):
         icon = app.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView)
     app.setWindowIcon(icon)
     window.setWindowIcon(icon)
-    from wordcel.gui.tray_language import update_tray_profile
+    from wordcel.gui.tray_language import TrayLanguageIcons, update_tray_profile
     tray = QSystemTrayIcon(app)
+    tray_icons = TrayLanguageIcons(icon, sys.platform == "darwin")
     def update_tray(*_):
-        update_tray_profile(tray, window, sys.platform == "darwin")
+        update_tray_profile(tray, window, tray_icons)
     window.mode_changed.connect(update_tray)
     update_tray()
     window.tray_geometry = tray.geometry
