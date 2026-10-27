@@ -9,7 +9,7 @@ from PyQt6.QtCore import QObject, QPoint, QSignalBlocker, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAbstractTextDocumentLayout, QPalette, QTextDocument
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFormLayout,
                             QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                            QMessageBox, QPushButton, QStyledItemDelegate, QStyle, QVBoxLayout, QWidget)
+                            QMessageBox, QPushButton, QStyledItemDelegate, QStyle, QTextBrowser, QVBoxLayout, QWidget)
 
 from wordcel.history import EncounterSession, HistoryStore, primary_entries
 
@@ -226,12 +226,19 @@ class CardDelegate(QStyledItemDelegate):
         self.documents = OrderedDict()
 
     def document(self, option, index):
-        key = (index.data(Qt.ItemDataRole.DisplayRole), option.font.toString(), self.parent().viewport().width())
+        language = index.data(Qt.ItemDataRole.UserRole + 1) or ""
+        key = (index.data(Qt.ItemDataRole.DisplayRole), option.font.toString(), language, self.parent().viewport().width())
         if key in self.documents:
             self.documents.move_to_end(key)
             return self.documents[key]
         doc = QTextDocument()
-        doc.setDefaultFont(option.font)
+        from wordcel.gui.typography import document_families
+        font = option.font
+        families = document_families(language)
+        if families:
+            font.setFamilies(list(families))
+        doc.setDefaultFont(font)
+        doc.setDocumentMargin(self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutHorizontalSpacing) * 2)
         doc.setHtml(index.data(Qt.ItemDataRole.DisplayRole))
         doc.setTextWidth(max(1, self.parent().viewport().width()))
         self.documents[key] = doc
@@ -254,6 +261,11 @@ class CardDelegate(QStyledItemDelegate):
             context.palette.setColor(QPalette.ColorRole.Text, option.palette.highlightedText().color())
         doc.documentLayout().draw(painter, context)
         painter.restore()
+        if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
+            painter.save()
+            painter.setPen(option.palette.mid().color())
+            painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
+            painter.restore()
 
 
 class CardList(QListWidget):
@@ -300,6 +312,7 @@ class HistoryWindow(QDialog):
         self.cards.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.cards.itemActivated.connect(self.open_card)
         self.cards.itemClicked.connect(self.open_card)
+        self.detail = None
         layout.addWidget(self.cards, 1)
         self.status = QLabel()
         layout.addWidget(self.status)
@@ -417,6 +430,9 @@ class HistoryWindow(QDialog):
                     if isinstance(identity, str):
                         item.setFlags(Qt.ItemFlag.NoItemFlags)
                     self.cards.insertItem(index, item)
+                language = self.rows[identity]["language"] if identity in self.rows else ""
+                if item.data(Qt.ItemDataRole.UserRole + 1) != language:
+                    item.setData(Qt.ItemDataRole.UserRole + 1, language)
                 if item.text() != html:
                     changed = True
                     item.setText(html)
@@ -439,8 +455,31 @@ class HistoryWindow(QDialog):
 
     def open_card(self, item):
         row = self.rows.get(item.data(Qt.ItemDataRole.UserRole))
-        if row:
-            self.service.window.restore_encounter(row)
+        if not row:
+            return
+        if self.detail is not None:
+            self.detail.close()
+        dialog = QDialog(self)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        dialog.setWindowTitle("Encounter")
+        dialog.resize(600, 300)
+        layout = QVBoxLayout(dialog)
+        sentence = QTextBrowser()
+        from wordcel.gui.typography import default_family, document_font
+        sentence.setFont(document_font(default_family(row["language"]), 22, row["language"]))
+        text, start, end = row["context"], row["start"], row["end"]
+        sentence.setHtml((escape(text[:start]) + "<b>" + escape(text[start:end]) + "</b>" +
+                          escape(text[end:])).replace("\n", "<br>"))
+        layout.addWidget(sentence)
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+        lookup = QPushButton("Look up")
+        lookup.clicked.connect(lambda: self.service.window.restore_encounter(row))
+        buttons.addWidget(lookup)
+        layout.addLayout(buttons)
+        self.detail = dialog
+        dialog.finished.connect(lambda: setattr(self, "detail", None) if self.detail is dialog else None)
+        dialog.show()
 
     def delete_selected(self):
         item = self.cards.currentItem()

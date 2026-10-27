@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import zipfile
 
 from PyQt6.QtCore import QSettings
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication, QPushButton, QTextBrowser, QWidget
 
 from wordcel.dictionary.library import Entry
 from wordcel.dictionary.search import SearchResult
@@ -121,6 +121,19 @@ class HistoryRecordingTests(unittest.TestCase):
         self.assertIs(browser.cards.currentItem(), item)
         self.assertEqual(browser.cards.verticalScrollBar().value(), scroll)
         self.assertIn("&lt;<b>猫</b>&gt;", browser.cards.item(1).text())
+        browser.close()
+
+    def test_open_card_shows_sentence_and_lookup_is_explicit(self):
+        browser = HistoryWindow(self.service)
+        row = dict(id=1, timestamp=1000000, language="ja", form="?", context="?????",
+                   start=0, end=1, words=[("ja", "?", "??")], excerpt="")
+        self.window.restore_encounter = Mock()
+        browser.receive(browser.revision, ([row], 1, ("ja",)))
+        browser.open_card(browser.cards.item(1))
+        self.window.restore_encounter.assert_not_called()
+        self.assertEqual(browser.detail.findChild(QTextBrowser).toPlainText(), row["context"])
+        browser.detail.findChild(QPushButton, "").click()
+        self.window.restore_encounter.assert_called_once_with(row)
         browser.close()
 
     def test_worker_records_multiple_pins_and_refreshes_unfiltered_cards(self):

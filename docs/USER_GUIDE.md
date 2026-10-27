@@ -66,8 +66,8 @@ existing encounters available and preserves your recording choices.
 Search by word, reading, encountered form, stored meaning or sentence fragment;
 Japanese fragments need no spaces. Meaning search uses the wording seen when
 recorded, without translation or synonyms. Each visit has its own card, with
-candidate headwords grouped together. Open a card for fresh dictionary results,
-pronunciation and Anki actions, without autoplay or recording another encounter.
+candidate headwords grouped together. Open a card to view its sentence; **Look up**
+opens fresh dictionary results without autoplay or recording another encounter.
 Select a card and choose **Delete** to remove it.
 
 History stores text locally, without screenshots, audio or page addresses.
