@@ -66,9 +66,10 @@ existing encounters available and preserves your recording choices.
 Search by word, reading, encountered form, stored meaning or sentence fragment;
 Japanese fragments need no spaces. Meaning search uses the wording seen when
 recorded, without translation or synonyms. Each visit has its own card, with
-candidate headwords grouped together. Open a card to view its sentence; **Look up**
-opens fresh dictionary results without autoplay or recording another encounter.
-Select a card and choose **Delete entry** to remove it.
+candidate headwords grouped together. Double-click a card to open fresh dictionary
+results without autoplay or recording another encounter. Copy from the card or its
+right-click menu. The menu also offers **Add to Anki** and **Delete**; select a
+card and press Delete to remove it.
 
 History stores text locally, without screenshots, audio or page addresses.
 Anki remains the destination for deliberate study.

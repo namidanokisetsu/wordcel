@@ -1835,6 +1835,14 @@ class QuickLookupWindow(QDialog):
                     end = min(end, start + result.matched_length)
                 self.set_context(sentence, start, end)
             self.record_encounter(restored=bool(restored))
+        if getattr(self, "_history_anki_revision", None) == revision:
+            self._history_anki_revision = None
+            if not result.entries:
+                self.show_message("No dictionary entry found")
+            elif not self.settings.value(f"profiles/{self.active_profile}/anki/enabled", False, bool):
+                self.show_message("Enable Anki in Settings")
+            else:
+                self.add_to_anki()
         self.status.setText(f"{language_name(result.source)} → {language_name(result.target)}")
         self.status.hide()
 
@@ -3478,7 +3486,7 @@ class QuickLookupWindow(QDialog):
         mode = "pinned" if self.is_pinned else "hover" if self._peek else "manual"
         self.lookup_history.display(result, context, start, end, mode, restored=restored)
 
-    def restore_encounter(self, row):
+    def restore_encounter(self, row, *, add_to_anki=False):
         self.open_search()
         history = self.lookup_history.browser
         if history is not None and history.isVisible():
@@ -3487,6 +3495,7 @@ class QuickLookupWindow(QDialog):
         with QSignalBlocker(self.search):
             self.search.setText(row["form"])
         self.submit(saved_encounter=row)
+        self._history_anki_revision = self.revision if add_to_anki else None
 
     def resume_setup(self):
         from wordcel.gui.first_run import offer_resources

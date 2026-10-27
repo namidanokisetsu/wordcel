@@ -5,11 +5,12 @@ from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QPoint, QSignalBlocker, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, QSignalBlocker, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAbstractTextDocumentLayout, QPalette, QTextDocument
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFormLayout,
                             QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                            QMessageBox, QPushButton, QStyledItemDelegate, QStyle, QTextBrowser, QVBoxLayout, QWidget)
+                            QApplication, QMenu, QMessageBox, QPushButton, QStyleOptionToolButton,
+                            QStyledItemDelegate, QStyle, QToolTip, QVBoxLayout, QWidget)
 
 from wordcel.history import EncounterSession, HistoryStore, primary_entries
 
@@ -221,9 +222,20 @@ class CardDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self.documents = OrderedDict()
 
+    def action_rects(self, option):
+        size = self.parent().style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize) + 10
+        margin = max(0, self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutHorizontalSpacing))
+        right = option.rect.right() - margin + 1
+        top = option.rect.top() + margin
+        return (QRect(right - 2 * size, top, size, size), QRect(right - size, top, size, size))
+
     def document(self, option, index):
         language = index.data(Qt.ItemDataRole.UserRole + 1) or ""
-        key = (index.data(Qt.ItemDataRole.DisplayRole), option.font.toString(), language, self.parent().viewport().width())
+        is_card = not isinstance(index.data(Qt.ItemDataRole.UserRole), str)
+        width = self.parent().viewport().width()
+        if is_card:
+            width -= 2 * (self.parent().style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize) + 10)
+        key = (index.data(Qt.ItemDataRole.DisplayRole), option.font.toString(), language, width)
         if key in self.documents:
             self.documents.move_to_end(key)
             return self.documents[key]
@@ -236,14 +248,18 @@ class CardDelegate(QStyledItemDelegate):
         doc.setDefaultFont(font)
         doc.setDocumentMargin(self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutHorizontalSpacing) * 2)
         doc.setHtml(index.data(Qt.ItemDataRole.DisplayRole))
-        doc.setTextWidth(max(1, self.parent().viewport().width()))
+        doc.setTextWidth(max(1, width))
         self.documents[key] = doc
         if len(self.documents) > 256:
             self.documents.popitem(last=False)
         return doc
 
     def sizeHint(self, option, index):
-        return self.document(option, index).size().toSize()
+        size = self.document(option, index).size().toSize()
+        if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
+            size.setHeight(max(size.height(), self.action_rects(option)[0].height() +
+                               2 * max(0, self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutVerticalSpacing))))
+        return size
 
     def paint(self, painter, option, index):
         painter.save()
@@ -259,12 +275,48 @@ class CardDelegate(QStyledItemDelegate):
         painter.restore()
         if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
             painter.save()
-            painter.setPen(option.palette.mid().color())
+            separator = Qt.GlobalColor.white if option.palette.base().color().lightness() < 128 else option.palette.mid().color()
+            painter.setPen(separator)
             painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
+            from wordcel.gui.action_icons import action_icon
+            for rect, name in zip(self.action_rects(option), ("copy_word", "copy_sentence")):
+                button = QStyleOptionToolButton()
+                button.rect = rect
+                button.state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_AutoRaise
+                button.icon = action_icon(name, option.palette.text().color().name())
+                button.iconSize = QSize(16, 16)
+                self.parent().style().drawComplexControl(QStyle.ComplexControl.CC_ToolButton, button, painter)
             painter.restore()
+
+    def editorEvent(self, event, model, option, index):
+        if isinstance(index.data(Qt.ItemDataRole.UserRole), str):
+            return False
+        if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+            for field, rect in zip(("form", "context"), self.action_rects(option)):
+                if rect.contains(event.pos()) and event.button() == Qt.MouseButton.LeftButton:
+                    if event.type() == QEvent.Type.MouseButtonRelease:
+                        row = self.parent().window().rows.get(index.data(Qt.ItemDataRole.UserRole))
+                        if row:
+                            QApplication.clipboard().setText(row[field])
+                    return True
+        return super().editorEvent(event, model, option, index)
+
+    def helpEvent(self, event, view, option, index):
+        if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
+            for label, rect in zip(("Copy word", "Copy sentence"), self.action_rects(option)):
+                if rect.contains(event.pos()):
+                    QToolTip.showText(event.globalPos(), label, view)
+                    return True
+        return super().helpEvent(event, view, option, index)
 
 
 class CardList(QListWidget):
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete:
+            self.window().delete_selected()
+            return
+        super().keyPressEvent(event)
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.scheduleDelayedItemsLayout()
@@ -302,16 +354,13 @@ class HistoryWindow(QDialog):
         self.cards.setItemDelegate(CardDelegate(self.cards))
         self.cards.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         self.cards.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.cards.itemActivated.connect(self.open_card)
-        self.cards.itemClicked.connect(self.open_card)
-        self.detail = None
+        self.cards.itemDoubleClicked.connect(self.open_card)
+        self.cards.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.cards.customContextMenuRequested.connect(self.card_menu)
         layout.addWidget(self.cards, 1)
         self.status = QLabel()
         layout.addWidget(self.status)
         footer = QHBoxLayout()
-        delete = QPushButton("Delete entry")
-        delete.clicked.connect(self.delete_selected)
-        footer.addWidget(delete)
         clear = QPushButton("Clear history")
         clear.clicked.connect(lambda: service.clear(self))
         footer.addWidget(clear)
@@ -448,31 +497,22 @@ class HistoryWindow(QDialog):
 
     def open_card(self, item):
         row = self.rows.get(item.data(Qt.ItemDataRole.UserRole))
+        if row:
+            self.service.window.restore_encounter(row)
+
+    def card_menu(self, position):
+        item = self.cards.itemAt(position)
+        row = self.rows.get(item.data(Qt.ItemDataRole.UserRole)) if item else None
         if not row:
             return
-        if self.detail is not None:
-            self.detail.close()
-        dialog = QDialog(self)
-        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        dialog.setWindowTitle("Encounter")
-        dialog.resize(600, 300)
-        layout = QVBoxLayout(dialog)
-        sentence = QTextBrowser()
-        from wordcel.gui.typography import default_family, document_font
-        sentence.setFont(document_font(default_family(row["language"]), 22, row["language"]))
-        text, start, end = row["context"], row["start"], row["end"]
-        sentence.setHtml((escape(text[:start]) + "<b>" + escape(text[start:end]) + "</b>" +
-                          escape(text[end:])).replace("\n", "<br>"))
-        layout.addWidget(sentence)
-        buttons = QHBoxLayout()
-        buttons.addStretch()
-        lookup = QPushButton("Look up")
-        lookup.clicked.connect(lambda: self.service.window.restore_encounter(row))
-        buttons.addWidget(lookup)
-        layout.addLayout(buttons)
-        self.detail = dialog
-        dialog.finished.connect(lambda: setattr(self, "detail", None) if self.detail is dialog else None)
-        dialog.show()
+        self.cards.setCurrentItem(item)
+        menu = QMenu(self.cards)
+        menu.addAction("Copy word", lambda: QApplication.clipboard().setText(row["form"]))
+        menu.addAction("Copy sentence", lambda: QApplication.clipboard().setText(row["context"]))
+        menu.addAction("Add to Anki", lambda: self.service.window.restore_encounter(row, add_to_anki=True))
+        menu.addSeparator()
+        menu.addAction("Delete", lambda: self.service.delete(row["id"]))
+        menu.exec(self.cards.viewport().mapToGlobal(position))
 
     def delete_selected(self):
         item = self.cards.currentItem()

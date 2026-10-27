@@ -8,8 +8,9 @@ import unittest
 from unittest.mock import Mock
 import zipfile
 
-from PyQt6.QtCore import QSettings
-from PyQt6.QtWidgets import QApplication, QPushButton, QTextBrowser, QWidget
+from PyQt6.QtCore import QSettings, Qt
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication, QStyleOptionViewItem, QWidget
 
 from wordcel.dictionary.library import Entry
 from wordcel.dictionary.search import SearchResult
@@ -123,17 +124,36 @@ class HistoryRecordingTests(unittest.TestCase):
         self.assertIn("&lt;<b>猫</b>&gt;", browser.cards.item(1).text())
         browser.close()
 
-    def test_open_card_shows_sentence_and_lookup_is_explicit(self):
+    def test_card_copy_actions_and_double_click_lookup(self):
         browser = HistoryWindow(self.service)
-        row = dict(id=1, timestamp=1000000, language="ja", form="?", context="?????",
-                   start=0, end=1, words=[("ja", "?", "??")], excerpt="")
+        row = dict(id=1, timestamp=1000000, language="ja", form="word", context="a sentence",
+                   start=0, end=1, words=[("ja", "word", "")], excerpt="")
         self.window.restore_encounter = Mock()
+        browser.show()
         browser.receive(browser.revision, ([row], 1, ("ja",)))
-        browser.open_card(browser.cards.item(1))
+        self.app.processEvents()
+        item = browser.cards.item(1)
+        option = QStyleOptionViewItem()
+        option.rect = browser.cards.visualItemRect(item)
+        rects = browser.cards.itemDelegate().action_rects(option)
+        for rect, expected in zip(rects, (row["form"], row["context"])):
+            QTest.mouseClick(browser.cards.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
+            self.assertEqual(self.app.clipboard().text(), expected)
         self.window.restore_encounter.assert_not_called()
-        self.assertEqual(browser.detail.findChild(QTextBrowser).toPlainText(), row["context"])
-        browser.detail.findChild(QPushButton, "").click()
+        browser.open_card(item)
         self.window.restore_encounter.assert_called_once_with(row)
+        browser.close()
+
+    def test_delete_key_removes_selected_card(self):
+        browser = HistoryWindow(self.service)
+        row = dict(id=1, timestamp=1000000, language="ja", form="word", context="sentence",
+                   start=0, end=1, words=[], excerpt="")
+        browser.show()
+        browser.receive(browser.revision, ([row], 1, ("ja",)))
+        browser.cards.setCurrentItem(browser.cards.item(1))
+        self.service.delete = Mock()
+        QTest.keyClick(browser.cards, Qt.Key.Key_Delete)
+        self.service.delete.assert_called_once_with(1)
         browser.close()
 
     def test_worker_records_multiple_pins_and_refreshes_unfiltered_cards(self):

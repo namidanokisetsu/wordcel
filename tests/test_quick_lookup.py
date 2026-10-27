@@ -101,6 +101,18 @@ class QuickLookupTests(unittest.TestCase):
             self.window.lookup_history.pin()
             write.assert_not_called()
 
+    def test_history_anki_waits_for_matching_lookup_and_saved_context(self):
+        row = dict(form="word", language="ja", context="the word", start=4, end=8)
+        self.settings.setValue(f"profiles/{self.window.active_profile}/anki/enabled", True)
+        with patch.object(self.window.worker, "request"), patch.object(self.window, "add_to_anki") as add:
+            self.window.restore_encounter(row, add_to_anki=True)
+            revision = self.window.revision
+            self.window.deliver(revision - 1, SearchResult("word", "ja", "en", (entry("word"),)))
+            add.assert_not_called()
+            self.window.deliver(revision, SearchResult("word", "ja", "en", (entry("word"),)))
+            add.assert_called_once_with()
+            self.assertEqual(self.window._result_context, row["context"])
+
     def test_history_manual_matched_span_and_continuous_duplicate_suppression(self):
         self.settings.setValue("history/enabled", True)
         self.window.search.setText("猫がいる。")
