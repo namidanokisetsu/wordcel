@@ -45,7 +45,7 @@ class ResourceTests(unittest.TestCase):
                     dialog.data._update((asset, missing))
                     row = dialog.data.rows[asset.key]
                     self.assertTrue(row.enabled.isChecked())
-                    self.assertEqual(row.title.text().splitlines()[1], "Source unknown")
+                    self.assertNotIn("Source unknown", row.title.text())
                     self.assertEqual(dialog.data.groups[("ja", "Dictionaries")][1], row.container)
                     row.enabled.setChecked(False)
                     self.assertEqual(item.checkState(), Qt.CheckState.Unchecked)
@@ -193,7 +193,7 @@ class ResourceTests(unittest.TestCase):
                 try:
                     self.assertTrue(dialog.resources.dictionary_install.isHidden())
                     self.assertEqual(dialog.resources.dictionary_status.text(), "Dictionaries: 1 installed, 1 enabled")
-                    self.assertIn("Imported ZIP; also recommended", dialog.packs.item(0).text())
+                    self.assertEqual(dialog.packs.item(0).text(), "wty-tr-en")
                     with patch.object(dialog, "begin_operation") as remove, \
                             patch("wordcel.gui.dictionary_manager.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes):
                         dialog.packs.setCurrentRow(0)

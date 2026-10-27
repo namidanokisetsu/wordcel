@@ -274,13 +274,8 @@ class DataPanel(QWidget):
                                       "morphology": "Stanza", "fonts": "KanjiStrokeOrders"}.get(asset.kind, "")
             origin = ""
             if asset.kind == "dictionary":
-                from wordcel.dictionary.catalog import recommendations
-                rec = next((rec for rec in recommendations(asset.language)
-                            if rec.matches({"language": asset.language, "title": asset.title})), None)
                 origin = {"recommended": "Downloaded recommendation", "imported": "Imported ZIP"}.get(
-                    asset.origin, "Source unknown")
-                if rec and asset.origin != "recommended":
-                    origin += "; also recommended"
+                    asset.origin, "")
             users = ", ".join(profile_name(self.owner.settings, identity) for identity in using)
             row.title.setText("\n".join(value for value in (asset.title, origin, "Used by: " + users if users else "Unused") if value))
             update = self.updates.get(asset.identity)

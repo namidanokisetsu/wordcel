@@ -836,19 +836,13 @@ class SetupDialog(SettingsNavigation, QDialog):
             library.set_preferences(dictionary_preferences(self.settings, self.profile.currentData()))
             packs = list(library.packs)
             from wordcel.dictionary.wiktionary_sections import is_wiktionary
-            from wordcel.dictionary.catalog import recommendations
             section_paths = []
             for path, metadata, _ in packs:
                 if is_wiktionary(metadata["title"]) and path.name not in self._section_scans:
                     self._section_scans.add(path.name)
                     section_paths.append(path)
-                recommended = next((rec for rec in recommendations(metadata["language"]) if rec.matches(metadata)), None)
-                origin = {"recommended": "Downloaded recommendation", "imported": "Imported ZIP"}.get(
-                    metadata.get("origin"), "Source unknown")
-                if recommended and metadata.get("origin") != "recommended":
-                    origin += "; also recommended"
-                item = QListWidgetItem(f'{metadata["title"]}  ({origin})')
-                item.setToolTip(f'{origin}\n{int(metadata.get("entries", 0)):,} entries')
+                item = QListWidgetItem(metadata["title"])
+                item.setToolTip(f'{int(metadata.get("entries", 0)):,} entries')
                 item.setData(Qt.ItemDataRole.UserRole, path.name)
                 item.setData(Qt.ItemDataRole.UserRole + 1, metadata["language"])
                 item.setData(Qt.ItemDataRole.UserRole + 2, metadata["title"])
