@@ -1,6 +1,6 @@
 # Lookup history proposal
 
-Proposed, not implemented. Recover previously encountered words and sentences;
+Implemented. Recover previously encountered words and sentences;
 Anki remains the destination for deliberate study. Build literal search before
 considering semantic search.
 
@@ -81,17 +81,19 @@ Opening a card reuses the lookup window, pronunciation and Anki actions without
 autoplay. Preserve History's query, selection and scroll. Derive geometry from
 content/layouts and avoid rebuilding unchanged results.
 
-## Open decisions and delivery
+## Decisions and validation
 
-Before implementation, choose the initial retention default, ambiguous-result
-identity/display rules, definition invalidation policy and Japanese substring
-index. Verify SQLite features in packaged builds before choosing the index.
+Retention defaults to forever. Word identity includes language, headword and
+reading; ordered candidates share one encounter card with separate labels.
+Shorter fallback prefixes are excluded; readings share their headword label.
+Definitions are shared by word/source and refreshed on subsequent encounters
+with that source. Japanese substring search uses character uni-, bi- and trigram
+B-tree indexes, without optional SQLite extensions.
 
-Prototype chronological browsing and filtered cards with realistic repeated
-encounters, then implement recording, persistence, retention, indexed search and
-analyzer integration. Fixture checks cover duplicate suppression, hover
-cancellation, pin promotion, restoration, deletion and ranking. Measure cold and
-repeated searches before claiming performance improvements.
+Fixture checks cover repeated chronological cards, filters, duplicate suppression,
+hover cancellation, pin promotion, restoration, deletion and ranking. Measure cold
+and repeated searches before claiming performance improvements. Platform UI and
+packaged-build acceptance remain part of testing handoffs.
 
 Consider semantic search only against actual failed baseline searches, before
 adding a model, setup requirements or similarity thresholds. Runtime stays

@@ -714,6 +714,12 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.audio_tab = add_page(audio, "Audio")
         self.translation_tab = add_page(translation, "Translation")
         self.anki_tab = add_page(self.anki, "Anki")
+        from wordcel.gui.lookup_history import HistoryService, HistorySettings
+        history = getattr(parent, "lookup_history", None)
+        if history is None:
+            history = HistoryService(self)
+            self.finished.connect(history.shutdown)
+        self.history_tab = add_page(HistorySettings(history), "History")
         from wordcel.gui.data_manager import DataPanel
         self.data = DataPanel(self)
         self.data_tab = add_page(self.data, "Storage")

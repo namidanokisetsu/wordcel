@@ -7,7 +7,7 @@ and choose a language. Setup offers dictionaries and an OCR model to download.
 See [supported languages](LANGUAGES.md) for coverage.
 
 Wordcel runs in the system tray. Right-click its icon to open **Search**,
-**Translate** or **Settings**.
+**Translate**, **History** or **Settings**.
 
 On macOS, allow Screen Recording, Input Monitoring and Accessibility in
 **System Settings > Privacy & Security**, then reopen Wordcel.
@@ -52,6 +52,24 @@ apply regardless of the selected profile.
 **Startup > Preload OCR** prepares the active engine in the background by default.
 Turn it off to load models on the first scan. Loaded models stay in memory until
 Wordcel exits; dictionary-only mode skips preloading.
+
+## Lookup history
+
+Open **History** from the tray or Search. Recording is off until enabled; its
+default scope is pinned and manual/text lookups. **Settings > History** also
+offers hover recording after a display duration (initially 0.5 seconds), retention
+and **Clear history**. Retention defaults to forever. Turning recording off keeps
+existing encounters available and preserves your recording choices.
+
+Search by word, reading, encountered form, stored meaning or sentence fragment;
+Japanese fragments need no spaces. Meaning search uses the wording seen when
+recorded, without translation or synonyms. Each visit has its own card, with
+candidate headwords grouped together. Open a card for fresh dictionary results,
+pronunciation and Anki actions, without autoplay or recording another encounter.
+Select a card and choose **Delete** to remove it.
+
+History stores text locally, without screenshots, audio or page addresses.
+Anki remains the destination for deliberate study.
 
 ## Listen or translate
 

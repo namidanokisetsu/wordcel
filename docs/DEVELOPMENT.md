@@ -33,6 +33,7 @@ input handling and dictionary renderer. Language-specific analysis stays separat
 | Dictionaries | `dictionary/library.py`, `dictionary/search.py` | Atomic Yomitan imports, indexed lookup, ordering and revision-based cache invalidation. |
 | Languages | `language/profiles.py`, `language/support.py`, `language/*_analyzer.py` | Language availability, source spans, deconjugation and spelling recovery. |
 | Popup | `gui/quick_lookup.py`, `gui/dictionary_browser.py`, `gui/lookup_session.py` | Result state, shared rendering, navigation and disclosure. |
+| History | `history.py`, `gui/lookup_history.py` | Encounter transitions, worker-owned SQLite storage, indexed text search and browsing. |
 | Input and OCR | `gui/desktop_input.py`, `gui/unified_ocr.py`, `ocr/` | Capture, worker-bound recognition, selection and global shortcuts. |
 | Settings and data | `gui/dictionary_manager.py`, `gui/data_manager.py`, `data_assets.py` | Profile preferences, resource inventory and explicit setup/removal jobs. |
 | Translation | `dictionary/translation.py` | Lazy local inference, cancellation and loopback-only custom servers. |
@@ -50,7 +51,8 @@ at source gaps. Missing definitions may retain analyses without dictionary entri
 Japanese uses bundled deconjugation rules. Headword/reading groups rank by
 frequency, kana preference and deconjugation cost; limits apply to groups.
 Exact compounds may append shorter direct prefixes without changing the longest
-match span. Manual search adds whole-query romkan2 candidates while preserving
+match span. Entries retain their source match length so history can omit those
+shorter fallback groups. Manual search adds whole-query romkan2 candidates while preserving
 English precedence; OCR and exact phrase checks keep their existing behavior.
 
 Turkish uses Zeyrek 0.1.3, accent recovery and precomputed lexicon rankings,
@@ -107,6 +109,34 @@ opt-in and respects active drags, menus and Settings; corner windows are exclude
 Passage copying uses frozen per-display captures and a separate OCR mailbox so
 hover jobs cannot replace it. Profile/provider changes discard pending clipboard
 results. Preserve paragraph boundaries without changing lookup text or offsets.
+
+### Lookup history
+
+History is globally opt-in under `history/`, initially recording pinned and
+manual/text lookups, with forever retention. `EncounterSession` identifies a visit
+by language, encountered form, context and span. Result delivery starts hover
+timing; identical OCR refreshes retain its deadline. Moving off a word or dismissing
+ends the visit. Pinning stops the timer and may claim the same encounter. Rendering,
+Back and saved-card restoration never create records; restoration also skips autoplay.
+Preference changes cancel pending recording without backfilling the current visit.
+
+A serial history worker owns `history.sqlite3` in managed app data (inside an
+explicit dictionary-directory override for fixtures). It stores encounter text,
+spans, ordered candidate word associations and plain definitions. Word identity
+includes language, exact headword and reading. Dictionary records for one identity
+share a card; distinct candidates remain distinct labels on that encounter.
+Cards combine readings under each headword; shorter fallback prefixes are excluded.
+Definitions are shared by word/source and replaced on the next encounter with
+that source, so saved search wording may differ from installed dictionaries.
+Deletion and retention remove orphan words, definitions and index entries.
+
+Normalized character uni-, bi- and trigrams use ordinary SQLite B-tree indexes,
+foreign keys and `instr`, without FTS extensions. Literal matches precede prepared
+dictionary-backed base forms, definitions and context; recency breaks ties.
+Only whole-query lexical matches contribute analyzer candidates. Sentence search
+is literal. The worker retains its SearchEngine and reuses the language layer's
+shared Turkish analyzer. History cards load in batches and retain unchanged items,
+selection and scroll when refreshed. Storage/search never run on the GUI thread.
 
 ### Preferences and resources
 

@@ -110,8 +110,8 @@ class SettingsNavigation:
             self.navigation.clear()
             selected = None
             titles = ("Popup", "Shortcuts", "Audio") if shared else ("Lookup", "Dictionaries", "Popup", "Shortcuts", "Audio", "Translation", "Anki")
-            for title in (*titles, "Startup", "Connections", "Storage"):
-                global_page = title in ("Startup", "Connections", "Storage")
+            for title in (*titles, "Startup", "History", "Connections", "Storage"):
+                global_page = title in ("Startup", "History", "Connections", "Storage")
                 if title == "Startup":
                     heading = QTreeWidgetItem(self.navigation, ["App-wide"])
                     heading.setFlags(Qt.ItemFlag.NoItemFlags)

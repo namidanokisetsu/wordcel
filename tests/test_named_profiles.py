@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import zipfile
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import QSettings, Qt
 from PyQt6.QtWidgets import QApplication
 
 from wordcel.config.profiles import (create_profile, delete_profile, dictionary_preferences, migrate,
@@ -114,10 +114,11 @@ class NamedProfileTests(unittest.TestCase):
         duplicate = create_profile(self.settings, "ja", "Anime", duplicate="ja")
         dialog = SetupDialog(self.directory, self.settings, Mock())
         self.addCleanup(dialog.deleteLater)
-        for index, page in ((8, dialog.app_tab), (10, dialog.data_tab)):
+        for page in (dialog.app_tab, dialog.history_tab, dialog.data_tab):
             for identity in ("ja", duplicate):
-                with self.subTest(page=index, profile=identity):
-                    item = dialog.navigation.topLevelItem(index)
+                with self.subTest(page=dialog.tabs.indexOf(page), profile=identity):
+                    item = next(dialog.navigation.topLevelItem(i) for i in range(dialog.navigation.topLevelItemCount())
+                                if dialog.navigation.topLevelItem(i).data(0, Qt.ItemDataRole.UserRole) == (None, dialog.tabs.indexOf(page)))
                     dialog.navigation.setCurrentItem(item)
                     dialog.close()
                     dialog.sync_profile(identity)

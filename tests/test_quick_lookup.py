@@ -58,6 +58,61 @@ class FakeEngine:
 
 
 class QuickLookupTests(unittest.TestCase):
+    def test_history_lookup_dismissal_returns_focus_to_history(self):
+        from wordcel.gui.lookup_history import HistoryWindow
+        history = HistoryWindow(self.window.lookup_history)
+        self.window.lookup_history.browser = history
+        history.show()
+        row = dict(form="猫", language="ja", context="猫がいる。", start=0, end=1)
+        with patch.object(self.window.worker, "request"):
+            self.window.restore_encounter(row)
+        self.assertEqual(self.window._previous_foreground, int(history.winId()))
+        self.assertIsNone(self.window._previous_focus)
+        with patch('PyQt6.QtWidgets.QApplication.platformName', return_value='windows'), \
+                patch('wordcel.utils.window_focus.foreground_window', return_value=int(self.window.winId())), \
+                patch('wordcel.utils.window_focus.restore_foreground') as restore:
+            self.window.hide()
+        restore.assert_called_once_with(int(history.winId()))
+
+    def test_pin_records_displayed_result_after_pending_visit_cancellation(self):
+        self.settings.setValue("history/enabled", True)
+        self.window.show_entries((entry(),), "猫", peek=True)
+        self.window.set_context("猫がいる。", 0, 1)
+        self.window.lookup_history.reset()
+        with patch.object(self.window.lookup_history, "_run") as write:
+            self.window.pin.setChecked(True)
+            self.assertEqual(write.call_count, 1)
+            self.assertEqual(self.window.lookup_history.payload[0].text, "猫")
+
+    def test_history_restoration_uses_saved_language_context_without_recording_or_autoplay(self):
+        self.settings.setValue("history/enabled", True)
+        row = dict(form="猫", language="ja", context="猫がいる。", start=0, end=1)
+        with patch.object(self.window.worker, "request") as request, \
+                patch.object(self.window.lookup_history, "_run") as write, \
+                patch.object(self.window, "_autoplay_lookup") as autoplay:
+            self.window.restore_encounter(row)
+            self.assertEqual(request.call_args.kwargs["context"], ("猫がいる。", 0, 1))
+            self.assertIsNone(request.call_args.kwargs["pair"])
+            self.window.deliver(self.window.revision, SearchResult("猫", "ja", "en", (entry(),)))
+            self.assertEqual(self.window._context, "猫がいる。")
+            self.assertEqual(self.window._context_span, (0, 1))
+            autoplay.assert_not_called()
+            write.assert_not_called()
+            self.window.lookup_history.pin()
+            write.assert_not_called()
+
+    def test_history_manual_matched_span_and_continuous_duplicate_suppression(self):
+        self.settings.setValue("history/enabled", True)
+        self.window.search.setText("猫がいる。")
+        with patch.object(self.window.worker, "request"), patch.object(self.window.lookup_history, "_run") as write:
+            self.window.submit(lookup_span=(0, 5))
+            value = SearchResult("猫がいる。", "ja", "en", (entry(),), matched_length=1)
+            self.window.deliver(self.window.revision, value)
+            self.assertEqual(self.window.lookup_history.payload[0].text, "猫")
+            self.assertEqual(self.window.lookup_history.payload[1:], ("猫がいる。", 0, 1))
+            self.window.deliver(self.window.revision, value)
+            self.assertEqual(write.call_count, 1)
+
     def test_input_click_starts_chinese_lookup_at_cursor_with_utf16_offsets(self):
         text = "𠮷 学习中文。"
         self.window.search.setText(text)

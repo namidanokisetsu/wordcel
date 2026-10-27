@@ -491,6 +491,8 @@ class FakeWindow(QWidget):
         self.show_message = Mock()
         self.show_entries = Mock(return_value=True)
         self.set_context = Mock()
+        self.lookup_history = Mock()
+        self.record_encounter = Mock()
 
     def hideEvent(self, event):
         if not getattr(self, '_capture_visibility', False):
@@ -1197,6 +1199,22 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)):
             self.controller.outside_click()
         self.assertFalse(self.window.isVisible())
+
+    def test_clicking_history_does_not_restore_external_source_focus(self):
+        history = QWidget()
+        history.setGeometry(600, 200, 300, 300)
+        self.window.setGeometry(0, 0, 300, 200)
+        self.window.show()
+        self.window.pin.setChecked(True)
+        history.show()
+        try:
+            with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=history.frameGeometry().center()), \
+                    patch.object(self.controller, "dismiss") as dismiss:
+                self.controller.outside_click()
+            dismiss.assert_not_called()
+        finally:
+            history.close()
+            history.deleteLater()
 
     def test_empty_scan_bindings_disable_ocr_without_affecting_search(self):
         values = {"profiles/tr/scan_bindings": ""}

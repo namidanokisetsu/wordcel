@@ -899,6 +899,10 @@ class QuickLookupWindow(QDialog):
         self._preserve_scroll = False
         self._needs_place = False
         self._context = ""
+        self._encounter_restore = None
+        self._encounter_context = None
+        from wordcel.gui.lookup_history import HistoryService
+        self.lookup_history = HistoryService(self)
         self._peek = False
         self._source_overlay = False
         self._history = []
@@ -1052,6 +1056,11 @@ class QuickLookupWindow(QDialog):
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
         header_layout.addWidget(self.search, 1)
+        self.history_button = QToolButton()
+        self.history_button.setText("History")
+        self.history_button.setToolTip("Lookup history")
+        self.history_button.clicked.connect(self.lookup_history.open)
+        header_layout.addWidget(self.history_button)
         self.audio_actions = QWidget()
         action_layout = QHBoxLayout(self.audio_actions)
         action_layout.setContentsMargins(0, 0, 0, 0)
@@ -1471,6 +1480,7 @@ class QuickLookupWindow(QDialog):
             self.submit(translate=True, context=bool(self._context))
 
     def _show_translation(self, text, source, target):
+        self.lookup_history.timer.stop()
         if self._translation_view and self._translation_content.translation:
             self.translation_panel.stale_output = self._translation_content.translation
         if not self._translation_view:
@@ -1632,6 +1642,7 @@ class QuickLookupWindow(QDialog):
         self.translate.setAccessibleName(name)
 
     def _edited(self):
+        self.lookup_history.reset()
         self._invalidate()
         self._leave_translation()
         self._display_revision = None
@@ -1662,7 +1673,7 @@ class QuickLookupWindow(QDialog):
                 return
 
     def submit(self, translate=None, *, context=False, remember=False, selection=False, translation_text=None,
-               lookup_span=None):
+               lookup_span=None, saved_encounter=None):
         if not translate:
             self._leave_translation()
         input_text = self.search.text().strip()
@@ -1695,6 +1706,10 @@ class QuickLookupWindow(QDialog):
         if translate is None:
             translate = False
         self._invalidate()
+        if translate:
+            self.lookup_history.timer.stop()
+        self._encounter_restore = (self.revision, saved_encounter) if saved_encounter else None
+        self._encounter_context = (self.revision, lookup_context) if lookup_context else None
         self._input_lookup = (self.revision, self.search.text(), lookup_span[0]) if lookup_span is not None else None
         self._last_request_translate = bool(translate)
         self._translation_model_state = ""
@@ -1722,6 +1737,9 @@ class QuickLookupWindow(QDialog):
                 self.translation_worker.start()
             worker = self.translation_worker
         source = self._result.source if context and self._result else "auto"
+        if saved_encounter:
+            source = saved_encounter["language"]
+            lookup_context = (saved_encounter["context"], saved_encounter["start"], saved_encounter["end"])
         target = None
         if translate:
             prefix = f"profiles/{self.active_profile}/translation_"
@@ -1759,10 +1777,10 @@ class QuickLookupWindow(QDialog):
         worker.request(self.revision, text, source,
                        self.preferred_foreign, translate=bool(translate),
                        target=target,
-                       pair=(self.preferred_foreign, self.foreign.currentData()),
+                       pair=None if saved_encounter else (self.preferred_foreign, self.foreign.currentData()),
                        translation_settings=translation_settings,
                        context=lookup_context if not translate else None,
-                       morphology=not translate and not exact_only and model_available(self.preferred_foreign),
+                       morphology=not translate and not exact_only and model_available(source if saved_encounter else self.preferred_foreign),
                        dictionary_options=dictionary_preferences(self.settings, self.active_profile),
                        exact_only=exact_only)
 
@@ -1798,7 +1816,8 @@ class QuickLookupWindow(QDialog):
             offset = len(raw[:start].encode("utf-16-le")) // 2
             length = len(raw[start:start + result.matched_length].encode("utf-16-le")) // 2
             self.search.setSelection(offset, length)
-        if not self._last_request_translate:
+        restored = self._encounter_restore and self._encounter_restore[0] == revision
+        if not self._last_request_translate and not restored:
             self._autoplay_lookup()
         if self._last_request_translate and self._translation_base is not None:
             self._result_screenshot = screenshot
@@ -1807,6 +1826,16 @@ class QuickLookupWindow(QDialog):
             self._pending_context = None
         elif not self._peek:
             self.set_context(result.text)
+        if not self._last_request_translate:
+            if restored:
+                row = self._encounter_restore[1]
+                self.set_context(row["context"], row["start"], row["end"])
+            elif self._encounter_context and self._encounter_context[0] == revision:
+                sentence, start, end = self._encounter_context[1]
+                if result.matched_length:
+                    end = min(end, start + result.matched_length)
+                self.set_context(sentence, start, end)
+            self.record_encounter(restored=bool(restored))
         self.status.setText(f"{language_name(result.source)} → {language_name(result.target)}")
         self.status.hide()
 
@@ -2315,6 +2344,7 @@ class QuickLookupWindow(QDialog):
             self.lookup_word(str(self._result.suggestions[index]))
 
     def lookup_word(self, text):
+        self.lookup_history.reset()
         self._display_revision = None
         self._clear_actions()
         self._set_peek(False)
@@ -2331,9 +2361,11 @@ class QuickLookupWindow(QDialog):
         menu.deleteLater()
 
     def go_back(self):
+        self.lookup_history.reset()
         if self._translation_view:
             self._invalidate()
             self._leave_translation()
+            self.record_encounter(restored=True)
             self._restore_actions()
             self.update_anki()
             return
@@ -2365,6 +2397,7 @@ class QuickLookupWindow(QDialog):
                       collapsed=previous[9] if len(previous) > 9 else None,
                       kanji_details=previous[10] if len(previous) > 10 else ())
         self.set_context(context)
+        self.record_encounter(restored=True)
         self._result_screenshot = previous[8] if len(previous) > 8 else None
         self.browser.verticalScrollBar().setValue(scroll)
         self.translate.setEnabled(bool(result.text) and self.translation_available())
@@ -2478,6 +2511,7 @@ class QuickLookupWindow(QDialog):
             if not inline:
                 self.header.layout().addWidget(self.audio_actions, 0, Qt.AlignmentFlag.AlignRight)
         self.search.setVisible(not self._peek and not self._translation_view)
+        self.history_button.setVisible(not self._peek and not self._translation_view)
         self.header.setVisible(not self._translation_view and (not self._peek or self.is_pinned and not inline))
         self.audio_actions.setVisible(not self._translation_view and (not self._peek or self.is_pinned) and
                                       any(not button.isHidden() for button in
@@ -2607,6 +2641,7 @@ class QuickLookupWindow(QDialog):
             row.raise_()
 
     def open_search(self, text="", *, at_cursor=False, passive=False, selection=False):
+        self.lookup_history.reset()
         self._remember_corner_size()
         self._leave_translation()
         self.remember_foreground()
@@ -2993,6 +3028,7 @@ class QuickLookupWindow(QDialog):
             if self._autoplayed is not None and audio_autoplay_mode(self.settings, self.active_profile) == "lookup":
                 self._autoplay()
             return True
+        self.lookup_history.timer.stop()
         self._invalidate()
         self._result_screenshot = None
         self._leave_translation()
@@ -3026,6 +3062,9 @@ class QuickLookupWindow(QDialog):
 
     def set_context(self, text, start=0, end=None):
         previous = getattr(self, "_result_context", "")
+        raw = str(text or "")
+        leading = len(raw) - len(raw.lstrip())
+        self._context_span = (max(0, start - leading), max(0, (len(raw) if end is None else end) - leading))
         self._context = str(text or "").strip()
         self._result_context = self._context
         self.copy_button.setEnabled(bool(self._context))
@@ -3052,6 +3091,9 @@ class QuickLookupWindow(QDialog):
             self.copy_feedback.show_confirmation()
 
     def _pin_changed(self, checked):
+        if checked and not self._translation_view:
+            self.record_encounter()
+            self.lookup_history.pin()
         updates = self.updatesEnabled()
         self.setUpdatesEnabled(False)
         self._pin_transition = True
@@ -3362,6 +3404,7 @@ class QuickLookupWindow(QDialog):
         if self._capture_visibility:
             super().hideEvent(event)
             return
+        self.lookup_history.reset()
         if hasattr(self, "worker"):
             self._invalidate()
         self._leave_translation()
@@ -3417,6 +3460,28 @@ class QuickLookupWindow(QDialog):
         from wordcel.utils.window_focus import activate_application
         activate_application()
         self._setup.activateWindow()
+
+    def record_encounter(self, *, restored=False):
+        if self._result is None:
+            return
+        context = self._context or self._result.text
+        start, end = getattr(self, "_context_span", (0, len(context)))
+        start, end = min(start, len(context)), min(end, len(context))
+        result = self._result
+        if end > start and (self._peek or self._encounter_context and self._encounter_context[0] == self.revision):
+            result = replace(result, text=context[start:end])
+        mode = "pinned" if self.is_pinned else "hover" if self._peek else "manual"
+        self.lookup_history.display(result, context, start, end, mode, restored=restored)
+
+    def restore_encounter(self, row):
+        self.open_search()
+        history = self.lookup_history.browser
+        if history is not None and history.isVisible():
+            self._previous_foreground = int(history.winId())
+            self._previous_focus = None
+        with QSignalBlocker(self.search):
+            self.search.setText(row["form"])
+        self.submit(saved_encounter=row)
 
     def resume_setup(self):
         from wordcel.gui.first_run import offer_resources
@@ -3523,6 +3588,7 @@ class QuickLookupWindow(QDialog):
         if onboarding is not None:
             onboarding.cancelled.set()
         self._shutting_down = True
+        self.lookup_history.shutdown()
         self.selection.cancel()
         if self.audio:
             self.audio.shutdown()

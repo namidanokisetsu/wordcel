@@ -975,6 +975,9 @@ class UnifiedOCR(QObject):
     def outside_click(self):
         if self.input and self.input.pin_pending.is_set():
             return
+        if any(widget is not self.window and widget.isVisible() and widget.frameGeometry().contains(QCursor.pos())
+               for widget in QApplication.topLevelWidgets()):
+            return
         if (self.window.isVisible() and not self.window.geometry().contains(QCursor.pos())
                 and QApplication.activeModalWidget() is None and QApplication.activePopupWidget() is None):
             self._update_hover(QCursor.pos())
@@ -1180,11 +1183,17 @@ class UnifiedOCR(QObject):
         if key == self._hit_key and now - self._last_dictionary_at < 2:
             mark("duplicate_hit", self.frame.request.revision)
             return
+        history_hit = (hit.text, hit.start, self.frame.language)
+        if history_hit != getattr(self, "_history_hit", None):
+            self.window.lookup_history.timer.stop()
+            self._history_hit = history_hit
         self._hit_key, self._last_dictionary_at = key, now
         if self.hit_worker:
             self.hit_worker.queue.put((self.generation, self.frame, hit, self.morphology, getattr(self, "dictionary_options", None)))
 
     def _hide_preview(self):
+        self.window.lookup_history.reset()
+        self._history_hit = None
         self.window._capture_visibility = True
         try:
             self.window.hide()
@@ -1232,6 +1241,7 @@ class UnifiedOCR(QObject):
             mark("hit_delivery", frame.request.revision if frame is not None else generation,
                  popup_revision=getattr(self.window, "revision", 0))
             self.window.set_context(*hit.sentence)
+            self.window.record_encounter()
             self.window._result_screenshot = frame.snapshot if frame is not None else None
             self._sync_pin_ready()
 
