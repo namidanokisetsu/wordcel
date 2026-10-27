@@ -6,7 +6,8 @@ import re
 import sqlite3
 
 
-SECTIONS = {"grammar": "Show grammar sections", "etymology": "Show etymology"}
+SECTIONS = {"grammar": "Show grammar sections", "etymology": "Show etymology",
+            "examples": "Show examples"}
 
 
 def is_wiktionary(title):
@@ -19,7 +20,8 @@ def section_kind(node):
         return None
     data = node.get("data")
     marker = data.get("content") if isinstance(data, dict) else None
-    return {"details-entry-Grammar": "grammar", "details-entry-Etymology": "etymology"}.get(marker)
+    return {"details-entry-Grammar": "grammar", "details-entry-Etymology": "etymology",
+            "details-entry-examples": "examples"}.get(marker)
 
 
 def sections_in(node):

@@ -33,7 +33,7 @@ class WiktionarySectionsTests(unittest.TestCase):
 
     def result(self, source="wty-tr-en"):
         definition = dict(type="structured-content", content=[
-            detail("Grammar"), detail("Etymology"), detail("Examples", False), "cigarette"])
+            detail("Grammar"), detail("Etymology"), detail("examples"), "cigarette"])
         entry = Entry("1", "sigara", "", source, "tr", (definition,))
         return SearchResult("sigara", "tr", "en", entries=(entry,))
 
@@ -48,11 +48,18 @@ class WiktionarySectionsTests(unittest.TestCase):
                                  details_expanded=("0:0:0", "0:0:1", "0:0:2"))
             self.assertNotIn(hidden.title(), html)
             self.assertIn(kept + " body", html)
-            self.assertIn("Examples body", html)
+            self.assertIn("examples body", html)
             self.assertIn("cigarette", html)
             self.assertIn("details:0:0:2", html)
         self.assertEqual(json.dumps(result.entries[0].definitions), original)
         self.assertIn("Grammar body", " ".join(result.entries[0].glosses()))
+
+        html = render_result(result, hidden_sections={"wty-tr-en": {"examples"}},
+                             details_expanded=("0:0:0", "0:0:1", "0:0:2"))
+        self.assertNotIn("examples", html)
+        self.assertIn("Grammar body", html)
+        self.assertIn("Etymology body", html)
+        self.assertIn("cigarette", html)
 
     def test_other_dictionaries_and_unmarked_sections_unchanged(self):
         result = self.result("Japanese dictionary")
@@ -68,9 +75,9 @@ class WiktionarySectionsTests(unittest.TestCase):
                 db.execute("INSERT INTO terms VALUES(?)", (json.dumps([detail("Grammar")]),))
             self.assertEqual(pack_sections(path, 1, 1), {"grammar"})
             with closing(sqlite3.connect(path)) as db, db:
-                db.execute("INSERT INTO terms VALUES(?)", (json.dumps([detail("Etymology")]),))
+                db.execute("INSERT INTO terms VALUES(?)", (json.dumps([detail("Etymology"), detail("examples")]),))
             self.assertEqual(pack_sections(path, 1, 1), {"grammar"})
-            self.assertEqual(pack_sections(path, 2, 2), {"grammar", "etymology"})
+            self.assertEqual(pack_sections(path, 2, 2), {"grammar", "etymology", "examples"})
 
     def test_controls_follow_pack_capabilities_and_profile_preferences(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -80,11 +87,11 @@ class WiktionarySectionsTests(unittest.TestCase):
             profile.addItem("Other", "other")
             display.addItem("Shown", "expanded")
             display.addItem("Collapsed", "collapsed")
-            controls = {kind: QCheckBox() for kind in ("grammar", "etymology")}
+            controls = {kind: QCheckBox() for kind in ("grammar", "etymology", "examples")}
             parent = SimpleNamespace(active_profile="tr", _render=Mock())
             owner = SimpleNamespace(packs=packs, profile=profile, dictionary_display=display,
                                     section_controls=controls, editing_language="tr", settings=settings,
-                                    _section_capabilities={"pack": {"grammar"}}, _loading=False,
+                                    _section_capabilities={"pack": {"grammar", "examples"}}, _loading=False,
                                     parent=lambda: parent)
             item = QListWidgetItem("wty-tr-en")
             for offset, value in enumerate(("pack", "tr", "wty-tr-en", True, "resource-id")):
@@ -95,14 +102,21 @@ class WiktionarySectionsTests(unittest.TestCase):
             self.assertFalse(controls["grammar"].isHidden())
             self.assertTrue(controls["etymology"].isHidden())
             self.assertTrue(controls["grammar"].isChecked())
+            self.assertFalse(controls["examples"].isHidden())
+            self.assertTrue(controls["examples"].isChecked())
+            SetupDialog.save_dictionary_section(owner, "examples", False)
+            self.assertEqual(settings.value("profiles/tr/hidden_examples_dictionaries"), ["resource-id"])
+            parent._render.reset_mock()
             SetupDialog.save_dictionary_section(owner, "grammar", False)
             self.assertEqual(settings.value("profiles/tr/hidden_grammar_dictionaries"), ["resource-id"])
             parent._render.assert_called_once_with(static=True, preserve_scroll=True)
             SetupDialog.update_dictionary_display(owner)
             self.assertFalse(controls["grammar"].isChecked())
+            self.assertFalse(controls["examples"].isChecked())
             profile.setCurrentIndex(1)
             SetupDialog.update_dictionary_display(owner)
             self.assertTrue(controls["grammar"].isChecked())
+            self.assertTrue(controls["examples"].isChecked())
             owner._section_capabilities.clear()
             SetupDialog.update_dictionary_display(owner)
             self.assertTrue(all(control.isHidden() for control in controls.values()))
