@@ -2600,6 +2600,34 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(self.window.size(), size)
         self.assertEqual(self.window.pos(), position)
 
+    def test_nested_ocr_lookup_preserves_corner_size(self):
+        size = QSize(700, 500)
+        self.window.open_search()
+        self.window.resize(size)
+        self.window.hide()
+        self.window.show_entries((entry(),), "cat", peek=True)
+        self.window.pin.setChecked(True)
+        with patch.object(self.window.worker, "request"):
+            for text in ("first", "second"):
+                self.window.lookup_word(text)
+                self.window.deliver(self.window.revision, SearchResult(text, "ja", "en", (entry(text),)))
+        self.window.resize(520, 360)
+        self.window.hide()
+        self.assertEqual(self.settings.value("corner_size", type=QSize), size)
+        self.window.open_search()
+        self.assertEqual(self.window.size(), size)
+
+    def test_nested_corner_lookup_still_remembers_corner_size(self):
+        self.window.open_search()
+        with patch.object(self.window.worker, "request"):
+            self.window.lookup_word("cat")
+            self.window.deliver(self.window.revision, SearchResult("cat", "ja", "en", (entry(),)))
+        size = QSize(600, 400)
+        self.window.resize(size)
+        self.window.hide()
+        self.window.open_search()
+        self.assertEqual(self.window.size(), size)
+
     def test_corner_search_ignores_saved_position_and_reanchors_after_drag(self):
         position = QPoint(120, 240)
         self.settings.setValue("corner_position", position)

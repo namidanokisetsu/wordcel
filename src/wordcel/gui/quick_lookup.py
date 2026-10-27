@@ -2363,6 +2363,7 @@ class QuickLookupWindow(QDialog):
         self.lookup_history.reset()
         self._display_revision = None
         self._clear_actions()
+        self._manual_at_cursor = self._manual_at_cursor or self._peek
         self._set_peek(False)
         with QSignalBlocker(self.search):
             self.search.setText(text)
