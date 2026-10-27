@@ -50,7 +50,7 @@ Wordcel exits; dictionary-only mode skips preloading.
 
 Use the popup's audio icons to hear a word or sentence. Choose voices and
 recordings in your profile's **Audio** settings.
-Japanese and Turkish profiles default to built-in recordings before system speech.
+Profiles default to built-in recordings before system speech, with providers chosen by language.
 Source priority lists the providers directly; check or reorder them there. Saved
 source choices are preserved. Use **+** for additional providers or a Yomitan custom URL. Custom URL (JSON) accepts the
 same endpoint as Yomitan, including local audio servers. **Import Yomitan** reads

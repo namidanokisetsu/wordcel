@@ -50,7 +50,7 @@ attribution. Custom sources use HTTP(S), including user-configured local servers
 placeholder values are URL-encoded. JSON source names label downloaded clips,
 which remain available for Anki. Wikimedia retains Japanese reading-qualified matching and attribution.
 Explicit source choices have no hidden provider fallbacks.
-Japanese and Turkish audio defaults try built-in recordings before system speech;
+All language profiles default to built-in recordings before system speech;
 the source list exposes these providers even when saved choices disable them.
 Yomitan settings imports retain source order and URLs; system voice names must exist in the OS speech engine.
 

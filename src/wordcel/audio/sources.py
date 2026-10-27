@@ -3,6 +3,17 @@ import json
 from urllib.parse import urlsplit
 
 
+# Provider domains are not derivable from ISO codes alone.
+POD_LANGUAGES = dict(zip(
+    "af ar bg nl tl fi fr de el he hi hu id it ja fa pl pt ro ru es sw sv th ur vi".split(),
+    "Afrikaans Arabic Bulgarian Dutch Filipino Finnish French German Greek Hebrew Hindi Hungarian Indonesian Italian Japanese Persian Polish Portuguese Romanian Russian Spanish Swahili Swedish Thai Urdu Vietnamese".split(),
+))
+CLASS_LANGUAGES = dict(zip(
+    "yue zh cs da en ko no tr".split(),
+    "Cantonese Chinese Czech Danish English Korean Norwegian Turkish".split(),
+))
+
+
 SOURCE_LABELS = {
     "jpod101": "JapanesePod101", "language-pod-101": "LanguagePod101", "jisho": "Jisho",
     "lingua-libre": "Lingua Libre", "wiktionary": "Wiktionary",
@@ -38,11 +49,12 @@ def source_order(settings, language):
 
 
 def default_sources(language):
+    language = language.lower().split("-", 1)[0]
+    language = {"cmn": "zh", "fil": "tl", "nb": "no", "nn": "no"}.get(language, language)
     if language == "ja":
         return ["jpod101", "language-pod-101", "jisho", "wiktionary", "lingua-libre", "tts"]
-    if language == "tr":
-        return ["language-pod-101", "lingua-libre", "wiktionary", "tts"]
-    return ["tts", "online"]
+    providers = ["language-pod-101"] if language in POD_LANGUAGES or language in CLASS_LANGUAGES else []
+    return [*providers, "lingua-libre", "wiktionary", "tts"]
 
 
 def source_label(source):

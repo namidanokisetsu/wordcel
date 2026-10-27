@@ -193,7 +193,11 @@ class YomitanSettingsTests(unittest.TestCase):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             for language, expected in (
                     ("ja", ["jpod101", "language-pod-101", "jisho", "wiktionary", "lingua-libre", "tts"]),
-                    ("tr", ["language-pod-101", "lingua-libre", "wiktionary", "tts"])):
+                    ("tr", ["language-pod-101", "lingua-libre", "wiktionary", "tts"]),
+                    ("fr", ["language-pod-101", "lingua-libre", "wiktionary", "tts"]),
+                    ("zh-hant", ["language-pod-101", "lingua-libre", "wiktionary", "tts"]),
+                    ("fil", ["language-pod-101", "lingua-libre", "wiktionary", "tts"]),
+                    ("uk", ["lingua-libre", "wiktionary", "tts"])):
                 settings.setValue("profiles/named/language", language)
                 self.assertEqual(source_order(settings, "named"), expected)
             for saved in (["tts", "online"], []):

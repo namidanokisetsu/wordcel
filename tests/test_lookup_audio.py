@@ -141,7 +141,7 @@ class SentenceAudioTests(unittest.TestCase):
                     self.assertTrue(audio.worker.submit.call_args.args[0].online)
                 settings.setValue("profiles/tr/audio_priority", [])
                 self.assertEqual(source_order(settings, "tr"), [])
-                self.assertEqual(source_order(settings, "ru"), ["tts", "online"])
+                self.assertEqual(source_order(settings, "ru"), ["language-pod-101", "lingua-libre", "wiktionary", "tts"])
             finally:
                 audio.shutdown()
                 audio.deleteLater()
@@ -354,18 +354,18 @@ class AudioSourceSettingsTests(unittest.TestCase):
         self.sources.changed.connect(changed)
         self.sources.received("android.db", ["jpod", "nhk"])
         self.assertEqual(self.sources.order(), ["db:jpod", "db:nhk", "tts", "online"])
-        self.assertEqual(self.sources.items.count(), 4)
+        self.assertEqual(self.sources.items.count(), 6)
         changed.assert_called_once_with()
 
     def test_reload_preserves_custom_priority_and_disabled_sources(self):
         self.sources.load(["online", "db:nhk", "tts"], "android.db")
         self.sources.received("android.db", ["jpod", "nhk"])
         self.assertEqual(self.sources.order(), ["online", "db:nhk", "tts"])
-        self.assertEqual(self.sources.items.count(), 4)
+        self.assertEqual(self.sources.items.count(), 6)
         self.sources.load([], "android.db")
         self.sources.received("android.db", ["jpod", "nhk"])
         self.assertEqual(self.sources.order(), [])
-        self.assertEqual(self.sources.items.count(), 4)
+        self.assertEqual(self.sources.items.count(), 5)
 
 
     def test_removal_ignores_pending_database_response(self):
@@ -373,7 +373,7 @@ class AudioSourceSettingsTests(unittest.TestCase):
         self.sources.load(self.sources.order(), "")
         self.sources.received("android.db", ["jpod", "nhk"])
         self.assertEqual(self.sources.order(), ["tts"])
-        self.assertEqual(self.sources.items.count(), 2)
+        self.assertEqual(self.sources.items.count(), 3)
 
     def test_remove_button_clears_profile_and_keeps_database_file(self):
         from wordcel.gui.dictionary_manager import SetupDialog

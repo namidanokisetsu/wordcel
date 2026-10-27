@@ -13,18 +13,7 @@ from urllib.parse import quote, urlencode, urljoin
 import requests
 
 from wordcel.audio.online import OnlineAudio
-from wordcel.audio.sources import source_key, source_label, source_type
-
-
-# Provider domains are not derivable from ISO codes alone.
-POD_LANGUAGES = dict(zip(
-    "af ar bg nl tl fi fr de el he hi hu id it ja fa pl pt ro ru es sw sv th ur vi".split(),
-    "Afrikaans Arabic Bulgarian Dutch Filipino Finnish French German Greek Hebrew Hindi Hungarian Indonesian Italian Japanese Persian Polish Portuguese Romanian Russian Spanish Swahili Swedish Thai Urdu Vietnamese".split(),
-))
-CLASS_LANGUAGES = dict(zip(
-    "yue zh cs da en ko no tr".split(),
-    "Cantonese Chinese Czech Danish English Korean Norwegian Turkish".split(),
-))
+from wordcel.audio.sources import CLASS_LANGUAGES, POD_LANGUAGES, source_key, source_label, source_type
 
 
 class _Element:
