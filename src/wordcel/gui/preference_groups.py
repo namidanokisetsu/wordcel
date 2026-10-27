@@ -35,7 +35,7 @@ class PreferenceGroups:
             with QSignalBlocker(inherit):
                 inherit.setChecked(inherited)
             inherit.setVisible(not global_edit)
-            content.setVisible(True)
+            content.setVisible(global_edit or not inherited)
             content.setEnabled(global_edit or not inherited)
 
     def reload(self, group):

@@ -85,20 +85,24 @@ class PreferenceInheritanceTests(unittest.TestCase):
         inherit, content = dialog.preference_groups.controls["appearance"]
         self.assertTrue(inherit.isChecked())
         self.assertFalse(content.isEnabled())
+        self.assertTrue(content.isHidden())
         size = dialog.size()
         with patch.object(dialog, "reload") as reload_library:
             inherit.setChecked(False)
             self.app.processEvents()
             reload_library.assert_not_called()
         self.assertTrue(content.isEnabled())
+        self.assertFalse(content.isHidden())
         dialog.appearance.controls["font_size_header"].setValue(35)
         inherit.setChecked(True)
         self.assertFalse(content.isEnabled())
+        self.assertTrue(content.isHidden())
         dialog.scope.setCurrentIndex(0)
         dialog.tabs.setCurrentWidget(dialog.popup_tab)
         self.assertEqual(dialog.settings.editing_global, "popup_all")
         self.assertTrue(inherit.isHidden())
         self.assertTrue(content.isEnabled())
+        self.assertFalse(content.isHidden())
         dialog.appearance.controls["font_size_header"].setValue(22)
         self.assertEqual(self.raw.value("defaults/appearance/font_size_header", 0, int), 22)
         dialog.scope.setCurrentIndex(dialog.scope.findData("ja"))
@@ -148,6 +152,7 @@ class PreferenceInheritanceTests(unittest.TestCase):
     def test_recent_features_keep_settings_pages_and_scope(self):
         from wordcel.gui.dictionary_manager import SetupDialog
         self.raw.setValue("profiles/ja/anki/enabled", True)
+        set_override(self.settings, "ja", "shortcuts", True)
         refresh = patch("wordcel.gui.anki.AnkiSettingsPanel.refresh")
         refresh.start()
         self.addCleanup(refresh.stop)

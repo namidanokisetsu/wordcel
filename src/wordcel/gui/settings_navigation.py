@@ -232,7 +232,10 @@ class SettingsNavigation:
                 parent = control.parentWidget()
                 hidden = False
                 while parent is not None and parent is not page.widget():
-                    if parent.isHidden():
+                    section = parent.parentWidget()
+                    collapsed_content = (isinstance(section, SettingsSection)
+                                         and not section.toggle.isChecked())
+                    if parent.isHidden() and not collapsed_content:
                         hidden = True
                     if isinstance(parent, SettingsSection):
                         sections.append(parent.toggle.text())
