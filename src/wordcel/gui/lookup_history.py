@@ -222,19 +222,22 @@ class CardDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self.documents = OrderedDict()
 
+    def action_width(self):
+        return self.parent().style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize) + 10
+
     def action_rects(self, option):
-        size = self.parent().style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize) + 10
-        margin = max(0, self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutHorizontalSpacing))
-        right = option.rect.right() - margin + 1
-        top = option.rect.top() + margin
-        return (QRect(right - 2 * size, top, size, size), QRect(right - size, top, size, size))
+        rect = option.rect
+        width = min(self.action_width(), rect.width())
+        top_height = rect.height() // 2
+        return (QRect(rect.right() - width + 1, rect.top(), width, top_height),
+                QRect(rect.right() - width + 1, rect.top() + top_height, width, rect.height() - top_height))
 
     def document(self, option, index):
         language = index.data(Qt.ItemDataRole.UserRole + 1) or ""
         is_card = not isinstance(index.data(Qt.ItemDataRole.UserRole), str)
         width = self.parent().viewport().width()
         if is_card:
-            width -= 2 * (self.parent().style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize) + 10)
+            width -= self.action_width()
         key = (index.data(Qt.ItemDataRole.DisplayRole), option.font.toString(), language, width)
         if key in self.documents:
             self.documents.move_to_end(key)
@@ -257,8 +260,8 @@ class CardDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         size = self.document(option, index).size().toSize()
         if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
-            size.setHeight(max(size.height(), self.action_rects(option)[0].height() +
-                               2 * max(0, self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutVerticalSpacing))))
+            size.setHeight(max(size.height(), 2 * self.action_width()))
+        size.setWidth(self.parent().viewport().width())
         return size
 
     def paint(self, painter, option, index):
@@ -275,9 +278,10 @@ class CardDelegate(QStyledItemDelegate):
         painter.restore()
         if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
             painter.save()
-            separator = Qt.GlobalColor.white if option.palette.base().color().lightness() < 128 else option.palette.mid().color()
-            painter.setPen(separator)
+            painter.setPen(option.palette.text().color())
+            painter.setOpacity(0.35)
             painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
+            painter.setOpacity(1.0)
             from wordcel.gui.action_icons import action_icon
             for rect, name in zip(self.action_rects(option), ("copy_word", "copy_sentence")):
                 button = QStyleOptionToolButton()
@@ -350,7 +354,7 @@ class HistoryWindow(QDialog):
         row.addWidget(self.language)
         layout.addLayout(row)
         self.cards = CardList()
-        self.cards.setSpacing(max(0, self.style().pixelMetric(QStyle.PixelMetric.PM_LayoutVerticalSpacing)))
+        self.cards.setSpacing(0)
         self.cards.setItemDelegate(CardDelegate(self.cards))
         self.cards.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         self.cards.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)

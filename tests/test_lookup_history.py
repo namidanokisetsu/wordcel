@@ -136,6 +136,11 @@ class HistoryRecordingTests(unittest.TestCase):
         option = QStyleOptionViewItem()
         option.rect = browser.cards.visualItemRect(item)
         rects = browser.cards.itemDelegate().action_rects(option)
+        self.assertEqual(option.rect.width(), browser.cards.viewport().width())
+        self.assertEqual(rects[0].top(), option.rect.top())
+        self.assertEqual(rects[1].bottom(), option.rect.bottom())
+        self.assertEqual(rects[0].bottom() + 1, rects[1].top())
+        self.assertLessEqual(abs(rects[0].height() - rects[1].height()), 1)
         for rect, expected in zip(rects, (row["form"], row["context"])):
             QTest.mouseClick(browser.cards.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
             self.assertEqual(self.app.clipboard().text(), expected)
