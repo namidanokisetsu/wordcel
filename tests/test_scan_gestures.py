@@ -122,8 +122,8 @@ class ScanGestureTests(unittest.TestCase):
         with patch("wordcel.utils.window_focus.route_popup_mouse", return_value=True) as route:
             self.assertFalse(self.input.filter_mouse(0x201, None))
             route.assert_called_once_with(123, 0x201, None)
-            self.assertTrue(self.input.filter_mouse(0x200, None))
-            route.assert_called_once_with(123, 0x201, None)
+            self.assertFalse(self.input.filter_mouse(0x200, None))
+            route.assert_called_with(123, 0x200, None, captured=True, buttons=1)
             self.input.popup_mouse_handle = None  # Editing may activate the popup mid-click.
             route.return_value = False
             self.assertFalse(self.input.filter_mouse(0x202, None))
@@ -141,6 +141,8 @@ class ScanGestureTests(unittest.TestCase):
             self.input.visible.clear()
             self.input.popup_mouse_handle = None
             route.reset_mock()
+            self.assertTrue(self.input.filter_mouse(0x200, None))
+            route.assert_not_called()
             self.assertFalse(self.input.filter_mouse(0x202, None))
             route.assert_not_called()
             self.assertTrue(self.input.filter_mouse(0x202, None))

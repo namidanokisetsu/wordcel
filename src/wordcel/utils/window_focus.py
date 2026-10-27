@@ -102,7 +102,7 @@ def route_popup_wheel(handle, message, data):
     return route_popup_mouse(handle, message, data)
 
 
-def route_popup_mouse(handle, message, data, *, captured=False):
+def route_popup_mouse(handle, message, data, *, captured=False, buttons=0):
     """Post popup input without synchronous hit tests on the UI thread."""
     import ctypes
     from ctypes import wintypes
@@ -122,6 +122,9 @@ def route_popup_mouse(handle, message, data, *, captured=False):
     modifiers = sum(flag for vk, flag in ((0x01, 1), (0x02, 2), (0x10, 4), (0x11, 8),
                                         (0x04, 16), (0x05, 32), (0x06, 64))
                     if user32.GetAsyncKeyState(vk) & 0x8000)
+    if message == 0x200:
+        # Forwarded presses bypass Windows' capture and button-state updates.
+        modifiers = (modifiers & (4 | 8)) | buttons
     wheel = message in (0x20A, 0x20E)
     point = wintypes.POINT(data.pt.x, data.pt.y)
     if not wheel and not user32.ScreenToClient(handle, ctypes.byref(point)):

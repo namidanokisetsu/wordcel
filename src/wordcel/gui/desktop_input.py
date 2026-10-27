@@ -256,6 +256,13 @@ class DesktopInput(QObject):
 
     def _route_popup_mouse(self, message, data):
         from wordcel.utils.window_focus import route_popup_mouse
+        if message == 0x200 and self._popup_mouse_buttons:
+            handle = next(iter(self._popup_mouse_buttons.values()))
+            if self.visible.is_set() and handle == self.popup_handle:
+                flags = sum({1: 1, 2: 2, 3: 16, 4: 32, 5: 64}[button]
+                            for button in self._popup_mouse_buttons)
+                return route_popup_mouse(handle, message, data, captured=True, buttons=flags)
+            return False
         buttons = {0x201: (1, True), 0x202: (1, False),
                    0x204: (2, True), 0x205: (2, False),
                    0x207: (3, True), 0x208: (3, False)}

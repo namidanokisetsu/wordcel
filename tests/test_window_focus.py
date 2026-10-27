@@ -11,6 +11,73 @@ from wordcel.utils.window_focus import (configure_macos_popup, focus_pinned_popu
 
 
 class PopupSpaceTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "win32", "Windows native selection dispatch")
+    def test_hook_routed_drag_selects_popup_text_without_activation(self):
+        code = textwrap.dedent('''
+            import ctypes
+            from ctypes import wintypes
+            from types import SimpleNamespace
+            from unittest.mock import patch
+            from PyQt6.QtCore import Qt
+            from PyQt6.QtGui import QTextCursor
+            from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout
+            from wordcel.gui.desktop_input import DesktopInput
+            from wordcel.gui.dictionary_browser import DictionaryBrowser
+            from wordcel.utils.window_focus import foreground_window, route_popup_mouse
+
+            app = QApplication([])
+            popup = QDialog(None, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
+                            | Qt.WindowType.WindowStaysOnTopHint)
+            popup.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+            browser = DictionaryBrowser(selection_lookup=False)
+            browser.setPlainText("select these words")
+            layout = QVBoxLayout(popup)
+            layout.addWidget(browser)
+            popup.resize(300, 100)
+            area = app.primaryScreen().availableGeometry()
+            popup.move(area.right() - 300, area.bottom() - 100)
+            previous = foreground_window()
+            popup.show()
+            app.processEvents()
+            with patch("wordcel.gui.desktop_input.KeyboardListener"), \\
+                    patch("wordcel.gui.desktop_input.mouse.Listener"):
+                listener = DesktopInput("shift,middle", "", "", 400)
+            listener.visible.set()
+            listener.popup_handle = listener.popup_mouse_handle = int(popup.winId())
+            user32 = ctypes.WinDLL("user32")
+            user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+
+            def data_at(position):
+                cursor = QTextCursor(browser.document())
+                cursor.setPosition(position)
+                local = browser.viewport().mapTo(popup, browser.cursorRect(cursor).center())
+                scale = popup.devicePixelRatioF()
+                point = wintypes.POINT(round(local.x() * scale), round(local.y() * scale))
+                assert user32.ClientToScreen(listener.popup_handle, ctypes.byref(point))
+                return SimpleNamespace(pt=point, mouseData=0)
+
+            try:
+                # Bypass desktop hit testing so this also runs on a locked desktop.
+                with patch("wordcel.utils.window_focus.route_popup_mouse",
+                           side_effect=lambda handle, message, data: route_popup_mouse(
+                               handle, message, data, captured=True)):
+                    listener.filter_mouse(0x201, data_at(0))
+                app.processEvents()
+                listener.filter_mouse(0x200, data_at(6))
+                app.processEvents()
+                listener.filter_mouse(0x202, data_at(6))
+                app.processEvents()
+                assert browser.selected_text() == "select", repr(browser.selected_text())
+                assert foreground_window() == previous
+            finally:
+                listener.shutdown()
+                popup.close()
+        ''')
+        result = subprocess.run([sys.executable, "-X", "faulthandler", "-c", code],
+                                env={**os.environ, "QT_QPA_PLATFORM": "windows"},
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     @unittest.skipUnless(sys.platform == "win32", "Windows native mouse dispatch")
     def test_posted_popup_click_reaches_button_without_activation(self):
         code = textwrap.dedent('''
