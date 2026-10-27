@@ -138,6 +138,9 @@ class AnkiSettingsPanel(QWidget):
         self.duplicate_form.addRow("Also check", self.duplicate_decks)
         self.duplicate_form.addRow(self.check_all_models)
         options_layout.addWidget(SettingsSection("Duplicates", duplicates))
+        self.notifications = QCheckBox("Anki tray notifications")
+        self.notifications.setToolTip("Show save results in system notifications")
+        form.addRow(self.notifications)
         self.reload = QPushButton("Refresh")
         self.reload.setToolTip("Open Anki with AnkiConnect installed")
         self.auto_map = QPushButton("Match fields")
@@ -170,6 +173,7 @@ class AnkiSettingsPanel(QWidget):
         self.duplicate_action.currentIndexChanged.connect(self._duplicates_changed)
         self.duplicate_scope.currentIndexChanged.connect(self._duplicates_changed)
         self.check_all_models.toggled.connect(self._save)
+        self.notifications.toggled.connect(self._save)
         for control in (self.endpoint, self.api_key):
             control.editingFinished.connect(self._connection_changed)
         self.tags.editingFinished.connect(self._save)
@@ -190,6 +194,7 @@ class AnkiSettingsPanel(QWidget):
         self.duplicate_action.setCurrentIndex(max(0, self.duplicate_action.findData(options.duplicate_action)))
         self.duplicate_scope.setCurrentIndex(max(0, self.duplicate_scope.findData(options.duplicate_scope)))
         self.check_all_models.setChecked(options.check_all_models)
+        self.notifications.setChecked(self.settings.value(self._prefix + "notifications", False, bool))
         self._duplicate_deck_names = set(options.duplicate_decks)
         self._known_decks = [options.deck] if options.deck else []
         for control, value in ((self.deck, options.deck), (self.model, options.model)):
@@ -271,6 +276,7 @@ class AnkiSettingsPanel(QWidget):
                       duplicate_scope=self.duplicate_scope.currentData(),
                       duplicate_decks=json.dumps(sorted(self._duplicate_deck_names), ensure_ascii=False),
                       check_all_models=self.check_all_models.isChecked(),
+                      notifications=self.notifications.isChecked(),
                       shortcut=shortcut if self.shortcut.enabled.isChecked() else "",
                       shortcut_preset=shortcut)
         if self.settings.contains(self._prefix + "connection"):
@@ -287,10 +293,6 @@ class AnkiSettingsPanel(QWidget):
         self.changed.emit()
 
     def _duplicates_changed(self, *_):
-        checking = self.duplicate_action.currentData() == "prevent"
-        self.duplicate_scope.setEnabled(checking)
-        self.check_all_models.setEnabled(checking)
-        self.duplicate_decks.setEnabled(checking)
         self.duplicate_form.setRowVisible(self.duplicate_decks, self.duplicate_scope.currentData() == "decks")
         self._save()
 

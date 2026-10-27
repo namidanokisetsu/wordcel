@@ -136,8 +136,8 @@ class AnkiGuiTests(unittest.TestCase):
         actions["New"].setChecked(True)
         panel.check_all_models.setChecked(True)
         panel.duplicate_action.setCurrentIndex(panel.duplicate_action.findData("allow"))
-        self.assertFalse(panel.duplicate_scope.isEnabled())
-        self.assertFalse(panel.duplicate_decks.isEnabled())
+        self.assertTrue(panel.duplicate_scope.isEnabled())
+        self.assertTrue(panel.duplicate_decks.isEnabled())
         options = load_settings(self.settings, "ja")
         self.assertEqual(options.duplicate_decks, ("New", "Other"))
         self.assertEqual(options.duplicate_action, "allow")
@@ -264,6 +264,7 @@ class AnkiGuiTests(unittest.TestCase):
                 self.wait_until(lambda: window._anki_task is None)
                 self.assertEqual(export.call_args.args[0], (cat,))
                 self.assertEqual(window._result.text, 'dog')
+                self.wait_until(lambda: window._anki_check_task is None)
                 self.assertEqual(window.anki_button.property('action_name'), 'anki')
                 window.show_entries([cat], 'cat', peek=True)
                 self.assertEqual(window.anki_button.property('action_name'), 'anki_saved')
@@ -299,14 +300,61 @@ class AnkiGuiTests(unittest.TestCase):
         self.settings.setValue("profiles/ja/anki/duplicate_action", "allow")
         with patch("wordcel.anki.AnkiClient.existing_notes", return_value={"cat": (123,)}):
             window.show_entries([Entry("1", "cat", "", "Words", "ja", ("cat",))], "cat")
+            window.pin.setChecked(True)
+            self.app.processEvents()
+            geometry = window.anki_button.geometry()
             self.wait_until(lambda: window._anki_check_task is None)
-        self.assertEqual(window.anki_button.property("action_name"), "anki_saved")
+        self.assertEqual(window.anki_button.property("action_name"), "anki_duplicate")
         self.assertEqual(window.anki_button.toolTip(), "Add another note")
+        self.assertEqual(window.anki_button.geometry(), geometry)
+        self.assertEqual(window.anki_button.size(), window.audio_button.size())
+        self.assertEqual(window.anki_button.iconSize(), window.audio_button.iconSize())
+        self.assertEqual(window.anki_button.geometry().center().y(), window.audio_button.geometry().center().y())
         with patch("wordcel.gui.anki.AnkiClient") as client:
             client.return_value.add.return_value = 456
             window.anki_button.click()
             self.wait_until(lambda: window._anki_task is None)
             client.return_value.add.assert_called_once()
+            self.assertEqual(window.anki_button.property("action_name"), "anki_duplicate")
+            window.anki_button.click()
+            self.wait_until(lambda: window._anki_task is None)
+            self.assertEqual(client.return_value.add.call_count, 2)
+
+    def test_different_words_can_be_queued_while_first_save_runs(self):
+        window = self.anki_window()
+        gate, started = threading.Event(), threading.Event()
+        calls = []
+        def save(entries, *args, **kwargs):
+            calls.append(entries[0].term)
+            if len(calls) == 1:
+                started.set()
+                gate.wait(2)
+            return len(calls)
+        try:
+            with patch("wordcel.gui.anki.export_note", side_effect=save):
+                window.show_entries([Entry("1", "cat", "", "Words", "ja", ("cat",))], "cat")
+                window.add_to_anki()
+                self.assertTrue(started.wait(1))
+                window.show_entries([Entry("2", "dog", "", "Words", "ja", ("dog",))], "dog")
+                window.add_to_anki()
+                self.assertEqual(len(window._anki_queue), 1)
+                self.assertEqual(window.anki_button.toolTip(), "Adding to Anki…")
+                gate.set()
+                self.wait_until(lambda: window._anki_task is None)
+                self.assertEqual(calls, ["cat", "dog"])
+        finally:
+            gate.set()
+
+    def test_notification_reports_background_save_failure(self):
+        window = self.anki_window()
+        self.settings.setValue("profiles/ja/anki/notifications", True)
+        messages = []
+        window.anki_notification.connect(messages.append)
+        with patch("wordcel.gui.anki.export_note", side_effect=ValueError("Open Anki.")):
+            window.show_entries([Entry("1", "cat", "", "Words", "ja", ("cat",))], "cat")
+            window.add_to_anki()
+            self.wait_until(lambda: window._anki_task is None)
+        self.assertEqual(messages, ["cat: Open Anki."])
 
     def test_existing_note_check_discards_stale_results_and_checks_latest_word(self):
         window = self.anki_window()
@@ -362,7 +410,7 @@ class AnkiGuiTests(unittest.TestCase):
                 call.assert_called_once_with('guiBrowse', query='nid:123')
         self.settings.setValue('profiles/ja/anki/deck', 'Other')
         window.show_entries([word], 'cat')
-        self.assertEqual(window.anki_button.property('action_name'), 'anki')
+        self.assertEqual(window.anki_button.property('action_name'), 'anki_checking')
         self.wait_until(lambda: window._anki_check_task is None)
         self.settings.setValue('profiles/ja/anki/deck', 'Japanese')
         window.show_entries([word], 'cat')

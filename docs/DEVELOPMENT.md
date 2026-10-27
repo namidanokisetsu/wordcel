@@ -261,7 +261,9 @@ stays separate.
 Existing-note indicators use batched native `dupe:` searches and exact deck IDs,
 including original decks for filtered cards. Checks are worker-bound and keyed by
 lookup revision, headword groups and settings; stale results never mark new words.
-Unavailable Anki leaves mining usable. Allowing duplicates keeps the add action.
+Unavailable Anki leaves mining usable. Duplicate checks show a pending state;
+allowing duplicates uses a separate add-another icon. Saves of different words
+are queued on a worker and optional tray notifications report their results.
 `kanji-details` uses the captured Japanese lookup data in headword order and shares
 the full kanji content renderer, with card HTML independent of popup links and fonts.
 

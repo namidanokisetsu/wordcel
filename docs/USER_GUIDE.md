@@ -52,8 +52,11 @@ Install [AnkiConnect](https://ankiweb.net/shared/info/2055492159) and keep Anki 
 
 1. Open your profile's **Anki** settings, tick **Enable Anki**, and click **Refresh**.
 2. Choose your deck and note type, then map the fields. Use **Word** for the first field.
-3. Click the popup's **+** icon to save. The checkmark opens the saved note.
+3. Click the popup's **+** icon to save. With duplicates prevented, the checkmark opens existing notes;
+   with duplicates allowed, overlapping circles add another note.
 
-Map sentence, screenshot and audio fields if you want those on your cards.
+Map sentence, screenshot and audio fields if you want those on your cards. Saves run in the background;
+turn on **Anki tray notifications** for save results.
+Keep Wordcel open until queued saves finish.
 
 [Development notes](DEVELOPMENT.md) cover running from source and building the app.

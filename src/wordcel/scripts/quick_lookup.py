@@ -246,6 +246,7 @@ def main(argv=None):
         tray.activated.connect(lambda reason: window.open_search()
                                if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
     window.profile_activated.connect(lambda name: tray.showMessage("Wordcel", name, QSystemTrayIcon.MessageIcon.NoIcon, 1200))
+    window.anki_notification.connect(lambda message: tray.showMessage("Wordcel", message, QSystemTrayIcon.MessageIcon.NoIcon, 4000))
     tray.show()
     app.aboutToQuit.connect(window.shutdown)
     from wordcel.scripts.translation_server import shutdown_server

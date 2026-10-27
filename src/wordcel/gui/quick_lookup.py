@@ -866,6 +866,7 @@ class QuickLookupWindow(QDialog):
     next_profile_requested = pyqtSignal()
     previous_profile_requested = pyqtSignal()
     profile_activated = pyqtSignal(str)
+    anki_notification = pyqtSignal(str)
     selection_requested = pyqtSignal()
     clipboard_requested = pyqtSignal()
 
@@ -927,12 +928,14 @@ class QuickLookupWindow(QDialog):
         self._remember_request = False
         self.audio = None
         self._anki_task = None
+        self._anki_queue = []
         self._anki_saved_revision = None
         self._anki_saved_note = None
         self._anki_saved_notes = {}
         self._anki_recent_saves = {}
         self._anki_check_task = None
         self._anki_check_identity = None
+        self._anki_check_error = ""
         self._anki_existing_identity = None
         self._anki_existing_notes = {}
         self._headword_rows = {}
@@ -1197,6 +1200,8 @@ class QuickLookupWindow(QDialog):
         self._translation_keys = None
         self._hover_keys = None
         self._cycle_keys = None
+        self._shortcut_callbacks = {name: getattr(self, name + "_requested").emit
+                                    for name in ("hotkey", "translation", "hover_toggle", "next_profile", "previous_profile")}
         self._shortcuts_restored = False
         self.next_profile_requested.connect(lambda: self.cycle_profile(1))
         self.previous_profile_requested.connect(lambda: self.cycle_profile(-1))
@@ -2740,7 +2745,7 @@ class QuickLookupWindow(QDialog):
     def audio_source_menu(self, point, *, headword=None, button=None):
         if self._result is None or not self._result.entries:
             return
-        from wordcel.audio.sources import database_path, source_label, source_order
+        from wordcel.audio.sources import database_path, is_local, source_label, source_order
         profile = self.preferred_foreign
         button = button or self.audio_button
         menu = QMenu(button)
@@ -2748,7 +2753,7 @@ class QuickLookupWindow(QDialog):
         menu.addSeparator()
         for source in source_order(self.settings, profile):
             action = menu.addAction(source_label(source), lambda checked=False, source=source: self.play_audio(source=source, headword=headword))
-            action.setEnabled(source in ("tts", "online") or bool(database_path(self.settings, profile)))
+            action.setEnabled(not is_local(source) or bool(database_path(self.settings, profile)))
         clip = getattr(self.audio, "current_clip", None)
         if clip and clip.page_url.startswith("https://commons.wikimedia.org/"):
             from PyQt6.QtCore import QUrl
@@ -2779,42 +2784,59 @@ class QuickLookupWindow(QDialog):
             from wordcel.anki import AnkiClient
             from wordcel.gui.anki import AnkiTask
             self._anki_check_identity = identity
+            self._anki_check_error = ""
             words = tuple(dict.fromkeys(key[0] for key in groups))
             self._anki_check_task = AnkiTask(lambda: AnkiClient(options).existing_notes(words),
                                             (identity, dict(self._anki_recent_saves)), self)
             self._anki_check_task.finished.connect(self._anki_existing_finished)
             self._anki_check_task.thread.start()
         existing = self._existing_anki_notes(identity)
-        saved_words = self._anki_saved_notes if self._anki_saved_revision == self.revision else {}
-        saved = first in saved_words or first in existing
-        browse = first in saved_words or first in existing and options.duplicate_action == "prevent"
+        saved_words = ({key: value for key, value in self._anki_saved_notes.items() if value[1] == options}
+                       if self._anki_saved_revision == self.revision else {})
+        pending_check = self._anki_check_task is not None and self._anki_existing_identity != identity
         ready = (enabled and self._result is not None and bool(self._result.entries)
-                 and self._display_revision == self.revision and self._anki_task is None
+                 and self._display_revision == self.revision
                  and self._anki_browse_task is None)
-        description = ("Adding to Anki…" if self._anki_task is not None else "Show in Anki" if browse else
-                       "Add another note" if saved else "Add to Anki")
-        icon = "anki_saved" if saved else "anki"
+        def state(key):
+            pending = self._anki_pending(key, options)
+            saved = key in saved_words or key in existing
+            browse = saved and options.duplicate_action == "prevent"
+            if pending:
+                return "anki_checking", "Adding to Anki…", False
+            if browse:
+                return "anki_saved", "Show in Anki", ready
+            if saved:
+                return "anki_duplicate", "Add another note", ready
+            if pending_check:
+                return "anki_checking", "Checking Anki…", ready
+            if self._anki_existing_identity == identity and self._anki_check_error:
+                return "anki", "Add to Anki (status unavailable)", ready
+            return "anki", "Add to Anki", ready
+
+        icon, description, first_ready = state(first)
         self.anki_button.setProperty("action_name", icon)
         self.anki_button.setIcon(action_icon(icon, config.color_foreground))
         self.anki_button.setToolTip(description)
         self.anki_button.setAccessibleName(description)
         self.anki_button.setVisible(enabled and self.settings.value(
             f"profiles/{self.active_profile}/buttons/anki", True, bool) and not self._headword_rows)
-        self.anki_button.setEnabled(ready)
+        self.anki_button.setEnabled(first_ready)
         for key, (_, button, _) in self._headword_rows.items():
-            saved_word = key in saved_words or key in existing
-            icon = "anki_saved" if saved_word else "anki"
-            description = ("Show in Anki" if key in saved_words or key in existing and options.duplicate_action == "prevent"
-                           else "Add another note" if saved_word else "Add to Anki")
+            icon, description, group_ready = state(key)
             button.setProperty("action_name", icon)
             button.setIcon(action_icon(icon, config.color_foreground))
             button.setToolTip(description)
             button.setAccessibleName(description)
-            button.setEnabled(ready)
+            button.setEnabled(group_ready)
         if hasattr(self, "anki_shortcut"):
             binding = self.settings.value(f"profiles/{self.active_profile}/anki/shortcut", "")
             self.anki_shortcut.setKey(QKeySequence(binding))
-            self.anki_shortcut.setEnabled(ready and not browse and bool(binding))
+            self.anki_shortcut.setEnabled(first_ready and bool(binding))
+
+    def _anki_pending(self, headword, options):
+        contexts = ([self._anki_task.context] if self._anki_task is not None else [])
+        contexts += [context for _, context in self._anki_queue]
+        return any(context[1] == headword and context[2] == options for context in contexts)
 
     def _existing_anki_notes(self, identity):
         existing = dict(self._anki_existing_notes) if self._anki_existing_identity == identity else {}
@@ -2834,6 +2856,7 @@ class QuickLookupWindow(QDialog):
         current = (self.revision, load_settings(self.settings, self.active_profile), tuple(self._headword_groups()))
         if identity == current:
             self._anki_existing_identity = identity
+            self._anki_check_error = error
             self._anki_existing_notes = {key: found[key[0]] for key in identity[2] if not error and key[0] in found}
             if not error:
                 for key in identity[2]:
@@ -2850,15 +2873,18 @@ class QuickLookupWindow(QDialog):
         options = load_settings(self.settings, self.active_profile)
         if not options.enabled or self._display_revision != self.revision or not self._result or not self._result.entries:
             return
-        if self._anki_task is not None or self._anki_browse_task is not None:
+        if self._anki_browse_task is not None:
             return
         groups = self._headword_groups()
         headword = headword if headword is not None else next(iter(groups))
         if headword not in groups:
             return
+        if self._anki_pending(headword, options):
+            return
         query = ""
         existing = self._existing_anki_notes((self.revision, options, tuple(groups)))
-        if self._anki_saved_revision == self.revision and headword in self._anki_saved_notes:
+        if (options.duplicate_action == "prevent" and self._anki_saved_revision == self.revision
+                and headword in self._anki_saved_notes and self._anki_saved_notes[headword][1] == options):
             note_id, saved_options = self._anki_saved_notes[headword]
             query = f"nid:{note_id}"
         elif headword in existing and options.duplicate_action == "prevent":
@@ -2881,19 +2907,27 @@ class QuickLookupWindow(QDialog):
         selection, translation = self.browser.selected_text(), self._result.translation
         screenshot, directory = self._result_screenshot, self.directory
         audio_clip = getattr(self.audio, "current_clip", None)
-        self._anki_task = AnkiTask(
-            lambda: export_note(entries, sentence, selection, options, translation=translation,
-                                screenshot=screenshot, directory=directory, audio_clip=audio_clip, kanji=kanji),
-            (self.revision, headword, options), self)
-        self._anki_task.finished.connect(self._anki_finished)
+        operation = lambda: export_note(entries, sentence, selection, options, translation=translation,
+                                        screenshot=screenshot, directory=directory, audio_clip=audio_clip, kanji=kanji)
+        notify = self.settings.value(f"profiles/{self.active_profile}/anki/notifications", False, bool)
+        self._anki_queue.append((operation, (self.revision, headword, options, notify)))
         self.show_message("")
+        self._start_anki_save()
         self.update_anki()
+
+    def _start_anki_save(self):
+        if self._anki_task is not None or not self._anki_queue or self._shutting_down:
+            return
+        from wordcel.gui.anki import AnkiTask
+        operation, context = self._anki_queue.pop(0)
+        self._anki_task = AnkiTask(operation, context, self)
+        self._anki_task.finished.connect(self._anki_finished)
         self._anki_task.thread.start()
 
     def _anki_finished(self, response):
         task, self._anki_task = self._anki_task, None
         task.deleteLater()
-        (revision, headword, options), note_id, error = response
+        (revision, headword, options, notify), note_id, error = response
         self._anki_check_identity = None
         if not error:
             self._anki_recent_saves[headword] = (note_id, options)
@@ -2905,6 +2939,9 @@ class QuickLookupWindow(QDialog):
             self._anki_saved_notes[headword] = (note_id, options)
         if error:
             self.show_message(error if self._display_revision == revision else f"{headword[0]}: {error}")
+        if notify:
+            self.anki_notification.emit(f"{headword[0]}: {error}" if error else f"Added {headword[0]} to Anki")
+        self._start_anki_save()
         self.update_anki()
 
     def _anki_browse_finished(self, response):

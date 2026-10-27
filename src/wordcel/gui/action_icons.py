@@ -14,6 +14,8 @@ _SHAPES = {
     "swap": '<path d="M3 8h17m-4-4 4 4-4 4M21 16H4m4-4-4 4 4 4"/>',
     "anki": '<circle cx="12" cy="12" r="10"/><path d="M7 12h10M12 7v10"/>',
     "anki_saved": '<circle cx="12" cy="12" r="10"/><path d="m7 12 3 3 7-7"/>',
+    "anki_duplicate": '<circle cx="8" cy="8" r="6"/><path d="M5 8h6M8 5v6M13 9a6 6 0 1 1-4 4M12 16h8M16 12v8"/>',
+    "anki_checking": '<circle cx="12" cy="12" r="10"/><path d="M7 12h.1M12 12h.1M17 12h.1"/>',
     "audio": '<path d="M2 9h4l6-4v14l-6-4H2ZM16 8c3 2 3 6 0 8M19 3c5 4.5 5 13.5 0 18"/>',
     "back": '<path d="m14 5-7 7 7 7M7 12h13"/>',
     "close": '<path d="m6 6 12 12M18 6 6 18"/>',
