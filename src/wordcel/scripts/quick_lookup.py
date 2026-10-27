@@ -216,11 +216,12 @@ def main(argv=None):
         icon = app.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView)
     app.setWindowIcon(icon)
     window.setWindowIcon(icon)
-    tray_icon = QIcon(icon)
-    if sys.platform == "darwin":
-        tray_icon.setIsMask(True)
-    tray = QSystemTrayIcon(tray_icon, app)
-    tray.setToolTip("Wordcel")
+    from wordcel.gui.tray_language import update_tray_profile
+    tray = QSystemTrayIcon(app)
+    def update_tray(*_):
+        update_tray_profile(tray, window, sys.platform == "darwin")
+    window.mode_changed.connect(update_tray)
+    update_tray()
     window.tray_geometry = tray.geometry
     menu = QMenu()
     menu.addAction("Search", lambda: window.open_search())
