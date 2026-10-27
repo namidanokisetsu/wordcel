@@ -664,6 +664,15 @@ class SetupDialog(SettingsNavigation, QDialog):
         lookup_layout.addWidget(self.screen_section)
         shared_layout.takeRow(self.hover_startup)
         app_layout.addRow(self.hover_startup)
+        self.preload_ocr = QCheckBox("Preload OCR")
+        self.preload_ocr.setChecked(settings.value("ocr/preload", True, bool))
+        self.preload_ocr.setToolTip("Prepare the active OCR engine in the background")
+        def save_preload(enabled):
+            settings.setValue("ocr/preload", enabled)
+            if self.parent() is not None:
+                self.parent().scan_settings_changed.emit()
+        self.preload_ocr.toggled.connect(save_preload)
+        app_layout.addRow(self.preload_ocr)
         self.appearance.pinned_form.takeRow(self.appearance.snap_scrolling)
         self.appearance.snap_scrolling.toggled.disconnect(self.appearance.save)
         shared_layout.addRow(self.appearance.snap_scrolling)

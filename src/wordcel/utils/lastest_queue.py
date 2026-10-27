@@ -20,6 +20,12 @@ class LatestValueQueue():
             self._event.clear()
             return value
 
+    def put_if_empty(self, item):
+        with self._lock:
+            if not self._event.is_set():
+                self._value = item
+                self._event.set()
+
     def trigger(self):
         with self._lock:
             self._event.set()

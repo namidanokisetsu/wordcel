@@ -54,6 +54,14 @@ class ScanWorker(threading.Thread):
         self._generation = None
         self._frozen = None
         self._reset_models = threading.Event()
+        self._preload_lock = threading.Lock()
+        self._preload = None
+
+    def preload(self, language=None, selected=None, component_directory=""):
+        with self._preload_lock:
+            self._preload = (language, selected, component_directory) if language else None
+        if language and not self._stopped.is_set():
+            self.queue.put_if_empty("preload")
 
     def invalidate(self, generation):
         self._generation = generation
@@ -90,6 +98,9 @@ class ScanWorker(threading.Thread):
         providers, caches, scanners = {}, {}, {}
         try:
             while True:
+                with self._preload_lock:
+                    if self._preload is not None and not self._stopped.is_set():
+                        self.queue.put_if_empty("preload")
                 job = self.queue.get()
                 if job is None or self._stopped.is_set():
                     return
@@ -104,6 +115,24 @@ class ScanWorker(threading.Thread):
                         engine.refresh()
                     continue
                 if job == "models":
+                    continue
+                if job == "preload":
+                    with self._preload_lock:
+                        pending, self._preload = self._preload, None
+                    if pending is not None:
+                        language, selected, component = pending
+                        model_key = ("paddle",) if selected == "paddle" else (language, selected, component)
+                        if model_key not in providers:
+                            from wordcel.gui.resources import ocr_ready
+                            from wordcel.language.support import ocr_supported
+                            try:
+                                if ocr_supported(language, selected) and ocr_ready(selected, component):
+                                    mark("provider_load_begin", provider=selected, preload=True)
+                                    providers[model_key] = self.provider(language, selected, component)
+                                    mark("provider_load_done", provider=selected, preload=True)
+                            except Exception:
+                                # A real scan reports setup errors and can retry initialization.
+                                pass
                     continue
                 generation, pixels, point, language, *options = job
                 capture_request = pixels if isinstance(pixels, CaptureRequest) else (
@@ -363,6 +392,9 @@ class UnifiedOCR(QObject):
         self.hover_screen = None
         self._frozen_pixels = None
         self._frozen_screen = None
+        self.preload_timer = QTimer(self)
+        self.preload_timer.setSingleShot(True)
+        self.preload_timer.timeout.connect(self.preload)
         self.timer = QTimer(self)
         self.timer.setInterval(16)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
@@ -577,6 +609,7 @@ class UnifiedOCR(QObject):
         return super().eventFilter(watched, event)
 
     def reload_settings(self):
+        self.preload_timer.start(0)
         settings = getattr(self.window, "settings", None)
         previous = getattr(self, "screenai_directory", None)
         self.screenai_directory = settings.value("screenai_directory", "") if settings else ""
@@ -736,6 +769,24 @@ class UnifiedOCR(QObject):
         self.invalidate()
         if self.worker:
             self.worker.refresh_models()
+        self.preload_timer.start(0)
+
+    def _ensure_scan_worker(self):
+        if self.worker is None:
+            self.worker = ScanWorker(self.completed, getattr(self.window, "directory", None), self.frame_ready)
+            self.worker.start()
+
+    def preload(self):
+        settings = getattr(self.window, "settings", None)
+        if settings is None or not settings.value("ocr/preload", True, bool):
+            if self.worker is not None:
+                self.worker.preload()
+            return
+        from wordcel.language.support import ocr_supported
+        language, selected = self.window.preferred_foreign, self.profile_ocr_provider
+        if selected and ocr_supported(language, selected):
+            self._ensure_scan_worker()
+            self.worker.preload(language, selected, self.screenai_directory if selected == "screenai" else "")
 
     def _capture_bounds(self, point, geometry, screen_key):
         if self.session.hovering:
@@ -789,9 +840,7 @@ class UnifiedOCR(QObject):
                     self.input.visible.set()
                 else:
                     self.input.visible.clear()
-            if self.worker is None:
-                self.worker = ScanWorker(self.completed, getattr(self.window, "directory", None), self.frame_ready)
-                self.worker.start()
+            self._ensure_scan_worker()
             if self.hit_worker is None:
                 self.hit_worker = HitWorker(self.completed, getattr(self.window, "directory", None))
                 self.hit_worker.start()
@@ -1109,6 +1158,7 @@ class UnifiedOCR(QObject):
     def shutdown(self):
         self.restore_capture_visibility()
         self.set_enabled(False)
+        self.preload_timer.stop()
         self.leave_timer.stop()
         if self.worker:
             self.worker.stop()

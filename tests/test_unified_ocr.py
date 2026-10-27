@@ -32,6 +32,60 @@ def recognized():
 
 
 class ScanWorkerTests(unittest.TestCase):
+    def test_preload_and_first_scan_share_provider(self):
+        worker, sink = self.make_worker(["preload", (1, image_bytes(), (0.2, 0.5), "tr", ("paddle", "")), None])
+        worker.queue.put_if_empty = Mock()
+        worker._preload = ("tr", "paddle", "")
+        provider = Mock(return_value=recognized())
+        with patch("wordcel.gui.resources.ocr_ready", return_value=True), \
+                patch.object(worker, "provider", return_value=provider) as factory, \
+                patch("wordcel.dictionary.search.SearchEngine"):
+            worker.run()
+        factory.assert_called_once_with("tr", "paddle", "")
+        provider.assert_called_once()
+        self.assertEqual(sink.emit.call_args.args[-1], "")
+
+    def test_failed_preload_retries_on_scan(self):
+        worker, sink = self.make_worker(["preload", (1, image_bytes(), (0.2, 0.5), "tr", ("paddle", "")), None])
+        worker.queue.put_if_empty = Mock()
+        worker._preload = ("tr", "paddle", "")
+        with patch("wordcel.gui.resources.ocr_ready", return_value=True), \
+                patch.object(worker, "provider", side_effect=[RuntimeError("fixture"), Mock(return_value=recognized())]) as factory, \
+                patch("wordcel.dictionary.search.SearchEngine"):
+            worker.run()
+        self.assertEqual(factory.call_count, 2)
+        self.assertEqual(sink.emit.call_count, 1)
+        self.assertEqual(sink.emit.call_args.args[-1], "")
+
+    def test_preloaded_paddle_is_shared_after_language_switch(self):
+        worker, _ = self.make_worker(["preload", (1, image_bytes(), (0.2, 0.5), "en", ("paddle", "")), None])
+        worker.queue.put_if_empty = Mock()
+        worker._preload = ("tr", "paddle", "")
+        provider = PaddleScan(Mock(), "tr")
+        with patch("wordcel.gui.resources.ocr_ready", return_value=True), \
+                patch.object(worker, "provider", return_value=provider) as factory, \
+                patch.object(provider, "scan", return_value=recognized()) as scan, \
+                patch("wordcel.dictionary.search.SearchEngine"):
+            worker.run()
+        factory.assert_called_once_with("tr", "paddle", "")
+        self.assertEqual(scan.call_args.args[1], "en")
+
+    def test_missing_models_skip_preload(self):
+        worker, _ = self.make_worker(["preload", None])
+        worker.queue.put_if_empty = Mock()
+        worker._preload = ("tr", "paddle", "")
+        with patch("wordcel.gui.resources.ocr_ready", return_value=False), patch.object(worker, "provider") as factory:
+            worker.run()
+        factory.assert_not_called()
+
+    def test_preload_does_not_replace_pending_scan(self):
+        worker = ScanWorker(Mock())
+        job = (1, image_bytes(), (0.2, 0.5), "tr")
+        worker.queue.put(job)
+        worker.preload("tr", "paddle")
+        self.assertIs(worker.queue.get(), job)
+        worker.preload()
+        self.assertIsNone(worker._preload)
     def test_chinese_ocr_lookup_starts_at_the_pointed_character(self):
         import json
         from pathlib import Path
@@ -465,6 +519,23 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.controller.hover_enabled = True
         self.controller.hover_region = QRect(50, 50, 300, 150)
         self.controller.hover_screen = self.controller._screen_key(QApplication.primaryScreen())
+
+    def test_preload_default_and_disabled_setting_do_not_enable_scanning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.window.settings = QSettings(os.path.join(directory, "settings.ini"), QSettings.Format.IniFormat)
+            self.controller.enabled = False
+            with patch.object(self.controller, "_ensure_scan_worker") as ensure:
+                self.controller.worker = Mock()
+                self.controller.preload()
+                ensure.assert_called_once_with()
+                self.controller.worker.preload.assert_called_once_with("tr", self.controller.profile_ocr_provider, "")
+                self.assertFalse(self.controller.enabled)
+                self.assertIsNone(self.controller.input)
+                self.window.settings.setValue("ocr/preload", False)
+                self.controller.preload()
+                self.controller.worker.preload.assert_called_with()
+                self.assertEqual(ensure.call_count, 1)
+            self.controller.worker = None
 
     def test_scan_area_survives_settings_reload_and_hover_toggle(self):
         with tempfile.TemporaryDirectory() as directory:
