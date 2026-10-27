@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, QSignalBlocker, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, QSignalBlocker, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAbstractTextDocumentLayout, QPalette, QTextDocument, QTextOption
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFormLayout,
                             QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFor
                             QStyledItemDelegate, QStyle, QStyleOptionButton, QToolTip, QVBoxLayout, QWidget)
 
 from wordcel.history import EncounterSession, HistoryStore, primary_entries
+from wordcel.gui.action_icons import action_icon
 from wordcel.gui.copy_feedback import CopyFeedback
 
 
@@ -223,24 +224,14 @@ class CardDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self.documents = OrderedDict()
 
-    def action_width(self):
-        metrics = self.parent().fontMetrics()
-        spacing = self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutHorizontalSpacing)
-        return max(metrics.horizontalAdvance(text) for text in ("Copy word", "Copy sentence")) + 2 * spacing
-
-    def action_rects(self, option):
+    def action_rect(self, option):
         rect = option.rect
-        width = min(self.action_width(), rect.width())
-        top_height = rect.height() // 2
-        return (QRect(rect.right() - width + 1, rect.top(), width, top_height),
-                QRect(rect.right() - width + 1, rect.top() + top_height, width, rect.height() - top_height))
+        width = min(rect.height(), rect.width() // 2)
+        return QRect(rect.right() - width + 1, rect.top(), width, rect.height())
 
-    def document(self, option, index):
+    def document(self, option, index, action_width=0):
         language = index.data(Qt.ItemDataRole.UserRole + 1) or ""
-        is_card = not isinstance(index.data(Qt.ItemDataRole.UserRole), str)
-        width = self.parent().viewport().width()
-        if is_card:
-            width -= self.action_width()
+        width = self.parent().viewport().width() - action_width
         key = (index.data(Qt.ItemDataRole.DisplayRole), option.font.toString(), language, width)
         if key in self.documents:
             self.documents.move_to_end(key)
@@ -264,10 +255,15 @@ class CardDelegate(QStyledItemDelegate):
         return doc
 
     def sizeHint(self, option, index):
-        size = self.document(option, index).size().toSize()
-        if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
-            spacing = self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutVerticalSpacing)
-            size.setHeight(max(size.height(), 2 * (self.parent().fontMetrics().height() + spacing)))
+        width = 0
+        while True:
+            size = self.document(option, index, width).size().toSize()
+            if isinstance(index.data(Qt.ItemDataRole.UserRole), str):
+                break
+            next_width = min(size.height(), self.parent().viewport().width() // 2)
+            if next_width <= width:
+                break
+            width = next_width
         size.setWidth(self.parent().viewport().width())
         return size
 
@@ -275,9 +271,11 @@ class CardDelegate(QStyledItemDelegate):
         painter.save()
         if option.state & QStyle.StateFlag.State_Selected:
             painter.fillRect(option.rect, option.palette.highlight())
-        doc = self.document(option, index)
-        if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
-            painter.setClipRect(option.rect.adjusted(0, 0, -min(self.action_width(), option.rect.width()), 0))
+        is_card = not isinstance(index.data(Qt.ItemDataRole.UserRole), str)
+        action = self.action_rect(option) if is_card else QRect()
+        doc = self.document(option, index, action.width())
+        if is_card:
+            painter.setClipRect(option.rect.adjusted(0, 0, -action.width(), 0))
         painter.translate(option.rect.topLeft())
         context = QAbstractTextDocumentLayout.PaintContext()
         context.palette = option.palette
@@ -285,44 +283,40 @@ class CardDelegate(QStyledItemDelegate):
             context.palette.setColor(QPalette.ColorRole.Text, option.palette.highlightedText().color())
         doc.documentLayout().draw(painter, context)
         painter.restore()
-        if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
+        if is_card:
             painter.save()
             painter.setPen((option.palette.highlightedText() if option.state & QStyle.StateFlag.State_Selected
                             else option.palette.text()).color())
             painter.setOpacity(0.35)
             painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
             painter.setOpacity(1.0)
-            for rect, label in zip(self.action_rects(option), ("Copy word", "Copy sentence")):
-                button = QStyleOptionButton()
-                button.text = label
-                button.state = QStyle.StateFlag.State_Enabled
-                size = self.parent().style().sizeFromContents(
-                    QStyle.ContentsType.CT_PushButton, button,
-                    self.parent().fontMetrics().size(Qt.TextFlag.TextShowMnemonic, label), self.parent())
-                button.rect = QStyle.alignedRect(Qt.LayoutDirection.LeftToRight, Qt.AlignmentFlag.AlignCenter,
-                                                 size.boundedTo(rect.size()), rect)
-                self.parent().style().drawControl(QStyle.ControlElement.CE_PushButton, button, painter, self.parent())
+            button = QStyleOptionButton()
+            button.rect = action
+            button.state = QStyle.StateFlag.State_Enabled
+            button.icon = action_icon("copy", option.palette.buttonText().color().name())
+            icon_size = self.parent().style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize)
+            button.iconSize = QSize(icon_size, icon_size)
+            self.parent().style().drawControl(QStyle.ControlElement.CE_PushButton, button, painter, self.parent())
             painter.restore()
 
     def editorEvent(self, event, model, option, index):
         if isinstance(index.data(Qt.ItemDataRole.UserRole), str):
             return False
         if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
-            for field, rect in zip(("form", "context"), self.action_rects(option)):
-                if rect.contains(event.pos()) and event.button() == Qt.MouseButton.LeftButton:
-                    if event.type() == QEvent.Type.MouseButtonRelease:
-                        row = self.parent().window().rows.get(index.data(Qt.ItemDataRole.UserRole))
-                        if row:
-                            self.parent().window().copy_text(row[field])
-                    return True
+            if self.action_rect(option).contains(event.pos()) and event.button() == Qt.MouseButton.LeftButton:
+                if event.type() == QEvent.Type.MouseButtonRelease:
+                    row = self.parent().window().rows.get(index.data(Qt.ItemDataRole.UserRole))
+                    if row:
+                        self.parent().window().copy_text(row["context"] or row["form"])
+                return True
         return super().editorEvent(event, model, option, index)
 
     def helpEvent(self, event, view, option, index):
         if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
-            for label, rect in zip(("Copy word", "Copy sentence"), self.action_rects(option)):
-                if rect.contains(event.pos()):
-                    QToolTip.showText(event.globalPos(), label, view)
-                    return True
+            if self.action_rect(option).contains(event.pos()):
+                row = self.parent().window().rows.get(index.data(Qt.ItemDataRole.UserRole))
+                QToolTip.showText(event.globalPos(), "Copy sentence" if row and row["context"] else "Copy word", view)
+                return True
         return super().helpEvent(event, view, option, index)
 
 
@@ -333,7 +327,7 @@ class CardList(QListWidget):
         if index.isValid() and not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
             option = QStyleOptionButton()
             option.rect = self.visualRect(index)
-            clickable = any(rect.contains(event.position().toPoint()) for rect in self.itemDelegate().action_rects(option))
+            clickable = self.itemDelegate().action_rect(option).contains(event.position().toPoint())
         self.viewport().setCursor(Qt.CursorShape.PointingHandCursor if clickable else Qt.CursorShape.ArrowCursor)
         super().mouseMoveEvent(event)
 
