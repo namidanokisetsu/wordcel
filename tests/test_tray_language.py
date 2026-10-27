@@ -27,7 +27,7 @@ class TrayLanguageTests(unittest.TestCase):
         update_tray_profile(tray, window, icons)
         japanese = tray.setIcon.call_args.args[0]
         self.assertFalse(japanese.isNull())
-        self.assertEqual(japanese.pixmap(QSize(64, 64)).toImage().pixelColor(10, 10), Qt.GlobalColor.red)
+        self.assertEqual(japanese.pixmap(QSize(64, 64)).toImage().pixelColor(32, 10), Qt.GlobalColor.red)
         tray.setToolTip.assert_called_with("Wordcel: Japanese (ja)")
 
         window.preferred_foreign = "tr"
