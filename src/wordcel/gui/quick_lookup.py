@@ -1438,7 +1438,7 @@ class QuickLookupWindow(QDialog):
             if self._result is not None:
                 self._render()
             else:
-                self.browser.clear()
+                self._clear_browser()
                 self._render_identity = None
                 self._document_revision = None
         self._pending_revision = None
@@ -1468,6 +1468,11 @@ class QuickLookupWindow(QDialog):
             audio.setEnabled(False)
         self.sentence_audio_button.setEnabled(False)
         self._clear_context()
+
+    def _clear_browser(self):
+        self._action_heading = None
+        self._headword_blocks = []
+        self.browser.clear()
 
     def _translate_clicked(self):
         if self._translation_busy or self._pending_revision is not None and not self.busy_delay.isActive():
@@ -1657,7 +1662,7 @@ class QuickLookupWindow(QDialog):
             self._result_context = ""
             self._render_identity = None
             self._document_revision = None
-            self.browser.clear()
+            self._clear_browser()
             self._close_kanji()
 
     def _lookup_input_position(self, position):
@@ -2023,6 +2028,8 @@ class QuickLookupWindow(QDialog):
                         if getattr(self, "_rendered_result_key", None) == result_key else None)
             mark("html_begin", self.revision)
             dictionary_result = replace(self._result, translation="") if self._result.entries else self._result
+            self._action_heading = None
+            self._headword_blocks = []
             self.browser.setHtml(render_result(dictionary_result, expanded, **preview_options,
                                                overlay_actions=self._action_clearance(),
                                                headword_actions=self._headword_clearance(),
@@ -2034,18 +2041,18 @@ class QuickLookupWindow(QDialog):
                                                collapsed=self._collapsed,
                                                separate_headwords=separate_headwords,
                                                combine_frequencies=self.settings.value(f"profiles/{self.active_profile}/combine_frequencies", True, bool)))
-            self._action_heading = None
-            self._headword_blocks = []
+            action_heading = None
+            headword_blocks = []
             reservations = {}
             block = self.browser.document().begin()
             while block.isValid():
                 if block.blockFormat().headingLevel() == 2:
-                    self._headword_blocks.append(block)
+                    headword_blocks.append(block)
                     if self._headword_rows:
                         reservations[block.position()] = (block, max(
                             row.sizeHint().height() for row, _, _ in self._headword_rows.values()))
-                if self._action_heading is None and (show_source and source_text or block.blockFormat().headingLevel() == 2):
-                    self._action_heading = block
+                if action_heading is None and (show_source and source_text or block.blockFormat().headingLevel() == 2):
+                    action_heading = block
                     if self._action_clearance():
                         reservations[block.position()] = (block, self.audio_actions.sizeHint().height())
                 block = block.next()
@@ -2067,6 +2074,8 @@ class QuickLookupWindow(QDialog):
                         QTextCursor(block).setBlockFormat(fmt)
                 finally:
                     document.setLayoutEnabled(True)
+            self._action_heading = action_heading
+            self._headword_blocks = headword_blocks
             self._render_identity = identity
             self._rendered_result_key = result_key
             self._document_revision = self.revision

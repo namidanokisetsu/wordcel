@@ -58,6 +58,20 @@ class FakeEngine:
 
 
 class QuickLookupTests(unittest.TestCase):
+    def test_history_reopen_discards_heading_blocks_before_document_changes(self):
+        first = SearchResult("first", "ja", "en", (entry("first"), entry("other")))
+        self.window._display(first)
+        self.assertGreaterEqual(len(self.window._headword_blocks), 2)
+        during_changes = []
+        self.window.browser.document().contentsChanged.connect(
+            lambda: during_changes.append((self.window._action_heading, len(self.window._headword_blocks))))
+        row = dict(form="next", language="ja", context="next", start=0, end=4)
+        with patch.object(self.window.worker, "request"):
+            self.window.restore_encounter(row)
+            self.window.deliver(self.window.revision, SearchResult("next", "ja", "en", (entry("next"), entry("more"))))
+        self.assertTrue(during_changes)
+        self.assertTrue(all(heading is None and count == 0 for heading, count in during_changes))
+
     def test_history_lookup_dismissal_returns_focus_to_history(self):
         from wordcel.gui.lookup_history import HistoryWindow
         history = HistoryWindow(self.window.lookup_history)
