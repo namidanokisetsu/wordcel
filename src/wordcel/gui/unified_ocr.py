@@ -2,6 +2,7 @@
 from dataclasses import replace
 import sys
 import threading
+from queue import SimpleQueue
 from time import monotonic
 
 from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, Qt, QTimer, pyqtSignal
@@ -50,12 +51,17 @@ class ScanWorker(threading.Thread):
         self.directory = directory
         self.frames = frames
         self.queue = LatestValueQueue()
+        self.passage_jobs = SimpleQueue()
         self._stopped = threading.Event()
         self._generation = None
         self._frozen = None
         self._reset_models = threading.Event()
         self._preload_lock = threading.Lock()
         self._preload = None
+
+    def copy_passage(self, job):
+        self.passage_jobs.put(job)
+        self.queue.put_if_empty("passage")
 
     def preload(self, language=None, selected=None, component_directory=""):
         with self._preload_lock:
@@ -68,7 +74,7 @@ class ScanWorker(threading.Thread):
         self._frozen = None
 
     def _obsolete(self, generation):
-        return self.frames is not None and self._generation is not None and generation != self._generation
+        return generation >= 0 and self.frames is not None and self._generation is not None and generation != self._generation
 
     def stop(self):
         self._stopped.set()
@@ -101,7 +107,9 @@ class ScanWorker(threading.Thread):
                 with self._preload_lock:
                     if self._preload is not None and not self._stopped.is_set():
                         self.queue.put_if_empty("preload")
-                job = self.queue.get()
+                job = self.passage_jobs.get() if not self.passage_jobs.empty() else self.queue.get()
+                if job == "passage":
+                    continue
                 if job is None or self._stopped.is_set():
                     return
                 if self._reset_models.is_set():
@@ -372,6 +380,9 @@ class UnifiedOCR(QObject):
         self.worker = None
         self.hit_worker = None
         self.frame = None
+        self._copy_revision = 0
+        self._copy_pending = None
+        self._selecting_text = False
         self._hit_key = None
         self._last_dictionary_at = 0
         self.pin_gesture = "left"
@@ -407,6 +418,7 @@ class UnifiedOCR(QObject):
         self.frame_ready.connect(self.accept_frame)
         window.ocr_enabled_changed.connect(self.set_enabled)
         window.mode_changed.connect(lambda _: self.invalidate())
+        window.mode_changed.connect(self._cancel_passage)
         window.dictionaries_changed.connect(self.refresh_library)
         if hasattr(window, "models_changed"):
             window.models_changed.connect(self.refresh_models)
@@ -427,6 +439,8 @@ class UnifiedOCR(QObject):
                                   and settings.value("hover_scan/startup", False, bool))
         if hasattr(window, "hover_toggle_requested"):
             window.hover_toggle_requested.connect(self.toggle_hover)
+        if hasattr(window, "copy_requested"):
+            window.copy_requested.connect(self.copy_text)
         self.reload_settings()
 
     @property
@@ -477,6 +491,9 @@ class UnifiedOCR(QObject):
 
     def add_tray_actions(self, menu, before):
         from PyQt6.QtGui import QAction
+        copy = QAction("Copy text…", menu)
+        menu.insertAction(before, copy)
+        copy.triggered.connect(lambda: QTimer.singleShot(0, self.copy_text))
         hover = QAction("Hover scan", menu)
         hover.setCheckable(True)
         area = QAction("Select scan area…", menu)
@@ -491,6 +508,66 @@ class UnifiedOCR(QObject):
             area.setEnabled(self.hover_enabled)
         menu.aboutToShow.connect(sync)
         sync()
+
+    def copy_text(self):
+        from PyQt6.QtWidgets import QKeySequenceEdit, QToolTip
+        from wordcel.gui.region_selector import TextRegionSelector
+        if (self.session.suspended or self._selecting_text or self._copy_pending is not None or QApplication.activeModalWidget()
+                or isinstance(QApplication.focusWidget(), QKeySequenceEdit)):
+            return
+        self._selecting_text = True
+        self.session.suspended = True
+        self.restore_capture_visibility()
+        self.invalidate()
+        self._sync_timer()
+        self._sync_pin_ready()
+        language = self.window.preferred_foreign
+        selection = (self.profile_ocr_provider, self.screenai_directory)
+        try:
+            image = TextRegionSelector.get_image()
+            if image is None:
+                return
+            self._copy_revision -= 1
+            revision = self._copy_revision
+            self._copy_pending = (revision, language, selection)
+            self._ensure_scan_worker()
+            request = CaptureRequest(revision, "", (0, 0, image.width(), image.height()),
+                                     (0, 0, image.width(), image.height()), 1, revision)
+            self.worker.copy_passage((revision, image, (0, 0), language, selection, False, request, monotonic()))
+            QToolTip.showText(QCursor.pos(), "Copying text…", None, QRect(), 60000)
+        except Exception as error:
+            self._copy_pending = None
+            QToolTip.showText(QCursor.pos(), str(error), None, QRect(), 5000)
+        finally:
+            self._selecting_text = False
+            self.session.suspended = self._copy_pending is not None
+            self._sync_timer()
+            self._sync_pin_ready()
+
+    def _accept_passage(self, generation, frame, error):
+        from PyQt6.QtWidgets import QToolTip
+        from wordcel.ocr.passage import passage_text
+        pending = self._copy_pending
+        if pending is None or pending[0] != generation:
+            return
+        self._cancel_passage()
+        if pending[1:] != (self.window.preferred_foreign, (self.profile_ocr_provider, self.screenai_directory)):
+            QToolTip.hideText()
+            return
+        text = passage_text(frame.paragraphs, frame.language, pending[2][0]) if frame is not None and not error else ""
+        if text:
+            QApplication.clipboard().setText(text)
+        QToolTip.showText(QCursor.pos(), error or ("Text copied" if text else "No text found"), None, QRect(), 3000)
+
+    def _cancel_passage(self, *_):
+        from PyQt6.QtWidgets import QToolTip
+        if self._copy_pending is not None:
+            self._copy_pending = None
+            QToolTip.hideText()
+            if not self._selecting_text:
+                self.session.suspended = False
+                self._sync_timer()
+                self._sync_pin_ready()
 
     def toggle_hover(self):
         from PyQt6.QtWidgets import QKeySequenceEdit
@@ -1058,6 +1135,9 @@ class UnifiedOCR(QObject):
                 and QRect(*frame.request.crop).contains(point))
 
     def accept_frame(self, generation, frame, error):
+        if generation < 0:
+            self._accept_passage(generation, frame, error)
+            return
         self._update_hover(QCursor.pos())
         self.session.finish_capture(generation)
         if not self.session.accepts(generation, self.window.is_pinned):

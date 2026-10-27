@@ -863,6 +863,7 @@ class QuickLookupWindow(QDialog):
     hotkey_requested = pyqtSignal()
     translation_requested = pyqtSignal()
     hover_toggle_requested = pyqtSignal()
+    copy_requested = pyqtSignal()
     next_profile_requested = pyqtSignal()
     previous_profile_requested = pyqtSignal()
     profile_activated = pyqtSignal(str)
@@ -1198,10 +1199,11 @@ class QuickLookupWindow(QDialog):
         self.hotkey_requested.connect(self.toggle_lookup)
         self.translation_requested.connect(self.open_translation)
         self._translation_keys = None
+        self._copy_keys = None
         self._hover_keys = None
         self._cycle_keys = None
         self._shortcut_callbacks = {name: getattr(self, name + "_requested").emit
-                                    for name in ("hotkey", "translation", "hover_toggle", "next_profile", "previous_profile")}
+                                    for name in ("hotkey", "translation", "hover_toggle", "copy", "next_profile", "previous_profile")}
         self._shortcuts_restored = False
         self.next_profile_requested.connect(lambda: self.cycle_profile(1))
         self.previous_profile_requested.connect(lambda: self.cycle_profile(-1))
@@ -3428,7 +3430,7 @@ class QuickLookupWindow(QDialog):
     def apply_shortcut(self, value, preset=None):
         from wordcel.gui.text_shortcuts import validate_shortcuts
         bindings = {value: self._shortcut_callbacks["hotkey"]} if value else {}
-        validate_shortcuts([value, self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""), self.settings.value(f"profiles/{self.active_profile}/hover_hotkey", "")])
+        validate_shortcuts([value, self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""), self.settings.value(f"profiles/{self.active_profile}/hover_hotkey", ""), self.settings.value(f"profiles/{self.active_profile}/copy_hotkey", "")])
         warning = self._update_shortcut_listener("_keys", bindings)
         self.settings.setValue(f"profiles/{self.active_profile}/hotkey", value)
         if preset is not None:
@@ -3441,13 +3443,14 @@ class QuickLookupWindow(QDialog):
         self.apply_shortcut(binding)
         self.apply_translation_shortcut(self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""))
         self.apply_hover_shortcut(self.settings.value(f"profiles/{self.active_profile}/hover_hotkey", ""))
+        self.apply_copy_shortcut(self.settings.value(f"profiles/{self.active_profile}/copy_hotkey", ""))
         self.restore_cycle_shortcuts()
 
     def restore_cycle_shortcuts(self):
         from wordcel.gui.text_shortcuts import validate_shortcuts
         values = [self.settings.value(name + "_hotkey", "") for name in ("next_profile", "previous_profile")]
         validate_shortcuts([*values, *(self.settings.value(f"profiles/{self.active_profile}/" + key, "")
-                                      for key in ("hotkey", "translation_hotkey", "hover_hotkey"))])
+                                      for key in ("hotkey", "translation_hotkey", "hover_hotkey", "copy_hotkey"))])
         bindings = {value: self._shortcut_callbacks[name] for value, name in
                     zip(values, ("next_profile", "previous_profile")) if value}
         self._update_shortcut_listener("_cycle_keys", bindings)
@@ -3464,6 +3467,9 @@ class QuickLookupWindow(QDialog):
     def apply_translation_shortcut(self, value, preset=None):
         return self._apply_auxiliary_shortcut("translation", value, preset)
 
+    def apply_copy_shortcut(self, value, preset=None):
+        return self._apply_auxiliary_shortcut("copy", value, preset)
+
     def apply_hover_shortcut(self, value, preset=None):
         return self._apply_auxiliary_shortcut("hover", value, preset)
 
@@ -3471,8 +3477,8 @@ class QuickLookupWindow(QDialog):
         from wordcel.gui.text_shortcuts import validate_shortcuts
         key = f"profiles/{self.active_profile}/" + name + "_hotkey"
         validate_shortcuts([value, *(self.settings.value(f"profiles/{self.active_profile}/" + other, default_text_shortcut() if other == "hotkey" else "") for other in
-                                   ("hotkey", "translation_hotkey", "hover_hotkey") if not key.endswith("/" + other))])
-        callback = self._shortcut_callbacks["translation" if name == "translation" else "hover_toggle"]
+                                   ("hotkey", "translation_hotkey", "hover_hotkey", "copy_hotkey") if not key.endswith("/" + other))])
+        callback = self._shortcut_callbacks["hover_toggle" if name == "hover" else name]
         available = name != "translation" or self.translation_available()
         bindings = {value: callback} if value and available else {}
         warning = self._update_shortcut_listener("_" + name + "_keys", bindings)
@@ -3532,6 +3538,9 @@ class QuickLookupWindow(QDialog):
         if self._keys:
             self._keys.stop()
             self._keys = None
+        if self._copy_keys:
+            self._copy_keys.stop()
+            self._copy_keys = None
         if self._hover_keys:
             self._hover_keys.stop()
             self._hover_keys = None

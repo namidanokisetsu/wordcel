@@ -776,7 +776,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         before = menu.addAction("Settings")
         self.controller.holding = False
         self.controller.add_tray_actions(menu, before)
-        hover, area, _ = menu.actions()
+        copy, hover, area, _ = menu.actions()
+        self.assertTrue(copy.isEnabled())
         self.assertFalse(hover.isChecked())
         self.assertFalse(area.isEnabled())
         with patch("wordcel.gui.region_selector.RegionSelector.get_region", return_value=None):

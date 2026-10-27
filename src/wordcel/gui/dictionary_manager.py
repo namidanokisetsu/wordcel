@@ -406,6 +406,12 @@ class SetupDialog(SettingsNavigation, QDialog):
         shortcut_layout.addRow("Translate", self.translation_shortcut)
         self.translation_shortcut.enabled.toggled.connect(lambda _: self.autosave(self.save_translation_shortcut))
         self.translation_shortcut.recorder.editingFinished.connect(lambda: self.autosave(self.save_translation_shortcut))
+        self.copy_shortcut = ShortcutEdit(settings.value(f"profiles/{self.profile.currentData()}/copy_hotkey", ""),
+            settings.value(f"profiles/{self.profile.currentData()}/copy_hotkey_preset", "Ctrl+Shift+X"))
+        self.copy_shortcut.setToolTip("Select a screen passage and copy its text")
+        shortcut_layout.addRow("Copy text", self.copy_shortcut)
+        self.copy_shortcut.enabled.toggled.connect(lambda _: self.autosave(self.save_copy_shortcut))
+        self.copy_shortcut.recorder.editingFinished.connect(lambda: self.autosave(self.save_copy_shortcut))
         self.hover_shortcut = ShortcutEdit(settings.value(f"profiles/{self.profile.currentData()}/hover_hotkey", ""),
             settings.value(f"profiles/{self.profile.currentData()}/hover_hotkey_preset", "Ctrl+Shift+H"))
         shortcut_layout.addRow("Toggle hover scan", self.hover_shortcut)
@@ -1051,7 +1057,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         from wordcel.gui.text_shortcuts import validate_shortcuts
         prefix = f"profiles/{self.profile.currentData()}/"
         validate_shortcuts([value, *(self.settings.value(prefix + other, default_text_shortcut() if other == "hotkey" else "")
-                                   for other in ("hotkey", "translation_hotkey", "hover_hotkey") if other != key),
+                                   for other in ("hotkey", "translation_hotkey", "hover_hotkey", "copy_hotkey") if other != key),
                             self.settings.value("next_profile_hotkey", ""),
                             self.settings.value("previous_profile_hotkey", "")])
 
@@ -1079,6 +1085,9 @@ class SetupDialog(SettingsNavigation, QDialog):
 
     def save_translation_shortcut(self):
         self._save_auxiliary_shortcut("translation", self.translation_shortcut)
+
+    def save_copy_shortcut(self):
+        self._save_auxiliary_shortcut("copy", self.copy_shortcut)
 
     def save_hover_shortcut(self):
         self._save_auxiliary_shortcut("hover", self.hover_shortcut)
@@ -1204,7 +1213,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.profile_name.setText(profile_name(self.settings, code))
         self.profile_language_label.setText(language_name(self.editing_language))
         self.update_active_label()
-        for key, editor in (("hotkey", self.shortcut), ("translation_hotkey", self.translation_shortcut), ("hover_hotkey", self.hover_shortcut)):
+        for key, editor in (("hotkey", self.shortcut), ("translation_hotkey", self.translation_shortcut), ("hover_hotkey", self.hover_shortcut), ("copy_hotkey", self.copy_shortcut)):
             editor.set_value(self.settings.value(f"profiles/{code}/{key}", default_text_shortcut() if key == "hotkey" else ""), self.settings.value(f"profiles/{code}/{key}_preset", editor.recorder.keySequence().toString()))
         self.translation_split.setChecked(self.settings.value(f"profiles/{code}/translation_side_by_side", False, bool))
         self.close_on_cursor_leave.setChecked(self.settings.value(f"profiles/{code}/close_on_cursor_leave", False, bool))

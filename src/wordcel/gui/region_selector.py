@@ -1,7 +1,7 @@
 # wordcel/gui/region_selector.py
 import logging
 
-from PyQt6.QtCore import Qt, QPoint, QRect, QTimer
+from PyQt6.QtCore import Qt, QPoint, QRect, QRectF, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPen, QMouseEvent, QKeyEvent, QGuiApplication, QCursor
 from PyQt6.QtWidgets import QDialog
 
@@ -118,3 +118,104 @@ class RegionSelector(QDialog):
         if selector.exec() == QDialog.DialogCode.Accepted:
             return selector.logical_selection_rect if logical else selector.selection_rect
         return None
+
+
+class TextRegionSelector(QDialog):
+    """One frozen overlay per display, keeping each display's native scale."""
+    def __init__(self, screen, snapshot, finish):
+        super().__init__()
+        self.snapshot, self.finish = snapshot, finish
+        self.origin = None
+        self.selection = QRect()
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint |
+                            Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        self.setGeometry(screen.geometry())
+        self.setCursor(Qt.CursorShape.CrossCursor)
+        self.setMouseTracking(True)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.drawPixmap(self.rect(), self.snapshot)
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
+        if not self.selection.isEmpty():
+            painter.save()
+            painter.setClipRect(self.selection)
+            painter.drawPixmap(self.rect(), self.snapshot)
+            painter.restore()
+            painter.setPen(QPen(self.palette().highlight().color(), 1))
+            painter.drawRect(self.selection.adjusted(0, 0, -1, -1))
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.RightButton:
+            self.finish(None)
+        elif event.button() == Qt.MouseButton.LeftButton:
+            self.origin = event.position()
+            self.selection = QRect()
+            self.update()
+
+    def mouseMoveEvent(self, event):
+        if self.origin is not None:
+            self.selection = QRectF(self.origin, event.position()).normalized().toAlignedRect().intersected(self.rect())
+            self.update()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() != Qt.MouseButton.LeftButton or self.origin is None:
+            return
+        self.mouseMoveEvent(event)
+        self.origin = None
+        if self.selection.width() < 2 or self.selection.height() < 2:
+            self.selection = QRect()
+            self.update()
+            return
+        image = self.snapshot.toImage()
+        sx, sy = image.width() / self.width(), image.height() / self.height()
+        rect = self.selection
+        left, top = round(rect.x() * sx), round(rect.y() * sy)
+        right, bottom = round((rect.x() + rect.width()) * sx), round((rect.y() + rect.height()) * sy)
+        self.finish(image.copy(left, top, right - left, bottom - top))
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.finish(None)
+        else:
+            event.ignore()
+
+    def closeEvent(self, event):
+        self.finish(None)
+        event.accept()
+
+    @staticmethod
+    def get_image():
+        from PyQt6.QtCore import QEventLoop
+        loop = QEventLoop()
+        result = None
+        def finish(image):
+            nonlocal result
+            result = image
+            loop.quit()
+        # Capture every display before showing any overlay.
+        captures = [(screen, screen.grabWindow(0)) for screen in QGuiApplication.screens()]
+        if not captures or any(pixmap.isNull() for _, pixmap in captures):
+            raise RuntimeError("Screen capture is unavailable. Check screen recording permissions.")
+        overlays = [TextRegionSelector(screen, pixmap, finish) for screen, pixmap in captures]
+        app = QGuiApplication.instance()
+        def cancel(*_):
+            finish(None)
+        app.screenAdded.connect(cancel)
+        app.screenRemoved.connect(cancel)
+        app.aboutToQuit.connect(loop.quit)
+        try:
+            for overlay in overlays:
+                overlay.show()
+            active = next((overlay for overlay in overlays if overlay.geometry().contains(QCursor.pos())), overlays[0])
+            active.raise_()
+            active.activateWindow()
+            loop.exec()
+            return result
+        finally:
+            app.screenAdded.disconnect(cancel)
+            app.screenRemoved.disconnect(cancel)
+            app.aboutToQuit.disconnect(loop.quit)
+            for overlay in overlays:
+                overlay.hide()
+                overlay.deleteLater()

@@ -417,6 +417,16 @@ class QuickLookupTests(unittest.TestCase):
         self.window.hide()
         self.assertFalse(self.window.translation_debounce.isActive())
 
+    def test_copy_shortcut_is_opt_in_and_checks_collisions(self):
+        self.assertIsNone(self.window._copy_keys)
+        with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
+            self.window.apply_copy_shortcut("<ctrl>+<shift>+x", "Ctrl+Shift+X")
+            with self.assertRaises(ValueError):
+                self.window.apply_hover_shortcut("<shift>+<ctrl>+x")
+            self.window.apply_copy_shortcut("")
+            hotkeys.return_value.stop.assert_called_once()
+            self.assertIsNone(self.window._copy_keys)
+
     def test_hover_shortcut_is_independent_and_checks_collisions(self):
         self.assertIsNone(self.window._hover_keys)
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:

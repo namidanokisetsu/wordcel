@@ -10,7 +10,7 @@ GROUPS = {
                    "preview_grammar", "preview_definitions", "pinned_frequency", "pinned_pitch",
                    "pinned_grammar", "pinned_sentence"),
     "shortcuts": ("hotkey", "hotkey_preset", "translation_hotkey", "translation_hotkey_preset",
-                  "hover_hotkey", "hover_hotkey_preset", "scan_bindings", "block_scan_keys",
+                  "copy_hotkey", "copy_hotkey_preset", "hover_hotkey", "hover_hotkey_preset", "scan_bindings", "block_scan_keys",
                   "pin_shortcut", "pin_shortcut_preset", "pin_gesture", "popup/",
                   "anki/shortcut", "anki/shortcut_preset", "side_button_scrolling"),
     "popup": ("close_on_cursor_leave", "cursor_close_margin", "snap_scrolling", "translation_side_by_side"),

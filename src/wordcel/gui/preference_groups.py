@@ -52,7 +52,7 @@ class PreferenceGroups:
                 from wordcel.gui.quick_lookup import default_text_shortcut
                 from wordcel.gui.popup_shortcuts import POPUP_ACTIONS, popup_bindings, shortcut_key
                 for key, editor in (("hotkey", owner.shortcut), ("translation_hotkey", owner.translation_shortcut),
-                                    ("hover_hotkey", owner.hover_shortcut), ("pin_shortcut", owner.pin_shortcut)):
+                                    ("hover_hotkey", owner.hover_shortcut), ("copy_hotkey", owner.copy_shortcut), ("pin_shortcut", owner.pin_shortcut)):
                     default = default_text_shortcut() if key == "hotkey" else "c" if key == "pin_shortcut" else ""
                     editor.set_value(settings.value(prefix + key, default),
                                      settings.value(prefix + key + "_preset", editor.recorder.keySequence().toString()))

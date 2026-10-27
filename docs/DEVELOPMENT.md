@@ -318,6 +318,13 @@ scaling and clean-machine installation still need platform acceptance.
 `WORDCEL_TIMING=1` enables stage timings, including Anki preparation and requests,
 without logging text, pixels or paths.
 
+Passage copying uses frozen per-display Qt captures and event-driven selection,
+then queues OCR on the existing scan worker with its prepared providers/cache.
+A separate passage mailbox survives coalesced hover jobs; negative request IDs
+keep results independent of lookup generations. Profile/provider changes discard
+pending clipboard results. Formatting reuses native line adjacency and preserves
+provider paragraph boundaries without changing lookup text or offsets.
+
 OCR preloading defaults on globally (`ocr/preload`) and runs after the event loop
 starts, on the scan worker. It checks installed resources without downloading or
 enabling capture; scans take priority over pending preparation and reuse its providers.

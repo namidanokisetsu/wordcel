@@ -3,7 +3,7 @@ from uuid import uuid4
 
 
 PROFILE_KEYS = ("hotkey", "hotkey_preset", "translation_hotkey", "translation_hotkey_preset",
-                "hover_hotkey", "hover_hotkey_preset", "translation_side_by_side",
+                "copy_hotkey", "copy_hotkey_preset", "hover_hotkey", "hover_hotkey_preset", "translation_side_by_side",
                 "close_on_cursor_leave", "cursor_close_margin")
 
 

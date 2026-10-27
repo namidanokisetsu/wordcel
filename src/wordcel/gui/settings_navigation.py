@@ -277,7 +277,7 @@ class SettingsNavigation:
             for identity in profile_ids(self.settings):
                 validate_shortcuts([value, self.settings.value(other + "_hotkey", ""),
                                     *(self.settings.value(f"profiles/{identity}/{key}", "")
-                                      for key in ("hotkey", "translation_hotkey", "hover_hotkey"))])
+                                      for key in ("hotkey", "translation_hotkey", "hover_hotkey", "copy_hotkey"))])
             self.settings.setValue(name + "_hotkey", value)
             self.settings.setValue(name + "_hotkey_preset", editor.recorder.keySequence().toString())
             if self.parent() is not None:
