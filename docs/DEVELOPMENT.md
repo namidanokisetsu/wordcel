@@ -303,6 +303,12 @@ scaling and clean-machine installation still need platform acceptance.
 `WORDCEL_TIMING=1` enables stage timings, including Anki preparation and requests,
 without logging text, pixels or paths.
 
+OCR preloading defaults on globally (`ocr/preload`) and runs after the event loop
+starts, on the scan worker. It checks installed resources without downloading or
+enabling capture; scans take priority over pending preparation and reuse its providers.
+Active text shortcut listeners update bindings in place on profile changes; disabling
+a binding clears it before stopping the listener, without waiting on the UI thread.
+
 ## OCR providers
 
 The shared desktop selects providers explicitly in

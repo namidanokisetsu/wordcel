@@ -1,5 +1,6 @@
 """Text shortcuts also accept injected keys from accessibility input tools."""
 import sys
+import threading
 
 from pynput.keyboard import GlobalHotKeys, HotKey, Key, KeyCode
 from wordcel.gui.keyboard_listener import MacListenerMixin
@@ -7,8 +8,14 @@ from wordcel.gui.keyboard_listener import MacListenerMixin
 
 class TextHotKeys(MacListenerMixin, GlobalHotKeys):
     def __init__(self, bindings):
+        self._bindings_lock = threading.RLock()
         self._swallowed = set()
-        self._native_chords = []
+        super().__init__(bindings)
+        self.update_bindings(bindings)
+
+    def update_bindings(self, bindings):
+        hotkeys = [HotKey(HotKey.parse(binding), callback) for binding, callback in bindings.items()]
+        chords = []
         if sys.platform == "win32":
             import ctypes
             self._key_state = ctypes.windll.user32.GetAsyncKeyState
@@ -22,10 +29,19 @@ class TextHotKeys(MacListenerMixin, GlobalHotKeys):
                     native = getattr(key, "value", key)
                     vk = native.vk or (ord(native.char.upper()) if native.char and len(native.char) == 1 else None)
                     if vk:
-                        self._native_chords.append((vk, required))
-        super().__init__(bindings)
+                        chords.append((vk, required))
+        with self._bindings_lock:
+            if bindings == getattr(self, "_bindings", None):
+                return
+            self._bindings = dict(bindings)
+            self._hotkeys = hotkeys
+            self._native_chords = chords
 
     def _convert(self, code, msg, data):
+        with self._bindings_lock:
+            return self._convert_locked(code, msg, data)
+
+    def _convert_locked(self, code, msg, data):
         converted = super()._convert(code, msg, data)
         if converted is not None:
             message, vk = converted
@@ -49,12 +65,14 @@ class TextHotKeys(MacListenerMixin, GlobalHotKeys):
         return canonical
 
     def _on_press(self, key, injected=False):
-        for hotkey in self._hotkeys:
-            hotkey.press(self.canonical(key))
+        with self._bindings_lock:
+            for hotkey in self._hotkeys:
+                hotkey.press(self.canonical(key))
 
     def _on_release(self, key, injected=False):
-        for hotkey in self._hotkeys:
-            hotkey.release(self.canonical(key))
+        with self._bindings_lock:
+            for hotkey in self._hotkeys:
+                hotkey.release(self.canonical(key))
 
 
 def validate_shortcuts(values):

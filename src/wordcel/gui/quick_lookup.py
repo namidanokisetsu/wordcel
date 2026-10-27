@@ -3426,23 +3426,10 @@ class QuickLookupWindow(QDialog):
         self.dictionaries_changed.emit()
 
     def apply_shortcut(self, value, preset=None):
-        from wordcel.gui.text_shortcuts import TextHotKeys, validate_shortcuts
-        from wordcel.utils.macos import InputMonitoringPermissionError
-        bindings = {value: self.hotkey_requested.emit} if value else {}
+        from wordcel.gui.text_shortcuts import validate_shortcuts
+        bindings = {value: self._shortcut_callbacks["hotkey"]} if value else {}
         validate_shortcuts([value, self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""), self.settings.value(f"profiles/{self.active_profile}/hover_hotkey", "")])
-        replacement = TextHotKeys(bindings) if bindings else None
-        warning = ""
-        if replacement:
-            try:
-                replacement.start()
-            except InputMonitoringPermissionError as error:
-                warning = str(error)
-                replacement = None
-                self.show_message(warning)
-        previous, self._keys = self._keys, replacement
-        if previous:
-            previous.stop()
-            previous.join(timeout=2)
+        warning = self._update_shortcut_listener("_keys", bindings)
         self.settings.setValue(f"profiles/{self.active_profile}/hotkey", value)
         if preset is not None:
             self.settings.setValue(f"profiles/{self.active_profile}/hotkey_preset", preset)
@@ -3457,17 +3444,13 @@ class QuickLookupWindow(QDialog):
         self.restore_cycle_shortcuts()
 
     def restore_cycle_shortcuts(self):
-        from wordcel.gui.text_shortcuts import TextHotKeys, validate_shortcuts
+        from wordcel.gui.text_shortcuts import validate_shortcuts
         values = [self.settings.value(name + "_hotkey", "") for name in ("next_profile", "previous_profile")]
         validate_shortcuts([*values, *(self.settings.value(f"profiles/{self.active_profile}/" + key, "")
                                       for key in ("hotkey", "translation_hotkey", "hover_hotkey"))])
-        bindings = {value: signal.emit for value, signal in zip(values, (self.next_profile_requested, self.previous_profile_requested)) if value}
-        previous, self._cycle_keys = self._cycle_keys, None
-        if previous:
-            previous.stop()
-        if bindings:
-            self._cycle_keys = TextHotKeys(bindings)
-            self._cycle_keys.start()
+        bindings = {value: self._shortcut_callbacks[name] for value, name in
+                    zip(values, ("next_profile", "previous_profile")) if value}
+        self._update_shortcut_listener("_cycle_keys", bindings)
 
     def refresh_translation_availability(self):
         from wordcel.gui.resources import managed_translation_available
@@ -3485,32 +3468,40 @@ class QuickLookupWindow(QDialog):
         return self._apply_auxiliary_shortcut("hover", value, preset)
 
     def _apply_auxiliary_shortcut(self, name, value, preset):
-        from wordcel.gui.text_shortcuts import TextHotKeys, validate_shortcuts
-        from wordcel.utils.macos import InputMonitoringPermissionError
+        from wordcel.gui.text_shortcuts import validate_shortcuts
         key = f"profiles/{self.active_profile}/" + name + "_hotkey"
         validate_shortcuts([value, *(self.settings.value(f"profiles/{self.active_profile}/" + other, default_text_shortcut() if other == "hotkey" else "") for other in
                                    ("hotkey", "translation_hotkey", "hover_hotkey") if not key.endswith("/" + other))])
-        signal = self.translation_requested if name == "translation" else self.hover_toggle_requested
+        callback = self._shortcut_callbacks["translation" if name == "translation" else "hover_toggle"]
         available = name != "translation" or self.translation_available()
-        replacement = TextHotKeys({value: signal.emit}) if value and available else None
-        warning = ""
-        if replacement:
-            try:
-                replacement.start()
-            except InputMonitoringPermissionError as error:
-                warning = str(error)
-                replacement = None
-                self.show_message(warning)
-        attribute = "_" + name + "_keys"
-        previous = getattr(self, attribute)
-        setattr(self, attribute, replacement)
-        if previous:
-            previous.stop()
-            previous.join(timeout=2)
+        bindings = {value: callback} if value and available else {}
+        warning = self._update_shortcut_listener("_" + name + "_keys", bindings)
         self.settings.setValue(key, value)
         if preset is not None:
             self.settings.setValue(key + "_preset", preset)
         return warning
+
+    def _update_shortcut_listener(self, attribute, bindings):
+        from wordcel.gui.text_shortcuts import TextHotKeys
+        from wordcel.utils.macos import InputMonitoringPermissionError
+        previous = getattr(self, attribute)
+        if previous is not None:
+            if bindings:
+                previous.update_bindings(bindings)
+            else:
+                previous.update_bindings({})
+                previous.stop()
+                setattr(self, attribute, None)
+            return ""
+        if bindings:
+            listener = TextHotKeys(bindings)
+            try:
+                listener.start()
+            except InputMonitoringPermissionError as error:
+                self.show_message(str(error))
+                return str(error)
+            setattr(self, attribute, listener)
+        return ""
 
     def shutdown(self):
         if self._shutting_down:

@@ -105,13 +105,16 @@ class DesktopInput(QObject):
                     ((clipboard_hotkey, self.clipboard_requested.emit),
                      (search_hotkey, self.search_requested.emit),
                      (selection_hotkey, self.selection_requested.emit)) if key}
+        if self.shortcuts is not None and bindings:
+            self.shortcuts.update_bindings(bindings)
+            return
         replacement = TextHotKeys(bindings) if bindings else None
         if replacement:
             replacement.start()
         previous, self.shortcuts = self.shortcuts, replacement
         if previous:
+            previous.update_bindings({})
             previous.stop()
-            previous.join(timeout=2)
 
     def key(self, key, down):
         if sys.platform != "win32" and down and key == keyboard.Key.esc and self.visible.is_set():

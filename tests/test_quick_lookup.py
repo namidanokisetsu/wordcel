@@ -427,6 +427,29 @@ class QuickLookupTests(unittest.TestCase):
             hotkeys.return_value.stop.assert_called_once()
             self.assertIsNone(self.window._hover_keys)
 
+    def test_profile_shortcut_updates_reuse_listener_without_waiting(self):
+        with patch("wordcel.gui.text_shortcuts.TextHotKeys") as factory:
+            self.window.apply_shortcut("<ctrl>+<shift>+d")
+            listener = self.window._keys
+            self.window.apply_shortcut("<ctrl>+<shift>+s")
+            self.assertIs(self.window._keys, listener)
+            factory.assert_called_once()
+            listener.start.assert_called_once()
+            self.assertEqual(tuple(listener.update_bindings.call_args.args[0]), ("<ctrl>+<shift>+s",))
+            listener.stop.assert_not_called()
+            listener.join.assert_not_called()
+            self.window.apply_shortcut("")
+            listener.stop.assert_called_once()
+            listener.join.assert_not_called()
+
+    def test_preload_setting_is_global_and_defaults_on(self):
+        dialog = SetupDialog(self.temp.name, self.settings, self.window.apply_shortcut, self.window)
+        self.assertTrue(dialog.preload_ocr.isChecked())
+        dialog.preload_ocr.setChecked(False)
+        self.assertFalse(self.settings.value("ocr/preload", True, bool))
+        self.assertFalse(self.settings.contains(f"profiles/{self.window.active_profile}/ocr/preload"))
+        dialog.hide()
+
     def test_translation_shortcut_is_independent_recordable_and_disabled_by_default(self):
         self.assertIsNone(self.window._translation_keys)
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
@@ -3498,7 +3521,8 @@ class QuickLookupTests(unittest.TestCase):
             self.window.restore_shortcut()
             self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/hotkey"),
                              chosen)
-            hotkeys.return_value.start.assert_called_once()
+            hotkeys.return_value.start.assert_not_called()
+            hotkeys.return_value.update_bindings.assert_called()
             hotkeys.reset_mock()
             self.window.apply_shortcut("")
             hotkeys.return_value.stop.assert_called_once()

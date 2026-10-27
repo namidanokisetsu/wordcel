@@ -38,6 +38,10 @@ an unknown source. Recommended dictionaries are downloads, not built in.
 
 Shared shortcuts are under **App > Shortcuts**. **Storage** manages downloads.
 
+**App > Preload OCR** prepares the active engine in the background by default.
+Turn it off to load models on the first scan. Loaded models stay in memory until
+Wordcel exits; dictionary-only mode skips preloading.
+
 ## Listen or translate
 
 Use the popup's audio icons to hear a word or sentence. Choose voices and

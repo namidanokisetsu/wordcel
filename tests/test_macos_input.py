@@ -76,6 +76,8 @@ class InputPermissionTests(unittest.TestCase):
         settings = Mock()
         settings.value.return_value = ""
         window = SimpleNamespace(settings=settings, active_profile="ja", _keys=None, hotkey_requested=Mock(), show_message=Mock())
+        window._shortcut_callbacks = {"hotkey": window.hotkey_requested.emit}
+        window._update_shortcut_listener = lambda *args: QuickLookupWindow._update_shortcut_listener(window, *args)
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as listener:
             listener.return_value.start.side_effect = InputMonitoringPermissionError("Input Monitoring denied")
             warning = QuickLookupWindow.apply_shortcut(window, "<cmd>+d", "Ctrl+D")
