@@ -1,6 +1,6 @@
 """Small AnkiConnect v6 adapter; requests are explicit and never retried."""
 from dataclasses import dataclass, field
-from html import escape
+from html import escape, unescape
 import base64
 import hashlib
 import http.client
@@ -128,6 +128,7 @@ class AnkiClient:
         self.settings = settings
         self.address = endpoint_address(settings.endpoint)
         self._checked_expression = None
+        self._checked_actions = ()
 
     def call(self, action, **params):
         mark("anki_request_begin", action=action)
@@ -171,6 +172,10 @@ class AnkiClient:
 
     def existing_notes(self, expressions):
         """Find exact first-field duplicates with Anki's indexed native search."""
+        expressions = tuple(dict.fromkeys(expressions))
+        return self._find_existing(expressions, self._duplicate_queries(expressions))
+
+    def _duplicate_queries(self, expressions):
         settings = self.settings
         models = self.call("modelNamesAndIds")
         if (not isinstance(models, dict) or settings.model not in models
@@ -183,14 +188,13 @@ class AnkiClient:
             if not isinstance(decks, dict) or any(type(value) is not int or value <= 0 for value in decks.values()):
                 raise ValueError("Invalid Anki decks.")
             names = {settings.deck, *settings.duplicate_decks} if settings.duplicate_scope == "decks" else {settings.deck}
+            if not names.issubset(decks):
+                raise ValueError("Anki decks changed. Reload them in Settings.")
             if settings.duplicate_scope == "deckroot":
                 root = settings.deck.split("::")[0]
                 names = {name for name in decks if name == root or name.startswith(root + "::")}
             ids = [str(value) for name, value in decks.items() if name in names]
-            if not ids:
-                return {}
             scope = "did:" + ",".join(ids) + " "
-        expressions = tuple(dict.fromkeys(expressions))
         actions = []
         for expression in expressions:
             text = escape(expression).replace("\\", "\\\\").replace('"', '\\"')
@@ -199,6 +203,9 @@ class AnkiClient:
             if settings.api_key:
                 action["key"] = settings.api_key
             actions.append(action)
+        return actions
+
+    def _find_existing(self, expressions, actions):
         if not actions:
             return {}
         results = self.call("multi", actions=actions)
@@ -236,6 +243,7 @@ class AnkiClient:
     def check(self, expression):
         """Validate the mapping and duplicates before preparing definitions or media."""
         self._checked_expression = None
+        self._checked_actions = ()
         settings = self.settings
         if not settings.enabled:
             raise ValueError("Enable Anki in Settings first.")
@@ -253,22 +261,10 @@ class AnkiClient:
         if not expression:
             raise ValueError("Choose a word to add.")
         if settings.duplicate_action == "prevent":
-            decks = tuple(dict.fromkeys((settings.deck, *settings.duplicate_decks))) if settings.duplicate_scope == "decks" else (settings.deck,)
-            notes = []
-            for deck in decks:
-                note = self._note({"expression": expression})
-                note.update(deckName=deck, options=self._duplicate_options(deck, "deck")
-                            if settings.duplicate_scope == "decks" else self._duplicate_options())
-                notes.append(note)
-            results = self.call("canAddNotesWithErrorDetail", notes=notes)
-            if (not isinstance(results, list) or len(results) != len(notes)
-                    or any(not isinstance(item, dict) or type(item.get("canAdd")) is not bool for item in results)):
-                raise ValueError("Invalid Anki duplicate-check response.")
-            for deck, result in zip(decks, results):
-                if not result["canAdd"]:
-                    detail = result.get("error") or "Cannot add this note."
-                    location = f" ({deck})" if settings.duplicate_scope == "decks" else ""
-                    raise ValueError(f"Anki{location}: {detail}")
+            actions = self._duplicate_queries((unescape(expression),))
+            if self._find_existing((expression,), actions):
+                raise ValueError("Anki: cannot create note because it is a duplicate")
+            self._checked_actions = actions
         self._checked_expression = expression
 
     def add(self, values):
@@ -276,6 +272,7 @@ class AnkiClient:
         if self._checked_expression != expression:
             self.check(expression)
         self._checked_expression = None
+        actions, self._checked_actions = self._checked_actions, ()
         settings = self.settings
         note = self._note(values)
         # Store media explicitly so a media error cannot silently become card text.
@@ -291,6 +288,10 @@ class AnkiClient:
                        else f"[sound:{filename}]")
             for target in targets:
                 note["fields"][target] = content
+        # Native deck guards omit original decks of filtered cards and extra selected decks.
+        # Reuse the indexed query after preparation; AnkiConnect has no conditional transaction.
+        if actions and settings.duplicate_scope != "collection" and self._find_existing((expression,), actions):
+            raise ValueError("Anki: cannot create note because it is a duplicate")
         note_id = self.call("addNote", note=note)
         if type(note_id) is not int or note_id <= 0:
             raise ValueError("Anki did not confirm the save. Check Anki before retrying.")

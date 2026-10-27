@@ -245,10 +245,14 @@ Fresh captured sentences use the lookup source regardless of the last manual
 swap. Their editing session retains its own direction separately from saved defaults.
 
 Anki's popup action snapshots the lookup and saves once on a worker, including
-glossary conversion and mapped media preparation. Native Anki duplicate checks
+glossary conversion and mapped media preparation. Indexed Anki duplicate searches
 precede preparation, with prevent/allow policies and deck, deck-tree, selected-deck
-or collection scopes per profile. Selected decks are checked in one request and
-always include the destination; the final save retains Anki's native scope guard.
+or collection scopes per profile. Selected decks are checked in one query and
+always include the destination. Deck-scoped saves reuse that query after media
+uploads, including filtered cards' original decks; the final save retains Anki's
+native scope guard. AnkiConnect has no conditional transaction, so another client
+can still insert between the last check and save. Query plans live for one save;
+status-check snapshots contain only the current headword groups.
 Only mapped glossaries, furigana and pitch are prepared; screenshots use fast,
 lossless PNG encoding. `glossary-first` uses the first
 entry, `glossary` uses every returned entry, and `popup-selection-text` remains
