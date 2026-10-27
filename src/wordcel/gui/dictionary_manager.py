@@ -1261,7 +1261,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         from wordcel.audio.sources import database_path, source_order
         self.audio_database.setText(database_path(self.settings, code))
         self.audio_remove.setVisible(bool(self.audio_database.text()))
-        self.audio_sources.load(source_order(self.settings, code), self.audio_database.text())
+        self.audio_sources.load(source_order(self.settings, code), self.audio_database.text(), language=self.editing_language)
         self.language.setCurrentIndex(max(0, self.language.findData(self.editing_language)))
         self.reload()
         if hasattr(self, "profile_connection"):

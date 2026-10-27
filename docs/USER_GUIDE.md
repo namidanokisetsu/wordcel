@@ -50,8 +50,9 @@ Wordcel exits; dictionary-only mode skips preloading.
 
 Use the popup's audio icons to hear a word or sentence. Choose voices and
 recordings in your profile's **Audio** settings.
-Use **+** in Source priority to add JapanesePod101, LanguagePod101, Jisho,
-Wiktionary, Lingua Libre or a Yomitan custom URL. Custom URL (JSON) accepts the
+Japanese and Turkish profiles default to built-in recordings before system speech.
+Source priority lists the providers directly; check or reorder them there. Saved
+source choices are preserved. Use **+** for additional providers or a Yomitan custom URL. Custom URL (JSON) accepts the
 same endpoint as Yomitan, including local audio servers. **Import Yomitan** reads
 audio sources from an exported settings file; reorder sources to set priority.
 System voices come from your operating system; browser-only voices may be unavailable.

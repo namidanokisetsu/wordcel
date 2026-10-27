@@ -33,6 +33,15 @@ def source_order(settings, language):
     saved = settings.value(f"profiles/{language}/audio_priority")
     if saved is not None:
         return saved if isinstance(saved, list) else [saved] if saved else []
+    from wordcel.config.profiles import profile_language
+    return default_sources(profile_language(settings, language))
+
+
+def default_sources(language):
+    if language == "ja":
+        return ["jpod101", "language-pod-101", "jisho", "wiktionary", "lingua-libre", "tts"]
+    if language == "tr":
+        return ["language-pod-101", "lingua-libre", "wiktionary", "tts"]
     return ["tts", "online"]
 
 

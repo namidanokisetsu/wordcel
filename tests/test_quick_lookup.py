@@ -2079,6 +2079,8 @@ class QuickLookupTests(unittest.TestCase):
             dialog.deleteLater()
 
     def test_settings_save_immediately_without_leaking_across_profiles(self):
+        from wordcel.audio.sources import default_sources
+        reordered = ["lingua-libre", "language-pod-101", "wiktionary", "tts"]
         dialog = SetupDialog(self.temp.name, self.settings, Mock(), self.window)
         try:
             dialog.translation_target.setCurrentIndex(dialog.translation_target.findData("ru"))
@@ -2089,22 +2091,22 @@ class QuickLookupTests(unittest.TestCase):
             self.assertFalse(self.settings.value("profiles/ja/compact_preview", True, bool))
             dialog.sync_profile("tr")
             self.assertEqual(dialog.translation_target.currentData(), "auto")
-            self.assertEqual(dialog.audio_sources.order(), ["tts", "online"])
+            self.assertEqual(dialog.audio_sources.order(), default_sources("tr"))
             self.assertTrue(dialog.audio_form.isRowVisible(dialog.audio_sources))
             self.assertTrue(dialog.audio_form.isRowVisible(dialog.audio_database_row))
             dialog.pin_gesture.setCurrentIndex(dialog.pin_gesture.findData("middle"))
             self.assertEqual(self.settings.value("profiles/tr/pin_gesture"), "middle")
             dialog.audio_sources.items.setCurrentRow(1)
             dialog.audio_sources.move(-1)
-            self.assertEqual(self.settings.value("profiles/tr/audio_priority"), ["online", "tts"])
+            self.assertEqual(self.settings.value("profiles/tr/audio_priority"), reordered)
             dialog.sync_profile("ja")
             self.assertEqual(dialog.audio_volume.value(), 42)
-            self.assertEqual(dialog.audio_sources.order(), ["tts", "online"])
+            self.assertEqual(dialog.audio_sources.order(), default_sources("ja"))
             self.assertTrue(dialog.audio_form.isRowVisible(dialog.audio_database_row))
             self.assertEqual(dialog.translation_target.currentData(), "ru")
             self.assertFalse(dialog.appearance.compact_preview.isChecked())
             dialog.sync_profile("tr")
-            self.assertEqual(dialog.audio_sources.order(), ["online", "tts"])
+            self.assertEqual(dialog.audio_sources.order(), reordered)
         finally:
             dialog.deleteLater()
 

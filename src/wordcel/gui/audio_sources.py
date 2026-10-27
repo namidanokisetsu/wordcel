@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from wordcel.audio.sources import SOURCE_LABELS, is_local, source_key, source_label, source_type
+from wordcel.audio.sources import SOURCE_LABELS, default_sources, is_local, source_key, source_label, source_type
 from wordcel.audio.worker import AudioRequest, AudioWorker
 
 
@@ -20,6 +20,7 @@ class AudioSources(QWidget):
         super().__init__()
         self.worker = None
         self.path = ""
+        self.language = ""
         self._prefer_local = False
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -64,13 +65,17 @@ class AudioSources(QWidget):
         return [self.items.item(index).data(Qt.ItemDataRole.UserRole) for index in range(self.items.count())
                 if self.items.item(index).checkState() == Qt.CheckState.Checked]
 
-    def load(self, sources, path, *, prefer_local=False):
+    def load(self, sources, path, *, prefer_local=False, language=None):
         self.path = path
+        if language is not None:
+            self.language = language
         self._prefer_local = prefer_local
         with QSignalBlocker(self.items):
             self.items.clear()
             seen = set()
-            for source in [*sources, "online", "tts"]:
+            available = [source for source in default_sources(self.language)
+                         if source not in {source_type(item) for item in sources}]
+            for source in [*sources, *available]:
                 key = source_key(source)
                 if key in seen:
                     continue

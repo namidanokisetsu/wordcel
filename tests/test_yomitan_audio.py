@@ -188,6 +188,41 @@ class YomitanSettingsTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
+    def test_named_profile_defaults_and_saved_choices(self):
+        with tempfile.TemporaryDirectory() as folder:
+            settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
+            for language, expected in (
+                    ("ja", ["jpod101", "language-pod-101", "jisho", "wiktionary", "lingua-libre", "tts"]),
+                    ("tr", ["language-pod-101", "lingua-libre", "wiktionary", "tts"])):
+                settings.setValue("profiles/named/language", language)
+                self.assertEqual(source_order(settings, "named"), expected)
+            for saved in (["tts", "online"], []):
+                settings.setValue("profiles/named/audio_priority", saved)
+                self.assertEqual(source_order(settings, "named"), saved)
+
+    def test_builtin_sources_visible_without_enabling_saved_disabled_choices(self):
+        from wordcel.audio.sources import source_type
+        from PyQt6.QtCore import Qt
+        sources = AudioSources()
+        try:
+            saved = [descriptor("jisho"), "tts"]
+            sources.load(saved, "", language="ja")
+            kinds = [source_type(sources.items.item(i).data(Qt.ItemDataRole.UserRole))
+                     for i in range(sources.items.count())]
+            self.assertEqual(kinds.count("jisho"), 1)
+            self.assertIn("jpod101", kinds)
+            self.assertIn("language-pod-101", kinds)
+            self.assertEqual(sources.order(), saved)
+            sources.load([], "", language="tr")
+            kinds = [source_type(sources.items.item(i).data(Qt.ItemDataRole.UserRole))
+                     for i in range(sources.items.count())]
+            self.assertNotIn("jisho", kinds)
+            self.assertIn("language-pod-101", kinds)
+            self.assertEqual(sources.order(), [])
+        finally:
+            sources.shutdown()
+            sources.deleteLater()
+
     def test_descriptors_round_trip_and_keep_active_profile_and_entry_language(self):
         with tempfile.TemporaryDirectory() as folder, patch("wordcel.gui.lookup_audio.AudioWorker"):
             path = str(Path(folder) / "settings.ini")
