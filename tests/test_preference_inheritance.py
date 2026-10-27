@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -144,7 +145,8 @@ class PreferenceInheritanceTests(unittest.TestCase):
         dialog.scope.setCurrentIndex(0)
         self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Shift+X")
         dialog.copy_shortcut.enabled.setChecked(True)
-        self.assertEqual(self.raw.value("defaults/shortcuts/copy_hotkey"), "<ctrl>+<shift>+x")
+        modifier = "<cmd>" if sys.platform == "darwin" else "<ctrl>"
+        self.assertEqual(self.raw.value("defaults/shortcuts/copy_hotkey"), f"{modifier}+<shift>+x")
         dialog.scope.setCurrentIndex(dialog.scope.findData("ja"))
         self.assertFalse(dialog.copy_shortcut.enabled.isChecked())
         self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Alt+X")

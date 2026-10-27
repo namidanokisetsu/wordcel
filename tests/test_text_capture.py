@@ -65,13 +65,15 @@ class TextCaptureTests(unittest.TestCase):
         image = QImage(20, 20, QImage.Format.Format_RGB32)
         image.fill(Qt.GlobalColor.white)
         request = CaptureRequest(-1, "", (0, 0, 20, 20), (0, 0, 20, 20), 1, -1)
+        selection = ("windows", "")
         worker.invalidate(99)
-        worker.copy_passage((-1, image, (0, 0), "en", ("windows", ""), False, request, 0))
+        worker.copy_passage((-1, image, (0, 0), "en", selection, False, request, 0))
         worker.queue = Mock()
-        worker.queue.get.side_effect = [(100, image, (0, 0), "en", ("windows", ""), False, request, 0), None]
+        worker.queue.get.side_effect = [(100, image, (0, 0), "en", selection, False, request, 0), None]
         worker.invalidate(100)
         scanner = Mock(return_value=[paragraph("Whole passage")])
-        with patch.object(worker, "provider", return_value=scanner) as provider, \
+        with patch("wordcel.language.support.ocr_supported", return_value=True), \
+                patch.object(worker, "provider", return_value=scanner) as provider, \
                 patch("wordcel.dictionary.search.SearchEngine") as search:
             worker.run()
         search.assert_not_called()
