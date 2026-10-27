@@ -413,7 +413,7 @@ class SearchEngine:
                     return score
 
                 # Limit lexical groups after ranking, keeping their senses and sources together.
-                ranked = [entry for group in sorted(groups, key=priority, reverse=True)[:60]
+                ranked = [replace(entry, lookup_length=length) for group in sorted(groups, key=priority, reverse=True)[:60]
                           for entry, _ in groups[group]]
                 # Exact compounds also expose their shorter dictionary headwords.
                 if not full_only and any(not cost for _, cost in results):
@@ -425,7 +425,7 @@ class SearchEngine:
                             if entry.id not in seen:
                                 shorter.setdefault((entry.term, entry.reading), []).append(entry)
                         for entries in list(shorter.values())[:max(0, remaining)]:
-                            ranked.extend(entries)
+                            ranked.extend(replace(entry, lookup_length=end) for entry in entries)
                             seen.update(entry.id for entry in entries)
                             remaining -= 1
                         if remaining <= 0:

@@ -63,6 +63,7 @@ class Entry:
     inflection: tuple = ()
     pitches: tuple = ()
     morphology: tuple = ()
+    lookup_length: int = 0
 
     def glosses(self):
         from wordcel.dictionary.structured_content import StructuredContentConverter

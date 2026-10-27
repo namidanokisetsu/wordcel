@@ -152,6 +152,8 @@ class JapaneseRankingTests(unittest.TestCase):
         for source in ("A", "B"):
             self.install(source, [self.word("語彙力", "ごいりょく"), self.word("語彙", "ごい")])
         engine = self.engine()
+        result = engine.search("語彙力", source="ja")
+        self.assertEqual({(entry.term, entry.lookup_length) for entry in result.entries}, {("語彙力", 3), ("語彙", 2)})
         for _ in range(2):
             result = engine.search("語彙力", source="ja")
             self.assertEqual([entry.term for entry in result.entries], ["語彙力", "語彙力", "語彙", "語彙"])
