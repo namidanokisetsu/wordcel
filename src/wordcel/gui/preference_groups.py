@@ -15,8 +15,8 @@ class PreferenceGroups:
         wrapper = QWidget()
         layout = QVBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
-        label = {"audio": "audio playback", "popup": "popup behavior"}.get(group, group)
-        inherit = QCheckBox("Use global " + label)
+        label = {"appearance": "text and content", "audio": "audio playback", "popup": "layout and behavior"}.get(group, group)
+        inherit = QCheckBox("Use shared defaults for " + label)
         layout.addWidget(inherit)
         layout.addWidget(content)
         layout.addStretch()
@@ -27,14 +27,20 @@ class PreferenceGroups:
     def refresh(self):
         owner = self.owner
         for group, (inherit, content) in self.controls.items():
-            global_edit = owner.settings.editing_global == group
+            global_edit = owner.settings.editing_global == group or (
+                owner.settings.editing_global == "popup_all" and group in ("appearance", "popup"))
             inherited = not overridden(owner.settings, owner.profile.currentData(), group)
             with QSignalBlocker(inherit):
                 inherit.setChecked(inherited)
             inherit.setVisible(not global_edit)
-            content.setVisible(global_edit or not inherited)
+            content.setVisible(True)
+            content.setEnabled(global_edit or not inherited)
 
     def reload(self, group):
+        if group == "popup_all":
+            self.reload("appearance")
+            self.reload("popup")
+            return
         owner = self.owner
         previous, owner._loading = owner._loading, True
         prefix = f"profiles/{owner.profile.currentData()}/"

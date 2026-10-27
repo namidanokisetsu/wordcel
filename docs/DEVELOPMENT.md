@@ -291,9 +291,14 @@ independent group override flags and custom values; the first override snapshots
 current defaults. Re-enabling inheritance never deletes custom values. Conversion
 seeds defaults from the active profile and preserves differing existing groups as
 overrides. Profile duplication copies raw preferences, not resolved global values.
-Settings reuse the same appearance, shortcut and popup panels for global editing;
-group disclosure reloads only its controls, preserving window geometry without
-reloading dictionaries. Language-specific resources and analysis remain per profile.
+Settings uses a scope selector and flat category list. Popup combines appearance
+and behavior editors while retaining their separate saved override groups;
+`popup_all` edits both shared groups without converting stored preferences.
+Inherited controls remain visible and disabled. Short sections use static headings;
+Storage's language inventories retain disclosure. Search reveals controls in their
+existing pages. Group overrides reload only their controls without reloading
+dictionaries. Startup, connections and profile-cycle shortcuts remain global.
+Language-specific resources and analysis remain per profile.
 
 ## Validation
 

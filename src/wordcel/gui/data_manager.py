@@ -220,7 +220,7 @@ class DataPanel(QWidget):
                 content = QWidget()
                 layout = QVBoxLayout(content)
                 layout.setContentsMargins(0, 0, 0, 0)
-                section = SettingsSection(language_name(code), content)
+                section = SettingsSection(language_name(code), content, collapsible=True)
                 self.sections[code] = section, layout
                 button = QPushButton("Import dictionaries…")
                 button.setFlat(True)

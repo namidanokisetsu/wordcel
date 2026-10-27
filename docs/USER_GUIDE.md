@@ -36,9 +36,13 @@ Use **Choose recommendation** to download individual missing recommendations.
 The list labels ZIP imports and recommended downloads; older installs may have
 an unknown source. Recommended dictionaries are downloads, not built in.
 
-Shared shortcuts are under **App > Shortcuts**. **Storage** manages downloads.
+Choose a profile or **Shared defaults** in **Editing**, then select a category.
+**Popup** groups text, colors, content, buttons and behavior. Inherited controls
+stay visible; clear **Use shared defaults** to customize a group. Search settings
+to jump to a control. Switching profiles keeps the current category.
+**Startup**, **Connections** and **Storage** apply to the whole app.
 
-**App > Preload OCR** prepares the active engine in the background by default.
+**Startup > Preload OCR** prepares the active engine in the background by default.
 Turn it off to load models on the first scan. Loaded models stay in memory until
 Wordcel exits; dictionary-only mode skips preloading.
 

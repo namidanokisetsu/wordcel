@@ -62,6 +62,7 @@ class ProfileAppearance(QWidget):
         self._preview_timer.timeout.connect(self._apply_preview)
         self._loading = True
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         general, preview, pinned, actions = QWidget(), QWidget(), QWidget(), QWidget()
         actions_form = QFormLayout(actions)
         self.action_controls = {}
@@ -142,12 +143,26 @@ class ProfileAppearance(QWidget):
             button.clicked.connect(lambda _, key=key: self.pick_color(key))
             self.controls[key] = button
             form.insertRow(row, label, button)
-        self.general_section = SettingsSection("General", general)
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        reading = QWidget()
+        self.content_form = QFormLayout(reading)
+        for control in (self.headword_furigana, self.definition_furigana, self.kanji_stroke_order, self.font_install):
+            detail_form.takeRow(control)
+            self.content_form.addRow(control)
+        self.general_section = SettingsSection("Text & colors", general)
         self.preview_section = SettingsSection("Preview", preview)
         self.pinned_section = SettingsSection("Pinned", pinned)
         self.actions_section = SettingsSection("Buttons", actions)
-        for section in (self.general_section, self.preview_section, self.pinned_section, self.actions_section):
+        content_layout.addWidget(self.preview_section)
+        content_layout.addWidget(self.pinned_section)
+        content_layout.addWidget(reading)
+        self.content_section = SettingsSection("Content", content)
+        for section in (self.general_section, self.content_section, self.actions_section):
             layout.addWidget(section)
+        for field_form in (form, preview_form, pinned_form, actions_form, self.content_form):
+            field_form.setContentsMargins(0, 0, 0, 0)
         self.general_section.toggle.setChecked(True)
         layout.addStretch()
         self.reload()
@@ -174,7 +189,7 @@ class ProfileAppearance(QWidget):
 
     @property
     def japanese_controls(self):
-        return getattr(self.settings, "editing_global", None) == "appearance" or profile_language(self.settings, self.profile()) == "ja"
+        return getattr(self.settings, "editing_global", None) in ("appearance", "popup_all") or profile_language(self.settings, self.profile()) == "ja"
 
     def _apply_preview(self):
         self.saved()
@@ -204,15 +219,15 @@ class ProfileAppearance(QWidget):
         self.font.setCurrentFont(QFont(self.settings.value(f"profiles/{self.profile()}/font_family",
                                                          _configured_font or default_family(profile_language(self.settings, self.profile())))))
         self.headword_furigana.setChecked(self.settings.value(f"profiles/{self.profile()}/headword_furigana", False, bool))
-        self.detail_form.setRowVisible(self.headword_furigana, self.japanese_controls)
+        self.content_form.setRowVisible(self.headword_furigana, self.japanese_controls)
         self.definition_furigana.setChecked(self.settings.value(f"profiles/{self.profile()}/definition_furigana", True, bool))
-        self.detail_form.setRowVisible(self.definition_furigana, self.japanese_controls)
+        self.content_form.setRowVisible(self.definition_furigana, self.japanese_controls)
         self.pitch_colors.setChecked(self.settings.value(f"profiles/{self.profile()}/pitch_colors", DEFAULTS["pitch_colors"], bool))
         self.detail_form.setRowVisible(self.pitch_colors, self.japanese_controls)
         self.kanji_stroke_order.setChecked(self.settings.value(f"profiles/{self.profile()}/kanji_stroke_order", DEFAULTS["kanji_stroke_order"], bool))
-        self.detail_form.setRowVisible(self.kanji_stroke_order, self.japanese_controls)
+        self.content_form.setRowVisible(self.kanji_stroke_order, self.japanese_controls)
         from wordcel.utils.stroke_order_font import font_ready
-        self.detail_form.setRowVisible(self.font_install, self.japanese_controls and not font_ready())
+        self.content_form.setRowVisible(self.font_install, self.japanese_controls and not font_ready())
         self.detail_form.setRowVisible(self.controls["furigana_scale"], self.japanese_controls)
         for key, widget in self.controls.items():
             value = self.settings.value(f"profiles/{self.profile()}/{key}", DEFAULTS.get(key, 100))

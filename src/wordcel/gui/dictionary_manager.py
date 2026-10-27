@@ -351,11 +351,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.translation_warm.setToolTip("Retains model memory after use. Changes apply on the next translation.")
         advanced_form.addRow(self.translation_warm)
         translation_layout.addLayout(translation_form)
-        self.translation_advanced = QCheckBox("Advanced")
-        self.translation_advanced.toggled.connect(self.translation_advanced_widget.setVisible)
-        translation_layout.addWidget(self.translation_advanced)
-        translation_layout.addWidget(self.translation_advanced_widget)
-        self.translation_advanced_widget.hide()
+        translation_layout.addWidget(SettingsSection("Translation options", self.translation_advanced_widget))
         translation_layout.addStretch()
         translation_error = ""
         try:
@@ -660,7 +656,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         text_row.labelItem.widget().deleteLater()
         shortcut_layout.addRow("Text lookup", self.shortcut)
         self.screen_section = SettingsSection("Screen recognition", scanning)
-        self.screen_section.toggle.setChecked(not self.resources.ocr_section.isHidden())
+        self.screen_section.toggle.setChecked(True)
         lookup_layout.addWidget(self.screen_section)
         shared_layout.takeRow(self.hover_startup)
         app_layout.addRow(self.hover_startup)
@@ -684,6 +680,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.lookup_tab = add_page(lookup, "Lookup")
         shortcut_page = QWidget()
         shortcut_page_layout = QVBoxLayout(shortcut_page)
+        shortcut_page_layout.setContentsMargins(0, 0, 0, 0)
         for title, content in (("Lookup", shortcuts), ("Popup", popup_shortcuts)):
             section = SettingsSection(title, content)
             section.toggle.setChecked(True)
@@ -691,11 +688,21 @@ class SetupDialog(SettingsNavigation, QDialog):
         shortcut_page_layout.addStretch()
         from wordcel.gui.preference_groups import PreferenceGroups
         self.preference_groups = PreferenceGroups(self)
-        self.shortcuts_tab = add_page(self.preference_groups.wrap("shortcuts", shortcut_page), "Shortcuts")
+        shortcut_container = QWidget()
+        shortcut_container_layout = QVBoxLayout(shortcut_container)
+        shortcut_container_layout.addWidget(self.preference_groups.wrap("shortcuts", shortcut_page))
+        cycle_controls = QWidget()
+        cycle_layout = QFormLayout(cycle_controls)
+        shortcut_container_layout.addWidget(SettingsSection("Profile switching (all profiles)", cycle_controls))
+        self.shortcuts_tab = add_page(shortcut_container, "Shortcuts")
         align_form_columns(shortcut_layout, popup_form)
         add_page(dictionaries, "Dictionaries")
-        add_page(self.preference_groups.wrap("appearance", self.appearance), "Appearance")
-        add_page(self.preference_groups.wrap("popup", shared_shortcuts), "Popup")
+        popup_page = QWidget()
+        popup_layout = QVBoxLayout(popup_page)
+        popup_layout.addWidget(self.preference_groups.wrap("appearance", self.appearance))
+        popup_layout.addWidget(self.preference_groups.wrap("popup", SettingsSection("Layout & behavior", shared_shortcuts)))
+        self.popup_tab = add_page(popup_page, "Popup")
+        align_form_columns(self.appearance.form, self.appearance.preview_form, self.appearance.pinned_form, shared_layout)
         audio_layout.removeWidget(audio_playback)
         audio_layout.insertWidget(0, self.preference_groups.wrap("audio", audio_playback))
         self.audio_tab = add_page(audio, "Audio")
@@ -704,7 +711,10 @@ class SetupDialog(SettingsNavigation, QDialog):
         from wordcel.gui.data_manager import DataPanel
         self.data = DataPanel(self)
         self.data_tab = add_page(self.data, "Storage")
-        self.app_tab = add_page(app_page, "App")
+        self.app_tab = add_page(app_page, "Startup")
+        connections = QWidget()
+        connection_layout = QFormLayout(connections)
+        self.connections_tab = add_page(connections, "Connections")
         self.preference_groups.add_global_audio(add_page)
         self.initial_profile = QComboBox()
         app_layout.addRow("Start with profile", self.initial_profile)
@@ -713,19 +723,20 @@ class SetupDialog(SettingsNavigation, QDialog):
         for key, title, preset in (("next_profile", "Next profile", "Ctrl+Alt+PgDown"),
                                    ("previous_profile", "Previous profile", "Ctrl+Alt+PgUp")):
             editor = ShortcutEdit(settings.value(key + "_hotkey", ""), settings.value(key + "_hotkey_preset", preset))
-            app_layout.addRow(title, editor)
+            cycle_layout.addRow(title, editor)
             self.cycle_shortcuts[key] = editor
             editor.enabled.toggled.connect(lambda _, key=key, editor=editor: self.save_cycle_shortcut(key, editor))
             editor.recorder.editingFinished.connect(lambda key=key, editor=editor: self.save_cycle_shortcut(key, editor))
+        align_form_columns(shortcut_layout, popup_form, cycle_layout)
         self.connection_list = QComboBox()
         self.connection_endpoint = QLineEdit()
         self.connection_key = QLineEdit()
         self.connection_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.connection_model = QLineEdit()
-        app_layout.addRow("Connection", self.connection_list)
-        app_layout.addRow("Address", self.connection_endpoint)
-        app_layout.addRow("API key", self.connection_key)
-        app_layout.addRow("Server model", self.connection_model)
+        connection_layout.addRow("Connection", self.connection_list)
+        connection_layout.addRow("Address", self.connection_endpoint)
+        connection_layout.addRow("API key", self.connection_key)
+        connection_layout.addRow("Server model", self.connection_model)
         connection_buttons = QWidget()
         connection_buttons_layout = QHBoxLayout(connection_buttons)
         connection_buttons_layout.setContentsMargins(0, 0, 0, 0)
@@ -733,7 +744,7 @@ class SetupDialog(SettingsNavigation, QDialog):
             button = QPushButton(label)
             button.clicked.connect(lambda checked=False, kind=kind: self.add_connection(kind))
             connection_buttons_layout.addWidget(button)
-        app_layout.addRow(connection_buttons)
+        connection_layout.addRow(connection_buttons)
         self.connection_list.currentIndexChanged.connect(self.load_connection)
         for editor in (self.connection_endpoint, self.connection_key, self.connection_model):
             editor.editingFinished.connect(self.save_connection)
@@ -741,7 +752,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.profile_connection = QComboBox()
         self.anki.layout().insertWidget(1, self.profile_connection)
         self.profile_connection.currentIndexChanged.connect(self.save_anki_connection)
-        # Shared connection editors live only on App; profiles choose a reference.
+        # Connections are shared; profiles choose a reference.
         self.anki.connection_section.hide()
         self.translation_connection = QComboBox()
         translation_form.addRow("Server connection", self.translation_connection)
@@ -756,8 +767,12 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.appearance.side_button_scrolling.toggled.connect(lambda _: self.autosave(self.notify_scan_settings))
         self.build_sidebar(layout, tabs)
         self.appearance.translation_hint.linkActivated.connect(lambda _: self.tabs.setCurrentWidget(self.translation_tab))
+        saved_page = settings.value("settings/page", "Lookup")
         self.rebuild_profiles()
-        tabs.setCurrentWidget(self.lookup_tab)
+        for index in range(tabs.count()):
+            if tabs.tabText(index) == saved_page:
+                tabs.setCurrentIndex(index)
+                break
         tabs.currentChanged.connect(lambda: self.resources.refresh())
         if translation_error:
             self.status.setText(translation_error)
@@ -1234,8 +1249,6 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.translation_endpoint.setText(translation.endpoint)
         self.translation_model.setText(translation.model)
         self.translation_pair_label.setText(language_name(self.editing_language) + " \u2194")
-        self.translation_advanced.setChecked(translation.provider == "custom" or any(
-            self.settings.value(f"profiles/{code}/translation_{key}", "auto") != "auto" for key in ("source", "target")))
         self.translation_stream.setChecked(translation.stream)
         self.translation_chunk_size.setValue(translation.chunk_size)
         self.translation_warm.setChecked(translation.keep_warm)
@@ -1317,24 +1330,15 @@ class SetupDialog(SettingsNavigation, QDialog):
             self.profile.setCurrentIndex(self.profile.findData(code))
         self.profile_changed()
         if hasattr(self, "navigation"):
-            current = self.navigation.currentItem()
-            value = current.data(0, Qt.ItemDataRole.UserRole) if current else None
-            if value and (value[0] is None or value[0].startswith("global:")):
-                return
-            from PyQt6.QtWidgets import QTreeWidgetItemIterator
-            iterator = QTreeWidgetItemIterator(self.navigation)
-            target = None
-            while iterator.value():
-                item = iterator.value()
-                value = item.data(0, Qt.ItemDataRole.UserRole)
-                if value and value[0] == code:
-                    if target is None or value[1] == self.tabs.currentIndex():
-                        target = item
-                iterator += 1
-            if target is not None:
-                with QSignalBlocker(self.navigation):
-                    self.navigation.setCurrentItem(target)
-                self.profile_details.show()
+            if self.scope.currentData() != "shared":
+                with QSignalBlocker(self.scope):
+                    self.scope.setCurrentIndex(self.scope.findData(code))
+                for index in range(self.navigation.topLevelItemCount()):
+                    item = self.navigation.topLevelItem(index)
+                    value = item.data(0, Qt.ItemDataRole.UserRole)
+                    if value and value[0] and not value[0].startswith("global:"):
+                        item.setData(0, Qt.ItemDataRole.UserRole, (code, value[1]))
+            self.navigate(self.navigation.currentItem())
 
     def apply_appearance(self):
         window = self.parent()
@@ -1390,8 +1394,6 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.update_translation_languages(load=load)
         self.translation_advanced_form.setRowVisible(self.translation_endpoint, False)
         self.translation_advanced_form.setRowVisible(self.translation_model, False)
-        if custom:
-            self.translation_advanced.setChecked(True)
         self.translation_advanced_form.setRowVisible(self.translation_warm, not custom)
         if hasattr(self, "resources"):
             self.resources.refresh()

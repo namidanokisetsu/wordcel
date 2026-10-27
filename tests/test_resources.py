@@ -219,7 +219,7 @@ class ResourceTests(unittest.TestCase):
                 try:
                     resources = dialog.resources
                     self.assertEqual([dialog.tabs.tabText(i) for i in range(dialog.tabs.count())],
-                                     ["Lookup", "Shortcuts", "Dictionaries", "Appearance", "Popup", "Audio", "Translation", "Anki", "Storage", "App", "Audio playback"])
+                                     ["Lookup", "Shortcuts", "Dictionaries", "Popup", "Audio", "Translation", "Anki", "Storage", "Startup", "Connections", "Audio playback"])
                     dialog.show_anki()
                     self.assertIs(dialog.tabs.currentWidget(), dialog.anki_tab)
                     dialog.show_audio()
@@ -240,7 +240,7 @@ class ResourceTests(unittest.TestCase):
                     dialog.deleteLater()
                     self.app.processEvents()
 
-    def test_translation_defaults_hide_manual_direction_and_start_models_on_demand(self):
+    def test_translation_options_are_visible_and_start_models_on_demand(self):
         with tempfile.TemporaryDirectory() as directory:
             settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
             save_profile_settings(settings, "ja", TranslationSettings(auto_start=False))
@@ -248,10 +248,7 @@ class ResourceTests(unittest.TestCase):
                     patch("wordcel.gui.resources.translation_ready", return_value=False):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
-                    self.assertFalse(dialog.translation_advanced.isChecked())
-                    self.assertTrue(dialog.translation_advanced_widget.isHidden())
                     self.assertTrue(load_profile_settings(settings, "ja").auto_start)
-                    dialog.translation_advanced.click()
                     self.assertFalse(dialog.translation_advanced_widget.isHidden())
                 finally:
                     dialog.deleteLater()
@@ -369,16 +366,17 @@ class ResourceTests(unittest.TestCase):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
                     button = dialog.resources.font_install
-                    self.assertTrue(dialog.appearance.detail_form.isRowVisible(button))
+                    self.assertTrue(dialog.appearance.content_form.isRowVisible(button))
+                    dialog.preference_groups.controls["appearance"][0].setChecked(False)
                     with patch.object(dialog, "begin_operation") as install:
                         button.click()
                         install.assert_called_once_with([], fonts=True)
                     dialog.sync_profile("tr")
-                    self.assertFalse(dialog.appearance.detail_form.isRowVisible(button))
+                    self.assertFalse(dialog.appearance.content_form.isRowVisible(button))
                     dialog.sync_profile("ja")
                     with patch("wordcel.utils.stroke_order_font.font_ready", return_value=True):
                         dialog.resources.refresh()
-                        self.assertFalse(dialog.appearance.detail_form.isRowVisible(button))
+                        self.assertFalse(dialog.appearance.content_form.isRowVisible(button))
                 finally:
                     dialog.deleteLater()
                     self.app.processEvents()

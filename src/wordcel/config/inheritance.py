@@ -92,6 +92,7 @@ class PreferenceSettings:
         _, profile, relative = parts
         group = group_for(relative)
         if group and (self.editing_global == group or
+                      self.editing_global == "popup_all" and group in ("appearance", "popup") or
                       not overridden(self.raw, profile, group)):
             return f"defaults/{group}/{relative}"
         return key

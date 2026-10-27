@@ -1,6 +1,5 @@
 """Settings navigation and shared service connection editors."""
 from PyQt6.QtCore import QSignalBlocker, Qt
-from PyQt6.QtGui import QBrush, QPalette
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMenu, QToolButton, QTreeWidget, QTreeWidgetItem, QWidget
 
 from wordcel.config.profiles import connection, profile_ids, profile_name
@@ -8,155 +7,160 @@ from wordcel.config.profiles import connection, profile_ids, profile_name
 
 class SettingsNavigation:
     def highlight_active_profile(self, active):
-        if not hasattr(self, "navigation"):
+        if not hasattr(self, "scope"):
             return
-        group = self.navigation.topLevelItem(2)
-        if group is None:
-            return
-        for index in range(group.childCount()):
-            entry = group.child(index)
-            identity = entry.data(0, Qt.ItemDataRole.UserRole)[0]
-            is_active = identity == active
-            name = profile_name(self.settings, identity)
-            entry.setText(0, name + ("  \u2713" if is_active else ""))
-            font = entry.font(0)
-            font.setBold(is_active)
-            entry.setFont(0, font)
-            entry.setForeground(0, self.navigation.palette().brush(QPalette.ColorRole.Highlight) if is_active else QBrush())
-            entry.setToolTip(0, "Active profile" if is_active else "")
-            entry.setData(0, Qt.ItemDataRole.AccessibleTextRole, name + (", active profile" if is_active else ""))
+        for index in range(1, self.scope.count()):
+            identity = self.scope.itemData(index)
+            self.scope.setItemText(index, profile_name(self.settings, identity) + (" ✓" if identity == active else ""))
 
     def is_active_edit(self):
         return self.settings.editing_global is None and self.parent() is not None and getattr(self.parent(), "active_profile", None) == self.profile.currentData()
 
     def build_sidebar(self, layout, tabs):
+        from PyQt6.QtWidgets import QComboBox, QLineEdit, QListWidget, QVBoxLayout
         self._navigation_state = {}
-        self._editing_identity = self.profile.currentData()
+        self.scope = QComboBox()
+        self.scope.setAccessibleName("Editing")
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search settings…")
+        self.search.setClearButtonEnabled(True)
+        self.search_results = QListWidget()
+        self.search_results.setAccessibleName("Settings search results")
+        self.search_results.hide()
         self.navigation = QTreeWidget()
         self.navigation.setHeaderHidden(True)
+        self.navigation.setRootIsDecorated(False)
+        self.navigation.setIndentation(0)
         self.navigation.setAccessibleName("Settings pages")
-        self.navigation.setMinimumWidth(self.navigation.fontMetrics().horizontalAdvance("Translation settings") + 40)
-        tabs.tabBar().hide()
-        layout.removeWidget(tabs)
-        layout.removeWidget(self.profile_header)
-        layout.removeWidget(self.profile_details)
-        content = QWidget()
-        from PyQt6.QtWidgets import QVBoxLayout
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        self.profile_header.hide()
-        content_layout.addWidget(self.profile_details)
-        content_layout.addWidget(tabs, 1)
-        body = QHBoxLayout()
-        body.addWidget(self.navigation)
-        body.addWidget(content, 1)
-        layout.insertLayout(0, body, 1)
-        self.profile.hide()
-        self.profile_header.layout().itemAt(0).widget().hide()
-        self.navigation.currentItemChanged.connect(self.navigate)
-        self.navigation.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.navigation.customContextMenuRequested.connect(self.show_profile_menu)
-        self.profile_menu = QMenu(self.navigation)
+        sidebar = QWidget()
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        sidebar_layout.addWidget(self.search)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Editing"))
+        row.addWidget(self.scope, 1)
+        self.profile_menu = QMenu(self)
+        self.profile_menu.addAction("New profile", self.choose_profile)
         self.profile_actions = {}
         for title, callback in (("Activate", self.activate_profile), ("Duplicate", self.duplicate_profile),
                                 ("Move up", lambda: self.reorder_profile(-1)),
                                 ("Move down", lambda: self.reorder_profile(1)), ("Delete", self.remove_profile)):
             self.profile_actions[title] = self.profile_menu.addAction(title, callback)
         self.profile_menu.aboutToShow.connect(self.update_profile_actions)
+        manage = QToolButton()
+        manage.setText("⋯")
+        manage.setToolTip("Manage profiles")
+        manage.setAccessibleName("Manage profiles")
+        manage.setMenu(self.profile_menu)
+        manage.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        row.addWidget(manage)
+        sidebar_layout.addLayout(row)
+        sidebar_layout.addWidget(self.navigation, 1)
+        sidebar_layout.addWidget(self.search_results, 1)
+        tabs.tabBar().hide()
+        layout.removeWidget(tabs)
+        layout.removeWidget(self.profile_header)
+        layout.removeWidget(self.profile_details)
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        self.profile_header.hide()
+        content_layout.addWidget(self.profile_details)
+        content_layout.addWidget(tabs, 1)
+        body = QHBoxLayout()
+        body.addWidget(sidebar)
+        body.addWidget(content, 1)
+        layout.insertLayout(0, body, 1)
+        self.navigation.currentItemChanged.connect(self.navigate)
+        self.scope.currentIndexChanged.connect(self.change_scope)
+        self.search.textChanged.connect(self.search_settings)
+        self.search_results.itemActivated.connect(self.open_search_result)
+        self.search_results.itemClicked.connect(self.open_search_result)
+        tabs.currentChanged.connect(self.sync_navigation)
         self.resize(900, 620)
 
     def rebuild_profiles(self, selected=None):
-        selected = selected or self.profile.currentData()
-        old_item = self.navigation.currentItem()
-        old_value = old_item.data(0, Qt.ItemDataRole.UserRole) if old_item else None
-        old_page = old_item.data(0, Qt.ItemDataRole.UserRole)[1] if old_item and old_item.data(0, Qt.ItemDataRole.UserRole) else 0
-        old_group = self.navigation.topLevelItem(2)
-        expanded = {}
-        if old_group:
-            for index in range(old_group.childCount()):
-                entry = old_group.child(index)
-                expanded[entry.data(0, Qt.ItemDataRole.UserRole)[0]] = entry.isExpanded()
-        group_expanded = old_group.isExpanded() if old_group else True
-        with QSignalBlocker(self.profile), QSignalBlocker(self.initial_profile), QSignalBlocker(self.navigation):
+        scope = selected or (self.scope.currentData() if self.scope.count() else
+                             self.settings.value("settings/scope", self.profile.currentData()))
+        selected = selected or (scope if scope in profile_ids(self.settings) else self.profile.currentData())
+        with QSignalBlocker(self.profile), QSignalBlocker(self.initial_profile), QSignalBlocker(self.scope):
             self.profile.clear()
             self.initial_profile.clear()
-            self.navigation.clear()
-            app = QTreeWidgetItem(self.navigation, ["App"])
-            app.setData(0, Qt.ItemDataRole.UserRole, (None, self.tabs.indexOf(self.app_tab)))
-            for group, title in (("appearance", "Appearance"), ("shortcuts", "Shortcuts"), ("popup", "Popup"), ("audio", "Audio playback")):
-                page = self.tabs.indexOf(self.preference_groups.global_audio_page) if group == "audio" else next(
-                    i for i in range(self.tabs.count()) if self.tabs.tabText(i) == title)
-                child = QTreeWidgetItem(app, [title])
-                child.setData(0, Qt.ItemDataRole.UserRole, ("global:" + group, page))
-            app.setExpanded(True)
-            storage = QTreeWidgetItem(self.navigation, ["Storage"])
-            storage.setData(0, Qt.ItemDataRole.UserRole, (None, self.tabs.indexOf(self.data_tab)))
-            group = QTreeWidgetItem(self.navigation)
-            heading = QWidget()
-            toolbar = QHBoxLayout(heading)
-            toolbar.setContentsMargins(0, 0, 0, 0)
-            toolbar.addWidget(QLabel("Profiles"), 1)
-            add = QToolButton()
-            add.setText("+")
-            add.setToolTip("New profile")
-            add.setAccessibleName("New profile")
-            add.clicked.connect(self.choose_profile)
-            toolbar.addWidget(add)
-            self.navigation.setItemWidget(group, 0, heading)
-            group.setSizeHint(0, heading.sizeHint())
-            group.setFlags(group.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-            selected_item = None
+            self.scope.clear()
+            self.scope.addItem("Shared defaults", "shared")
             for identity in profile_ids(self.settings):
                 name = profile_name(self.settings, identity)
                 self.profile.addItem(name, identity)
                 self.initial_profile.addItem(name, identity)
-                entry = QTreeWidgetItem(group, [name])
-                entry.setData(0, Qt.ItemDataRole.UserRole, (identity, 0))
-                for index in range(self.tabs.count()):
-                    if self.tabs.widget(index) in (self.app_tab, self.data_tab, self.preference_groups.global_audio_page):
-                        continue
-                    item = QTreeWidgetItem(entry, [self.tabs.tabText(index)])
-                    item.setData(0, Qt.ItemDataRole.UserRole, (identity, index))
-                    if identity == selected and index == old_page:
-                        selected_item = item
-                entry.setExpanded(expanded.get(identity, identity == selected))
-                if identity == selected and selected_item is None:
-                    selected_item = entry
-            group.setExpanded(group_expanded)
+                self.scope.addItem(name, identity)
             self.profile.setCurrentIndex(max(0, self.profile.findData(selected)))
+            self.scope.setCurrentIndex(0 if scope == "shared" else max(1, self.scope.findData(selected)))
             self.initial_profile.setCurrentIndex(max(0, self.initial_profile.findData(self.settings.value("initial_profile", ""))))
-            if old_page == self.tabs.indexOf(self.app_tab):
-                selected_item = app
-            elif old_page == self.tabs.indexOf(self.data_tab):
-                selected_item = storage
-            if old_value and old_value[0] and old_value[0].startswith("global:"):
-                selected_item = next((app.child(i) for i in range(app.childCount())
-                                      if app.child(i).data(0, Qt.ItemDataRole.UserRole) == old_value), selected_item)
-            self.navigation.setCurrentItem(selected_item)
+        self.highlight_active_profile(self.settings.value("profile", ""))
         self.profile_changed()
-        self.navigate(self.navigation.currentItem())
+        self.populate_navigation()
 
-    def show_profile_menu(self, position):
-        item = self.navigation.itemAt(position)
-        group = self.navigation.topLevelItem(2)
-        if item is None or item.parent() != group:
-            return
-        self.navigation.setCurrentItem(item)
-        self.profile_menu.popup(self.navigation.viewport().mapToGlobal(position))
+    def populate_navigation(self):
+        page = self.tabs.currentIndex()
+        shared = self.scope.currentData() == "shared"
+        with QSignalBlocker(self.navigation):
+            self.navigation.clear()
+            selected = None
+            titles = ("Popup", "Shortcuts", "Audio") if shared else ("Lookup", "Dictionaries", "Popup", "Shortcuts", "Audio", "Translation", "Anki")
+            for title in (*titles, "Startup", "Connections", "Storage"):
+                global_page = title in ("Startup", "Connections", "Storage")
+                if title == "Startup":
+                    from PyQt6.QtWidgets import QFrame
+                    divider = QTreeWidgetItem(self.navigation, [""])
+                    divider.setFlags(Qt.ItemFlag.NoItemFlags)
+                    line = QFrame()
+                    line.setFrameShape(QFrame.Shape.HLine)
+                    divider.setSizeHint(0, line.sizeHint())
+                    self.navigation.setItemWidget(divider, 0, line)
+                target = "Audio playback" if shared and title == "Audio" else title
+                index = next(i for i in range(self.tabs.count()) if self.tabs.tabText(i) == target)
+                identity = self.profile.currentData()
+                if global_page:
+                    identity = None
+                elif shared:
+                    identity = "global:" + {"Popup": "popup_all", "Shortcuts": "shortcuts", "Audio": "audio"}[title]
+                item = QTreeWidgetItem(self.navigation, [title])
+                item.setData(0, Qt.ItemDataRole.UserRole, (identity, index))
+                if index == page or title == "Audio" and self.tabs.tabText(page) in ("Audio", "Audio playback"):
+                    selected = item
+            self.navigation.setCurrentItem(selected or self.navigation.topLevelItem(0))
+        self.navigate(self.navigation.currentItem())
+        self.search_settings()
+
+    def change_scope(self):
+        identity = self.scope.currentData()
+        self.appearance._preview_timer.stop()
+        old_scope = self._editing_scope
+        positions = [self.tabs.widget(i).verticalScrollBar().value() for i in range(self.tabs.count())]
+        self._navigation_state[old_scope] = positions
+        if identity != "shared" and identity != self.profile.currentData():
+            self.settings.editing_global = None
+            with QSignalBlocker(self.profile):
+                self.profile.setCurrentIndex(self.profile.findData(identity))
+            self.profile_changed()
+        self.populate_navigation()
+        for i, position in enumerate(self._navigation_state.get(identity, positions)):
+            self.tabs.widget(i).widget().layout().activate()
+            self.tabs.widget(i).verticalScrollBar().setValue(position)
 
     def update_profile_actions(self):
         order = list(profile_ids(self.settings))
         identity = self.profile.currentData()
         index = order.index(identity) if identity in order else -1
-        self.profile_actions["Activate"].setEnabled(identity != self.settings.value("profile", ""))
-        self.profile_actions["Delete"].setEnabled(len(order) > 1)
-        self.profile_actions["Move up"].setEnabled(index > 0)
-        self.profile_actions["Move down"].setEnabled(0 <= index < len(order) - 1)
+        editing = self.scope.currentData() != "shared"
+        self.profile_actions["Activate"].setEnabled(editing and identity != self.settings.value("profile", ""))
+        self.profile_actions["Duplicate"].setEnabled(editing)
+        self.profile_actions["Delete"].setEnabled(editing and len(order) > 1)
+        self.profile_actions["Move up"].setEnabled(editing and index > 0)
+        self.profile_actions["Move down"].setEnabled(editing and 0 <= index < len(order) - 1)
 
     def navigate(self, item, previous=None):
-        if item is None:
-            return
-        value = item.data(0, Qt.ItemDataRole.UserRole)
+        value = item.data(0, Qt.ItemDataRole.UserRole) if item else None
         if not value:
             return
         identity, page = value
@@ -168,28 +172,88 @@ class SettingsNavigation:
             for group in dict.fromkeys(group for group in (previous_group, global_group) if group):
                 self.preference_groups.reload(group)
             self.update_ocr_controls()
-            self.resources.refresh()
+            self.resources.refresh_actions()
         if global_group:
             self.preference_groups.load_global_audio()
-            self.preference_groups.refresh()
-            self.profile_details.hide()
-            self.tabs.setCurrentIndex(page)
-            return
-        self.profile_details.setVisible(identity is not None)
-        if identity and identity != self.profile.currentData():
-            from wordcel.gui.settings_section import SettingsSection
-            state = [(self.tabs.widget(i).verticalScrollBar().value()) for i in range(self.tabs.count())]
-            sections = [section.toggle.isChecked() for section in self.findChildren(SettingsSection)]
-            self._navigation_state[self.profile.currentData()] = state, sections
-            self.sync_profile(identity)
-            saved = self._navigation_state.get(identity)
-            if saved:
-                for section, checked in zip(self.findChildren(SettingsSection), saved[1]):
-                    section.toggle.setChecked(checked)
-                for i, position in enumerate(saved[0]):
-                    self.tabs.widget(i).widget().layout().activate()
-                    self.tabs.widget(i).verticalScrollBar().setValue(position)
+        self.preference_groups.refresh()
+        self.profile_details.setVisible(identity is not None and not global_group)
         self.tabs.setCurrentIndex(page)
+        self._editing_scope = self.scope.currentData()
+        self.settings.setValue("settings/scope", self._editing_scope)
+        self.settings.setValue("settings/page", self.tabs.tabText(page))
+
+    def sync_navigation(self, page):
+        for index in range(self.navigation.topLevelItemCount()):
+            item = self.navigation.topLevelItem(index)
+            value = item.data(0, Qt.ItemDataRole.UserRole)
+            if value and value[1] == page:
+                self.navigation.setCurrentItem(item)
+                return
+        # Links to profile-only features leave shared defaults explicitly.
+        if self.scope.currentData() == "shared":
+            self.scope.setCurrentIndex(self.scope.findData(self.profile.currentData()))
+
+    def search_settings(self, *_):
+        from PyQt6.QtWidgets import QAbstractButton, QLabel, QListWidgetItem
+        from wordcel.gui.settings_section import SettingsSection
+        query = self.search.text().strip().casefold()
+        self.navigation.setVisible(not query)
+        self.search_results.setVisible(bool(query))
+        self.search_results.clear()
+        if not query:
+            return
+        for index in range(self.navigation.topLevelItemCount()):
+            item = self.navigation.topLevelItem(index)
+            value = item.data(0, Qt.ItemDataRole.UserRole)
+            if not value:
+                continue
+            page = self.tabs.widget(value[1])
+            seen = set()
+            for control in page.widget().findChildren(QWidget):
+                if not isinstance(control, (QLabel, QAbstractButton)) or control.isHidden():
+                    continue
+                label = control.text().replace("&", "").strip()
+                if not label or "<" in label:
+                    continue
+                sections = []
+                parent = control.parentWidget()
+                hidden = False
+                while parent is not None and parent is not page.widget():
+                    if parent.isHidden():
+                        hidden = True
+                    if isinstance(parent, SettingsSection):
+                        sections.append(parent.toggle.text())
+                    parent = parent.parentWidget()
+                title = " › ".join((item.text(0), *reversed(sections), label))
+                if hidden or title in seen:
+                    continue
+                seen.add(title)
+                if all(word in title.casefold() for word in query.split()):
+                    result = QListWidgetItem(title, self.search_results)
+                    result.setData(Qt.ItemDataRole.UserRole, (value, control))
+
+    def open_search_result(self, item):
+        value, control = item.data(Qt.ItemDataRole.UserRole)
+        self.navigate_item(value)
+        from wordcel.gui.settings_section import SettingsSection
+        parent = control.parentWidget()
+        while parent is not None:
+            if isinstance(parent, SettingsSection):
+                parent.toggle.setChecked(True)
+            parent = parent.parentWidget()
+        page = self.tabs.widget(value[1])
+        page.widget().layout().activate()
+        page.ensureWidgetVisible(control)
+        self.search.clear()
+        control.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def navigate_item(self, value):
+        for index in range(self.navigation.topLevelItemCount()):
+            item = self.navigation.topLevelItem(index)
+            if item.data(0, Qt.ItemDataRole.UserRole) == value:
+                self.navigation.setCurrentItem(item)
+                self.navigate(item)
+                return
 
     def reorder_profile(self, offset):
         order = list(profile_ids(self.settings))

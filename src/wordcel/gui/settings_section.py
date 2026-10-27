@@ -1,4 +1,4 @@
-"""Compact, keyboard-accessible disclosure for optional settings."""
+"""Static settings groups, with optional disclosure for long inventories."""
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFormLayout, QLabel, QToolButton, QVBoxLayout, QWidget
 
@@ -12,7 +12,7 @@ def align_form_columns(*forms):
 
 
 class SettingsSection(QWidget):
-    def __init__(self, title, content):
+    def __init__(self, title, content, *, collapsible=False):
         super().__init__()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -27,6 +27,14 @@ class SettingsSection(QWidget):
         self.toggle.toggled.connect(content.setVisible)
         self.toggle.toggled.connect(lambda opened: self.toggle.setArrowType(
             Qt.ArrowType.DownArrow if opened else Qt.ArrowType.RightArrow))
+        if not collapsible:
+            self.toggle.setChecked(True)
+            self.toggle.hide()
+            heading = QLabel(title)
+            font = heading.font()
+            font.setBold(True)
+            heading.setFont(font)
+            layout.insertWidget(0, heading)
 
 
 class StatusLabel(QLabel):

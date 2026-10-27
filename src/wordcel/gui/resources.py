@@ -142,9 +142,6 @@ class ResourcesPanel(QWidget):
         code = owner.editing_language
         if not code:
             return
-        from wordcel.utils.stroke_order_font import font_ready
-        owner.appearance.detail_form.setRowVisible(self.font_install, code == "ja" and not font_ready())
-        self.font_install.setEnabled(not owner.operation_busy("fonts"))
         from wordcel.dictionary.library import Library
         library = Library(owner.directory)
         try:
@@ -211,9 +208,16 @@ class ResourcesPanel(QWidget):
             self.downloads[name].setVisible(supported and not ready)
             self.downloads[name].setEnabled(supported and not ready and not owner.operation_busy("translation"))
         self.translation_section.setVisible(any(not row.isHidden() for row in self.model_rows.values()))
+        self.refresh_actions()
+
+    def refresh_actions(self):
+        owner = self.owner
+        from wordcel.utils.stroke_order_font import font_ready
+        owner.appearance.content_form.setRowVisible(self.font_install, owner.appearance.japanese_controls and not font_ready())
+        self.font_install.setEnabled(not owner.operation_busy("fonts"))
         ready = profile_translation_available(owner.settings, owner.profile.currentData())
         global_group = getattr(owner.settings, "editing_global", None)
-        owner.appearance.set_translation_available(ready or global_group == "appearance")
+        owner.appearance.set_translation_available(ready or global_group in ("appearance", "popup_all"))
         ready = ready or global_group == "shortcuts"
         owner.translation_shortcut.enabled.setEnabled(ready)
         owner.translation_shortcut.recorder.setEnabled(ready and owner.translation_shortcut.enabled.isChecked())

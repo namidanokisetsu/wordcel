@@ -99,7 +99,7 @@ class NamedProfileTests(unittest.TestCase):
         duplicate = create_profile(self.settings, "ja", "Anime", duplicate="ja")
         dialog = SetupDialog(self.directory, self.settings, Mock())
         self.addCleanup(dialog.deleteLater)
-        for index, page in ((0, dialog.app_tab), (1, dialog.data_tab)):
+        for index, page in ((8, dialog.app_tab), (10, dialog.data_tab)):
             for identity in ("ja", duplicate):
                 with self.subTest(page=index, profile=identity):
                     item = dialog.navigation.topLevelItem(index)
@@ -110,8 +110,7 @@ class NamedProfileTests(unittest.TestCase):
                     self.assertIs(dialog.tabs.currentWidget(), page)
                     self.assertTrue(dialog.profile_details.isHidden())
                     self.assertEqual(dialog.profile.currentData(), identity)
-        entry = dialog.navigation.topLevelItem(2).child(0)
-        dialog.navigation.setCurrentItem(entry.child(0))
+        dialog.navigation.setCurrentItem(dialog.navigation.topLevelItem(0))
         self.assertIs(dialog.tabs.currentWidget(), dialog.lookup_tab)
         self.assertFalse(dialog.profile_details.isHidden())
 

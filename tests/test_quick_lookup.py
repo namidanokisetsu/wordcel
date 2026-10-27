@@ -233,7 +233,7 @@ class QuickLookupTests(unittest.TestCase):
         try:
             dialog.show()
             appearance_page = next(dialog.tabs.widget(i) for i in range(dialog.tabs.count())
-                                   if dialog.tabs.tabText(i) == "Appearance")
+                                   if dialog.tabs.tabText(i) == "Popup")
             for page in (dialog.shortcuts_tab, appearance_page):
                 dialog.tabs.setCurrentWidget(page)
                 if page is not dialog.shortcuts_tab:

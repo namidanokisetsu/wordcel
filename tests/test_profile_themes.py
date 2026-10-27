@@ -119,8 +119,8 @@ class ProfileThemeTests(unittest.TestCase):
                 self.assertTrue(settings.value('profiles/ja/headword_furigana', False, bool))
                 profile[0] = 'tr'
                 widget.reload()
-                self.assertFalse(widget.detail_form.isRowVisible(widget.headword_furigana))
-                self.assertFalse(widget.detail_form.isRowVisible(widget.definition_furigana))
+                self.assertFalse(widget.content_form.isRowVisible(widget.headword_furigana))
+                self.assertFalse(widget.content_form.isRowVisible(widget.definition_furigana))
                 self.assertFalse(widget.detail_form.isRowVisible(widget.controls['furigana_scale']))
                 widget.save()
                 self.assertFalse(settings.contains('profiles/tr/headword_furigana'))
@@ -130,7 +130,7 @@ class ProfileThemeTests(unittest.TestCase):
                 widget.reload()
                 self.assertTrue(widget.headword_furigana.isChecked())
                 self.assertTrue(widget.definition_furigana.isChecked())
-                self.assertTrue(widget.detail_form.isRowVisible(widget.headword_furigana))
+                self.assertTrue(widget.content_form.isRowVisible(widget.headword_furigana))
                 self.assertEqual(widget.controls['furigana_scale'].value(), 60)
             finally:
                 widget.deleteLater()
@@ -226,7 +226,7 @@ class ProfileThemeTests(unittest.TestCase):
                 self.assertTrue(widget.snap_scrolling.isChecked())
                 self.assertEqual([section.toggle.text() for section in
                                   (widget.general_section, widget.preview_section, widget.pinned_section)],
-                                 ['General', 'Preview', 'Pinned'])
+                                 ['Text & colors', 'Preview', 'Pinned'])
                 widget.preview_grammar.setChecked(True)
                 widget.pinned_grammar.setChecked(False)
                 widget.pinned_frequency.setChecked(False)
@@ -295,7 +295,7 @@ class ProfileThemeTests(unittest.TestCase):
                 self.assertFalse(config.kanji_stroke_order)
                 profile[0] = 'tr'
                 widget.reload(); widget.save()
-                self.assertFalse(widget.detail_form.isRowVisible(widget.kanji_stroke_order))
+                self.assertFalse(widget.content_form.isRowVisible(widget.kanji_stroke_order))
                 self.assertFalse(settings.contains('profiles/tr/kanji_stroke_order'))
                 profile[0] = 'ja'
                 widget.reload()
