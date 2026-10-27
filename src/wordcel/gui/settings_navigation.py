@@ -1,6 +1,6 @@
 """Settings navigation and shared service connection editors."""
 from PyQt6.QtCore import QSignalBlocker, Qt
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMenu, QToolButton, QTreeWidget, QTreeWidgetItem, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMenu, QSizePolicy, QToolButton, QTreeWidget, QTreeWidgetItem, QWidget
 
 from wordcel.config.profiles import connection, profile_ids, profile_name
 
@@ -21,6 +21,7 @@ class SettingsNavigation:
         self._navigation_state = {}
         self.scope = QComboBox()
         self.scope.setAccessibleName("Editing")
+        self.scope.setToolTip("Choose a profile or edit defaults used by profiles")
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search settings…")
         self.search.setClearButtonEnabled(True)
@@ -53,6 +54,7 @@ class SettingsNavigation:
         manage.setAccessibleName("Manage profiles")
         manage.setMenu(self.profile_menu)
         manage.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        manage.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         row.addWidget(manage)
         sidebar_layout.addLayout(row)
         sidebar_layout.addWidget(self.navigation, 1)
@@ -110,13 +112,8 @@ class SettingsNavigation:
             for title in (*titles, "Startup", "Connections", "Storage"):
                 global_page = title in ("Startup", "Connections", "Storage")
                 if title == "Startup":
-                    from PyQt6.QtWidgets import QFrame
-                    divider = QTreeWidgetItem(self.navigation, [""])
-                    divider.setFlags(Qt.ItemFlag.NoItemFlags)
-                    line = QFrame()
-                    line.setFrameShape(QFrame.Shape.HLine)
-                    divider.setSizeHint(0, line.sizeHint())
-                    self.navigation.setItemWidget(divider, 0, line)
+                    heading = QTreeWidgetItem(self.navigation, ["App-wide"])
+                    heading.setFlags(Qt.ItemFlag.NoItemFlags)
                 target = "Audio playback" if shared and title == "Audio" else title
                 index = next(i for i in range(self.tabs.count()) if self.tabs.tabText(i) == target)
                 identity = self.profile.currentData()

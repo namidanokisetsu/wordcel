@@ -42,10 +42,12 @@ The list labels ZIP imports and recommended downloads; older installs may have
 an unknown source. Recommended dictionaries are downloads, not built in.
 
 Choose a profile or **Shared defaults** in **Editing**, then select a category.
-**Popup** groups text, colors, content, buttons and behavior. Inherited controls
-stay visible; clear **Use shared defaults** to customize a group. Search settings
-to jump to a control. Switching profiles keeps the current category.
-**Startup**, **Connections** and **Storage** apply to the whole app.
+Shared defaults apply to profiles that use them for popup, shortcuts or audio
+playback. Clear **Use shared defaults** in a profile to customize a group; its
+custom values are retained if you switch back to shared defaults. Profile settings
+include dictionaries, OCR, audio sources and Anki. Search settings to jump to a
+control. Switching profiles keeps the current category. **App-wide** settings
+apply regardless of the selected profile.
 
 **Startup > Preload OCR** prepares the active engine in the background by default.
 Turn it off to load models on the first scan. Loaded models stay in memory until

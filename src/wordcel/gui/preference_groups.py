@@ -18,6 +18,7 @@ class PreferenceGroups:
         layout.setContentsMargins(0, 0, 0, 0)
         label = {"appearance": "text and content", "audio": "audio playback", "popup": "layout and behavior"}.get(group, group)
         inherit = QCheckBox("Use shared defaults for " + label)
+        inherit.setToolTip("Changes to shared defaults apply while this is checked")
         layout.addWidget(inherit)
         layout.addWidget(content)
         layout.addStretch()
