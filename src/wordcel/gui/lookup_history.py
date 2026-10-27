@@ -286,7 +286,8 @@ class CardDelegate(QStyledItemDelegate):
         painter.restore()
         if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
             painter.save()
-            painter.setPen(option.palette.text().color())
+            painter.setPen((option.palette.highlightedText() if option.state & QStyle.StateFlag.State_Selected
+                            else option.palette.text()).color())
             painter.setOpacity(0.35)
             painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
             painter.setOpacity(1.0)
@@ -445,17 +446,12 @@ class HistoryWindow(QDialog):
                 title = "Today" if day == today else "Yesterday" if day == today - timedelta(days=1) else day.isoformat()
                 desired.append((day.isoformat(), "<b>" + title + "</b>"))
                 previous_day = day
-            groups = {}
-            for _, term, reading in row["words"]:
-                readings = groups.setdefault(term, [])
-                if reading and reading != term and reading not in readings:
-                    readings.append(reading)
-            words = [escape(term) + (" (" + "・".join(map(escape, readings)) + ")" if readings else "")
-                     for term, readings in groups.items()]
-            title = " · ".join(words) or escape(row["form"])
+            title = escape(row["form"])
             text, start, end = row["context"], row["start"], row["end"]
             context = escape(text[:start]) + "<b>" + escape(text[start:end]) + "</b>" + escape(text[end:])
-            html = "<b>" + title + "</b> &nbsp; " + stamp.strftime("%Y-%m-%d %H:%M" if searching else "%H:%M") + "<br>" + context.replace("\n", "<br>")
+            html = "<b>" + title + "</b> &nbsp; " + stamp.strftime("%Y-%m-%d %H:%M" if searching else "%H:%M")
+            if text.strip() != row["form"]:
+                html += "<br>" + context.replace("\n", "<br>")
             if row["excerpt"]:
                 html += "<br><i>" + escape(row["excerpt"]) + "</i>"
             desired.append((row["id"], html))

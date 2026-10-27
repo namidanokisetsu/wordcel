@@ -152,6 +152,17 @@ class HistoryRecordingTests(unittest.TestCase):
         self.window.restore_encounter.assert_called_once_with(row)
         browser.close()
 
+    def test_card_title_uses_encountered_form_instead_of_all_dictionary_matches(self):
+        browser = HistoryWindow(self.service)
+        row = dict(id=1, timestamp=1000000, language="en", form="mercenary", context="mercenary",
+                   start=0, end=9, words=[("ja", "傭兵", "ようへい"), ("ja", "現金", "げんきん")], excerpt="")
+        browser.receive(browser.revision, ([row], 1, ("en",)))
+        html = browser.cards.item(1).text()
+        self.assertEqual(html.count("mercenary"), 1)
+        self.assertNotIn("傭兵", html)
+        self.assertNotIn("現金", html)
+        browser.close()
+
     def test_delete_key_removes_selected_card(self):
         browser = HistoryWindow(self.service)
         row = dict(id=1, timestamp=1000000, language="ja", form="word", context="sentence",

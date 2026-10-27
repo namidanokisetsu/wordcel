@@ -125,7 +125,7 @@ explicit dictionary-directory override for fixtures). It stores encounter text,
 spans, ordered candidate word associations and plain definitions. Word identity
 includes language, exact headword and reading. Dictionary records for one identity
 share a card; distinct candidates remain distinct labels on that encounter.
-Cards combine readings under each headword; shorter fallback prefixes are excluded.
+Cards display the encountered form; shorter fallback prefixes are excluded.
 Definitions are shared by word/source and replaced on the next encounter with
 that source, so saved search wording may differ from installed dictionaries.
 Deletion and retention remove orphan words, definitions and index entries.
