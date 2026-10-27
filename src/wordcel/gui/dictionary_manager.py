@@ -409,7 +409,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.copy_shortcut = ShortcutEdit(settings.value(f"profiles/{self.profile.currentData()}/copy_hotkey", ""),
             settings.value(f"profiles/{self.profile.currentData()}/copy_hotkey_preset", "Ctrl+Shift+X"))
         self.copy_shortcut.setToolTip("Select a screen passage and copy its text")
-        shortcut_layout.addRow("Copy text", self.copy_shortcut)
+        shortcut_layout.addRow("Grab text from screen", self.copy_shortcut)
         self.copy_shortcut.enabled.toggled.connect(lambda _: self.autosave(self.save_copy_shortcut))
         self.copy_shortcut.recorder.editingFinished.connect(lambda: self.autosave(self.save_copy_shortcut))
         self.hover_shortcut = ShortcutEdit(settings.value(f"profiles/{self.profile.currentData()}/hover_hotkey", ""),

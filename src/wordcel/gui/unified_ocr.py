@@ -491,12 +491,12 @@ class UnifiedOCR(QObject):
 
     def add_tray_actions(self, menu, before):
         from PyQt6.QtGui import QAction
-        copy = QAction("Copy text…", menu)
+        copy = QAction("Grab text…", menu)
         menu.insertAction(before, copy)
         copy.triggered.connect(lambda: QTimer.singleShot(0, self.copy_text))
         hover = QAction("Hover scan", menu)
         hover.setCheckable(True)
-        area = QAction("Select scan area…", menu)
+        area = QAction("Select hover scan area…", menu)
         menu.insertAction(before, hover)
         menu.insertAction(before, area)
         hover.triggered.connect(lambda checked: QTimer.singleShot(0, lambda: self.set_hover_enabled(checked)))

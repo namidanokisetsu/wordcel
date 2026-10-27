@@ -26,9 +26,9 @@ while you're holding Shift, release it and press again to capture the new text.
 Pinning a result shows its full definitions. Click a dictionary heading to
 collapse it, or a kanji to see its details. Hover over an icon to see what it does.
 
-To copy a passage, choose **Copy text** in the tray and drag across the dimmed
+To copy a passage, choose **Grab text** in the tray and drag across the dimmed
 screen. Release to copy; **Escape** or right-click cancels. Enable its optional
-shortcut in **Shortcuts > Copy text** (preset **Ctrl+Shift+X**). Recognition uses
+shortcut in **Shortcuts > Grab text from screen** (preset **Ctrl+Shift+X**). Recognition uses
 the active profile. Select within one display at a time.
 
 ## Settings

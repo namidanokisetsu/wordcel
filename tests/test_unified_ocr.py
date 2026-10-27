@@ -775,10 +775,12 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
     def test_tray_enable_cancel_is_unchecked_and_reselection_is_disabled(self):
         from PyQt6.QtWidgets import QMenu
         menu = QMenu()
-        before = menu.addAction("Settings")
         self.controller.holding = False
+        before = menu.addAction("Translate")
         self.controller.add_tray_actions(menu, before)
         copy, hover, area, _ = menu.actions()
+        self.assertEqual([action.text() for action in menu.actions()[:-1]],
+                         ["Grab text…", "Hover scan", "Select hover scan area…"])
         self.assertTrue(copy.isEnabled())
         self.assertFalse(hover.isChecked())
         self.assertFalse(area.isEnabled())

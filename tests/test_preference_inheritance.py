@@ -160,7 +160,7 @@ class PreferenceInheritanceTests(unittest.TestCase):
         self.addCleanup(dialog.deleteLater)
         self.addCleanup(dialog.audio_sources.shutdown)
         dialog.show()
-        for query, page in (("preload", dialog.app_tab), ("copy text", dialog.shortcuts_tab),
+        for query, page in (("preload", dialog.app_tab), ("grab text from screen", dialog.shortcuts_tab),
                             ("source priority", dialog.audio_tab), ("notifications", dialog.anki_tab),
                             ("duplicates", dialog.anki_tab)):
             dialog.search.setText(query)
