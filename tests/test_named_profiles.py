@@ -114,15 +114,18 @@ class NamedProfileTests(unittest.TestCase):
         duplicate = create_profile(self.settings, "ja", "Anime", duplicate="ja")
         dialog = SetupDialog(self.directory, self.settings, Mock())
         self.addCleanup(dialog.deleteLater)
-        for page in (dialog.app_tab, dialog.history_tab, dialog.data_tab):
+        self.assertEqual([dialog.app_navigation.topLevelItem(i).text(0)
+                          for i in range(dialog.app_navigation.topLevelItemCount())],
+                         ["Startup", "History", "Connections", "Storage"])
+        for page in (dialog.app_tab, dialog.history_tab, dialog.connections_tab, dialog.data_tab):
             for identity in ("ja", duplicate):
                 with self.subTest(page=dialog.tabs.indexOf(page), profile=identity):
-                    item = next(dialog.navigation.topLevelItem(i) for i in range(dialog.navigation.topLevelItemCount())
-                                if dialog.navigation.topLevelItem(i).data(0, Qt.ItemDataRole.UserRole) == (None, dialog.tabs.indexOf(page)))
-                    dialog.navigation.setCurrentItem(item)
+                    item = next(item for item in dialog.navigation_items()
+                                if item.data(0, Qt.ItemDataRole.UserRole) == (None, dialog.tabs.indexOf(page)))
+                    dialog.app_navigation.setCurrentItem(item)
                     dialog.close()
                     dialog.sync_profile(identity)
-                    self.assertIs(dialog.navigation.currentItem(), item)
+                    self.assertIs(dialog.app_navigation.currentItem(), item)
                     self.assertIs(dialog.tabs.currentWidget(), page)
                     self.assertTrue(dialog.profile_details.isHidden())
                     self.assertEqual(dialog.profile.currentData(), identity)

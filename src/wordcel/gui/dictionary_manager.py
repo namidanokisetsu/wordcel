@@ -1353,7 +1353,7 @@ class SetupDialog(SettingsNavigation, QDialog):
                     value = item.data(0, Qt.ItemDataRole.UserRole)
                     if value and value[0] and not value[0].startswith("global:"):
                         item.setData(0, Qt.ItemDataRole.UserRole, (code, value[1]))
-            self.navigate(self.navigation.currentItem())
+            self.navigate(self.app_navigation.currentItem() or self.navigation.currentItem())
 
     def apply_appearance(self):
         window = self.parent()

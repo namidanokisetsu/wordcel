@@ -33,10 +33,18 @@ class SettingsNavigation:
         self.navigation.setRootIsDecorated(False)
         self.navigation.setIndentation(0)
         self.navigation.setAccessibleName("Settings pages")
+        self.app_navigation = QTreeWidget()
+        self.app_navigation.setHeaderHidden(True)
+        self.app_navigation.setRootIsDecorated(False)
+        self.app_navigation.setIndentation(0)
+        self.app_navigation.setAccessibleName("App settings pages")
         sidebar = QWidget()
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         sidebar_layout.addWidget(self.search)
+        self.app_heading = QLabel("App settings")
+        sidebar_layout.addWidget(self.app_heading)
+        sidebar_layout.addWidget(self.app_navigation)
         row = QHBoxLayout()
         row.addWidget(QLabel("Editing"))
         row.addWidget(self.scope, 1)
@@ -74,6 +82,7 @@ class SettingsNavigation:
         body.addWidget(content, 1)
         layout.insertLayout(0, body, 1)
         self.navigation.currentItemChanged.connect(self.navigate)
+        self.app_navigation.currentItemChanged.connect(self.navigate)
         self.scope.currentIndexChanged.connect(self.change_scope)
         self.search.textChanged.connect(self.search_settings)
         self.search_results.itemActivated.connect(self.open_search_result)
@@ -106,15 +115,13 @@ class SettingsNavigation:
     def populate_navigation(self):
         page = self.tabs.currentIndex()
         shared = self.scope.currentData() == "shared"
-        with QSignalBlocker(self.navigation):
+        with QSignalBlocker(self.navigation), QSignalBlocker(self.app_navigation):
             self.navigation.clear()
+            self.app_navigation.clear()
             selected = None
             titles = ("Popup", "Shortcuts", "Audio") if shared else ("Lookup", "Dictionaries", "Popup", "Shortcuts", "Audio", "Translation", "Anki")
             for title in (*titles, "Startup", "History", "Connections", "Storage"):
                 global_page = title in ("Startup", "History", "Connections", "Storage")
-                if title == "Startup":
-                    heading = QTreeWidgetItem(self.navigation, ["App-wide"])
-                    heading.setFlags(Qt.ItemFlag.NoItemFlags)
                 target = "Audio playback" if shared and title == "Audio" else title
                 index = next(i for i in range(self.tabs.count()) if self.tabs.tabText(i) == target)
                 identity = self.profile.currentData()
@@ -122,12 +129,16 @@ class SettingsNavigation:
                     identity = None
                 elif shared:
                     identity = "global:" + {"Popup": "popup_all", "Shortcuts": "shortcuts", "Audio": "audio"}[title]
-                item = QTreeWidgetItem(self.navigation, [title])
+                item = QTreeWidgetItem(self.app_navigation if global_page else self.navigation, [title])
                 item.setData(0, Qt.ItemDataRole.UserRole, (identity, index))
                 if index == page or title == "Audio" and self.tabs.tabText(page) in ("Audio", "Audio playback"):
                     selected = item
-            self.navigation.setCurrentItem(selected or self.navigation.topLevelItem(0))
-        self.navigate(self.navigation.currentItem())
+            selected = selected or self.navigation.topLevelItem(0)
+            selected.treeWidget().setCurrentItem(selected)
+            self.app_navigation.setFixedHeight(
+                self.app_navigation.sizeHintForRow(0) * self.app_navigation.topLevelItemCount()
+                + 2 * self.app_navigation.frameWidth())
+        self.navigate(selected)
         self.search_settings()
 
     def change_scope(self):
@@ -161,6 +172,10 @@ class SettingsNavigation:
         value = item.data(0, Qt.ItemDataRole.UserRole) if item else None
         if not value:
             return
+        other = self.app_navigation if item.treeWidget() is self.navigation else self.navigation
+        with QSignalBlocker(other):
+            other.clearSelection()
+            other.setCurrentItem(None)
         identity, page = value
         global_group = identity.split(":", 1)[1] if identity and identity.startswith("global:") else None
         previous_group = self.settings.editing_global
@@ -181,11 +196,10 @@ class SettingsNavigation:
         self.settings.setValue("settings/page", self.tabs.tabText(page))
 
     def sync_navigation(self, page):
-        for index in range(self.navigation.topLevelItemCount()):
-            item = self.navigation.topLevelItem(index)
+        for item in self.navigation_items():
             value = item.data(0, Qt.ItemDataRole.UserRole)
             if value and value[1] == page:
-                self.navigation.setCurrentItem(item)
+                item.treeWidget().setCurrentItem(item)
                 return
         # Links to profile-only features leave shared defaults explicitly.
         if self.scope.currentData() == "shared":
@@ -196,12 +210,13 @@ class SettingsNavigation:
         from wordcel.gui.settings_section import SettingsSection
         query = self.search.text().strip().casefold()
         self.navigation.setVisible(not query)
+        self.app_navigation.setVisible(not query)
+        self.app_heading.setVisible(not query)
         self.search_results.setVisible(bool(query))
         self.search_results.clear()
         if not query:
             return
-        for index in range(self.navigation.topLevelItemCount()):
-            item = self.navigation.topLevelItem(index)
+        for item in self.navigation_items():
             value = item.data(0, Qt.ItemDataRole.UserRole)
             if not value:
                 continue
@@ -246,12 +261,16 @@ class SettingsNavigation:
         control.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def navigate_item(self, value):
-        for index in range(self.navigation.topLevelItemCount()):
-            item = self.navigation.topLevelItem(index)
+        for item in self.navigation_items():
             if item.data(0, Qt.ItemDataRole.UserRole) == value:
-                self.navigation.setCurrentItem(item)
+                item.treeWidget().setCurrentItem(item)
                 self.navigate(item)
                 return
+
+    def navigation_items(self):
+        for tree in (self.app_navigation, self.navigation):
+            for index in range(tree.topLevelItemCount()):
+                yield tree.topLevelItem(index)
 
     def reorder_profile(self, offset):
         order = list(profile_ids(self.settings))
