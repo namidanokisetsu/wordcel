@@ -985,6 +985,9 @@ class QuickLookupWindow(QDialog):
         toolbar = QHBoxLayout(self.actions_row)
         toolbar.setContentsMargins(0, 0, 0, 0)
         toolbar.setSpacing(2)
+        self.history_button = self._action("history", "History")
+        self.history_button.clicked.connect(self.lookup_history.open)
+        toolbar.addWidget(self.history_button)
         self.back = self._action("back", "Back")
         self.back.setEnabled(False)
         self.back.clicked.connect(self.go_back)
@@ -1056,11 +1059,6 @@ class QuickLookupWindow(QDialog):
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
         header_layout.addWidget(self.search, 1)
-        self.history_button = QToolButton()
-        self.history_button.setText("History")
-        self.history_button.setToolTip("Lookup history")
-        self.history_button.clicked.connect(self.lookup_history.open)
-        header_layout.addWidget(self.history_button)
         self.audio_actions = QWidget()
         action_layout = QHBoxLayout(self.audio_actions)
         action_layout.setContentsMargins(0, 0, 0, 0)
@@ -1172,6 +1170,7 @@ class QuickLookupWindow(QDialog):
         toolbar.addWidget(close)
         layout.addWidget(self.actions_row)
         self.actions_row.hide()
+        self.lookup_history.preferences_changed.connect(self._place_actions)
         self._popup_actions = dict(anki=self.anki_button, audio_sentence=self.sentence_audio_button,
                                    audio=self.audio_button, translate=self.translate, copy=self.copy_button,
                                    close=self.dismiss_button, back=self.back)
@@ -2493,6 +2492,8 @@ class QuickLookupWindow(QDialog):
         self.mode_row.hide()
         for name, button in self._popup_actions.items():
             visible = self.settings.value(f"profiles/{self.active_profile}/buttons/{name}", name != "audio_sentence", bool)
+            if self._peek and not self.is_pinned and name in ("back", "translate", "copy", "close"):
+                visible = False
             if name == "anki":
                 visible = visible and self.settings.value(f"profiles/{self.active_profile}/anki/enabled", False, bool)
             if name == "translate":
@@ -2511,14 +2512,17 @@ class QuickLookupWindow(QDialog):
             if not inline:
                 self.header.layout().addWidget(self.audio_actions, 0, Qt.AlignmentFlag.AlignRight)
         self.search.setVisible(not self._peek and not self._translation_view)
-        self.history_button.setVisible(not self._peek and not self._translation_view)
+        show_history = (not self._translation_view and self.lookup_history.value(
+            "button_ocr" if self._peek else "button_manual", False))
+        self.history_button.setVisible(show_history)
+        self.title.setVisible(not self._peek or self.is_pinned)
         self.header.setVisible(not self._translation_view and (not self._peek or self.is_pinned and not inline))
         self.audio_actions.setVisible(not self._translation_view and (not self._peek or self.is_pinned) and
                                       any(not button.isHidden() for button in
                                           (self.anki_button, self.sentence_audio_button, self.audio_button)))
-        self.actions_row.setVisible((not self._peek or self.is_pinned) and
+        self.actions_row.setVisible(show_history or ((not self._peek or self.is_pinned) and
                                     (bool(self.title.text()) or any(not button.isHidden() for button in
-                                     (self.back, self.translate, self.copy_button, self.dismiss_button))))
+                                     (self.back, self.translate, self.copy_button, self.dismiss_button)))))
         self._position_actions()
 
     def _inline_actions(self):
@@ -3149,11 +3153,12 @@ class QuickLookupWindow(QDialog):
         self.update_anki()
 
     def popup_action(self, action):
-        if (not self.isVisible() or self._peek and not self.is_pinned and action != "copy_text"
+        if (not self.isVisible() or self._peek and not self.is_pinned and action not in ("copy_text", "history")
                 or QApplication.activeModalWidget() is not None):
             return
         callback = {"replay": self.play_audio, "copy": self.copy_sentence,
-                    "copy_text": self.copy_text, "anki": self.add_to_anki, "back": self.go_back}.get(action)
+                    "copy_text": self.copy_text, "anki": self.add_to_anki, "back": self.go_back,
+                    "history": self.lookup_history.open}.get(action)
         if callback is not None:
             callback()
 

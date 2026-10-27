@@ -18,6 +18,7 @@ _SHAPES = {
     "anki_checking": '<circle cx="12" cy="12" r="10"/><path d="M7 12h.1M12 12h.1M17 12h.1"/>',
     "audio": '<path d="M2 9h4l6-4v14l-6-4H2ZM16 8c3 2 3 6 0 8M19 3c5 4.5 5 13.5 0 18"/>',
     "back": '<path d="m14 5-7 7 7 7M7 12h13"/>',
+    "history": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     "close": '<path d="m6 6 12 12M18 6 6 18"/>',
     "copy": '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V4H4v12h4"/>',
     "pin": '<path d="m8 3 8 0-1 7 3 3v2H6v-2l3-3-1-7ZM12 15v7"/>',

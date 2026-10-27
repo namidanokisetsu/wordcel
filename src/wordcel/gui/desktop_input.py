@@ -198,7 +198,7 @@ class DesktopInput(QObject):
                       and user32.GetForegroundWindow() == self.navigation_source)
             action = self.popup_bindings.get((data.vkCode, modifiers))
             controls = self.popup_controls_active.is_set()
-            if not controls and action != "copy_text":
+            if not controls and action not in ("copy_text", "history"):
                 action = None
             navigation = controls and not modifiers and data.vkCode in (0x21, 0x22, 0x23, 0x24, 0x26, 0x28)
             if down and active and (action or navigation):

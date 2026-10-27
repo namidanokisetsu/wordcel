@@ -2389,13 +2389,13 @@ class QuickLookupTests(unittest.TestCase):
         self.assertFalse(self.window.header.isVisible())
         self.assertTrue(self.window.search.isHidden())
         self.assertEqual(self.window.audio_actions.parentWidget(), self.window.browser.viewport())
-        self.assertEqual(self.window.actions_row.layout().indexOf(self.window.translate), 2)
+        self.assertEqual(self.window.actions_row.layout().indexOf(self.window.translate), 3)
         self.assertEqual(self.window.audio_actions.layout().indexOf(self.window.sentence_audio_button), 1)
         self.assertEqual(self.window.audio_actions.layout().indexOf(self.window.audio_button), 2)
         self.assertEqual(self.window.actions_row.layout().indexOf(self.window.audio_button), -1)
         self.assertTrue(self.window.pin.isHidden())
-        self.assertEqual(self.window.actions_row.layout().indexOf(self.window.copy_button), 3)
-        self.assertEqual(self.window.actions_row.layout().indexOf(self.window.dismiss_button), 4)
+        self.assertEqual(self.window.actions_row.layout().indexOf(self.window.copy_button), 4)
+        self.assertEqual(self.window.actions_row.layout().indexOf(self.window.dismiss_button), 5)
         self.window.sentence_audio_button.click()
         self.window.audio.play_text.assert_called_once_with("公園で猫が寝ている。", "ja", self.window.revision,
                                                             self.settings, profile="ja")
@@ -2685,6 +2685,22 @@ class QuickLookupTests(unittest.TestCase):
         self.window.hide()
         self.window.navigate_overlay(0x22)
         self.assertEqual(bar.value(), 0)
+
+    def test_history_button_visibility_and_popup_shortcut(self):
+        self.window.show_entries((entry(),), "cat")
+        self.assertTrue(self.window.history_button.isHidden())
+        self.settings.setValue("history/button_manual", True)
+        self.window._place_actions()
+        self.assertFalse(self.window.history_button.isHidden())
+        self.window.show_entries((entry(),), "cat", peek=True)
+        self.assertTrue(self.window.history_button.isHidden())
+        self.settings.setValue("history/button_ocr", True)
+        self.window._place_actions()
+        self.assertFalse(self.window.history_button.isHidden())
+        self.assertFalse(self.window.actions_row.isHidden())
+        with patch.object(self.window.lookup_history, "open") as open_history:
+            self.window.popup_action("history")
+            open_history.assert_called_once_with()
 
     def test_popup_actions_reuse_existing_commands_without_stealing_typing(self):
         self.settings.setValue("profiles/ja/popup/replay_shortcut", "R")

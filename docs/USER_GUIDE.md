@@ -55,7 +55,9 @@ Wordcel exits; dictionary-only mode skips preloading.
 
 ## Lookup history
 
-Open **History** from the tray or Search. Recording is off until enabled; its
+Open **History** from the tray. Optional buttons for Search and OCR popups are
+in **Settings > History**; a popup shortcut is in **Shortcuts > Popup**.
+Recording is off until enabled; its
 default scope is pinned and manual/text lookups. **Settings > History** also
 offers hover recording after a display duration (initially 0.5 seconds), retention
 and **Clear history**. Retention defaults to forever. Turning recording off keeps

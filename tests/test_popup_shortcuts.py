@@ -28,7 +28,7 @@ class PopupShortcutTests(unittest.TestCase):
     def test_defaults_saved_bindings_and_disabled_actions(self):
         self.assertEqual(popup_bindings(self.settings, "ja"),
                          {"replay": "", "anki": "", "copy": "",
-                          "copy_text": "Ctrl+C", "back": ""})
+                          "copy_text": "Ctrl+C", "back": "", "history": ""})
         self.settings.setValue("profiles/ja/anki/shortcut", "Ctrl+Shift+A")
         self.settings.setValue("profiles/ja/popup/replay_shortcut", "")
         self.assertEqual(popup_bindings(self.settings, "ja")["anki"], "Ctrl+Shift+A")

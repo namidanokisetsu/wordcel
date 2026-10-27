@@ -182,7 +182,9 @@ class HistorySettings(QWidget):
         layout = QFormLayout(self)
         self.checks = {}
         for key, title, default in (("enabled", "Enable history", False), ("pinned", "Pinned lookups", True),
-                                    ("manual", "Manual/text lookups", True), ("hover", "Hover lookups", False)):
+                                    ("manual", "Manual/text lookups", True), ("hover", "Hover lookups", False),
+                                    ("button_manual", "Show button in search", False),
+                                    ("button_ocr", "Show button in OCR popups", False)):
             control = QCheckBox(title)
             self.checks[key] = control
             layout.addRow(control)

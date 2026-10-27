@@ -763,7 +763,8 @@ class UnifiedOCR(QObject):
                 if getattr(self.window, "_source_overlay", False) else None)
             self.input.navigation_source = (getattr(self.window, "_previous_foreground", None)
                 if (getattr(self.window, "_source_overlay", False)
-                    and (self.window.is_pinned or self.window._selected_reading_browser() is not None)
+                    and (self.window.is_pinned or self.window._selected_reading_browser() is not None
+                         or "history" in self.input.popup_bindings.values())
                     and self.window.isVisible() and QApplication.activeModalWidget() is None
                     and QApplication.activePopupWidget() is None) else None)
         if self.input and hasattr(self.input, "hover_active"):
@@ -786,7 +787,8 @@ class UnifiedOCR(QObject):
 
     def popup_action(self, action):
         if (getattr(self.window, "_source_overlay", False)
-                and (self.window.is_pinned or action == "copy_text" and self.window._selected_reading_browser() is not None)
+                and (self.window.is_pinned or action == "history"
+                     or action == "copy_text" and self.window._selected_reading_browser() is not None)
                 and self.window.isVisible() and QApplication.activeModalWidget() is None
                 and QApplication.activePopupWidget() is None):
             self.window.popup_action(action)
