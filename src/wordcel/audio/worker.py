@@ -23,6 +23,7 @@ class AudioRequest:
     language: str = ""
     iso3: str = ""
     online: bool = False
+    source: str | dict = "online"
 
 
 class AudioWorker(threading.Thread):
@@ -97,18 +98,18 @@ class AudioWorker(threading.Thread):
         self._repository.close()
 
     def _online_result(self, request):
-        from wordcel.audio.online import OnlineAudio
+        from wordcel.audio.yomitan import YomitanAudio
         if self._online is None:
-            self._online = OnlineAudio()
+            self._online = YomitanAudio()
         cancelled = lambda: not self._running or self._latest_request is not request
         clip = None
         try:
             result = self._online.lookup(request.key[0], request.language, request.iso3, cancelled,
-                                         reading=request.key[1] if len(request.key) > 1 else "")
+                                         reading=request.key[1] if len(request.key) > 1 else "", source=request.source)
             if result:
                 filename, source, data, credit, page_url = result
                 clip = AudioClip(request.activation_id, request.key, filename, source, data, credit, page_url)
         except Exception:
-            logger.debug("Online pronunciation unavailable", exc_info=True)
+            logger.debug("Online pronunciation unavailable")
         if not cancelled() and self._result_callback:
             self._result_callback(request, clip)

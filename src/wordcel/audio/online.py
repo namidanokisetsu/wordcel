@@ -5,7 +5,7 @@ import json
 import re
 from time import monotonic
 from unicodedata import normalize
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from wordcel import USER_AGENT
 
@@ -19,43 +19,59 @@ class OnlineAudio:
     def __init__(self):
         self.cache = OrderedDict()
 
-    def _fetch(self, url, *, params=None, cancelled, deadline, audio=False):
-        parsed = urlsplit(url)
-        if parsed.scheme != "https" or parsed.hostname not in {"commons.wikimedia.org", "upload.wikimedia.org"}:
-            raise ValueError("Unexpected recording host")
+    def _fetch(self, url, *, params=None, cancelled, deadline, audio=False, text=False, data=None, external=False):
         limit = self.MAX_AUDIO if audio else 2 * 1024 * 1024
-        remaining = deadline - monotonic()
-        if cancelled() or remaining <= 0:
-            raise InterruptedError()
-        with requests.get(url, params=params, timeout=(min(3, remaining), min(4, remaining)), stream=True, allow_redirects=False,
-                          headers={"User-Agent": USER_AGENT}) as response:
-            response.raise_for_status()
-            if response.is_redirect:
-                raise ValueError("Unexpected recording redirect")
-            chunks, size = [], 0
-            for chunk in response.iter_content(32768):
-                if cancelled() or monotonic() >= deadline:
-                    raise InterruptedError()
-                size += len(chunk)
-                if size > limit:
-                    raise ValueError("Recording response is too large")
-                chunks.append(chunk)
+        for _ in range(6):
+            parsed = urlsplit(url)
+            if (parsed.scheme not in ("https", "http") or not parsed.hostname or parsed.username or parsed.password
+                    or not external and (parsed.scheme != "https" or parsed.hostname not in {
+                        "commons.wikimedia.org", "upload.wikimedia.org"})):
+                raise ValueError("Unexpected recording URL")
+            remaining = deadline - monotonic()
+            if cancelled() or remaining <= 0:
+                raise InterruptedError()
+            method = requests.get if data is None else requests.post
+            options = {"data": data} if data is not None else {}
+            with method(url, params=params, timeout=(min(3, remaining), min(4, remaining)), stream=True,
+                        allow_redirects=False, headers={"User-Agent": USER_AGENT}, **options) as response:
+                response.raise_for_status()
+                if response.is_redirect:
+                    if not external:
+                        raise ValueError("Unexpected recording redirect")
+                    url = urljoin(url, response.headers["Location"])
+                    params = None
+                    if response.status_code in (301, 302, 303):
+                        data = None
+                    continue
+                chunks, size = [], 0
+                for chunk in response.iter_content(32768):
+                    if cancelled() or monotonic() >= deadline:
+                        raise InterruptedError()
+                    size += len(chunk)
+                    if size > limit:
+                        raise ValueError("Recording response is too large")
+                    chunks.append(chunk)
+                break
+        else:
+            raise ValueError("Too many recording redirects")
         data = b"".join(chunks)
+        if text:
+            return data.decode("utf-8", errors="replace")
         if not audio:
             return json.loads(data)
         if not (data.startswith((b"OggS", b"RIFF", b"fLaC", b"ID3")) or
-                len(data) > 1 and data[0] == 255 and data[1] & 224 == 224):
+                len(data) > 1 and data[0] == 255 and data[1] & 224 == 224 or data[4:8] == b"ftyp"):
             raise ValueError("Invalid recording data")
         return data
 
-    def lookup(self, term, language, iso3, cancelled=lambda: False, reading=""):
+    def lookup(self, term, language, iso3, cancelled=lambda: False, reading="", provider="online"):
         language = {"cmn": "zh", "fil": "tl", "nb": "no", "nn": "no"}.get(language, language).split("-", 1)[0]
         # Russian stress belongs in display/TTS, not in Commons file names.
         term = normalize("NFC", term.replace("\u0301", "") if language in ("ru", "uk", "be") else term)
         reading = normalize("NFC", reading)
         if cancelled():
             return None
-        key = (term, language, iso3, reading)
+        key = (term, language, iso3, reading) + ((provider,) if provider != "online" else ())
         cached = self.cache.get(key)
         if cached and monotonic() - cached[0] < cached[2]:
             self.cache.move_to_end(key)
@@ -70,6 +86,11 @@ class OnlineAudio:
         patterns = [(f"(?:L[0-9]+-)?{language}(?:-[a-zA-Z]{{2}})?-{escaped}{qualifier}[0-9]*{extension}", "Wiktionary")]
         if re.fullmatch(r"[a-z]{3}", iso3):
             patterns.append((f"LL-Q[0-9]+ \\({iso3}\\)-.+-{escaped}{qualifier}{extension}", "Lingua Libre"))
+        if provider != "online":
+            label = {"wiktionary": "Wiktionary", "lingua-libre": "Lingua Libre"}.get(provider)
+            patterns = [(pattern, source) for pattern, source in patterns if source == label]
+        if not patterns:
+            return None
         result = None
         failed = False
         try:

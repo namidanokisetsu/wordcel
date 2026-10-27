@@ -3,7 +3,7 @@ from PyQt6.QtCore import QByteArray, QBuffer, QIODevice, QLocale, QObject, QTime
 from PyQt6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaPlayer
 
 from wordcel.audio.worker import AudioRequest, AudioWorker
-from wordcel.audio.sources import database_path, source_order
+from wordcel.audio.sources import ONLINE_TYPES, database_path, is_local, source_order, source_type
 from wordcel.config.config import config
 
 
@@ -98,22 +98,30 @@ class LookupAudio(QObject):
         entry, path, volume, sources = self._pending
         while sources:
             source = sources.pop(0)
-            if source == "tts":
+            kind = source_type(source)
+            if kind == "tts":
                 if self._speak(entry.reading or entry.term, entry.language, volume):
                     self.current_clip = None
                     return
-            elif source == "online":
-                language = {"zh-hant": "zh", "zh-hans": "zh", "zh-tw": "zh", "zh-hk": "zh",
-                            "cmn": "zh", "fil": "tl"}.get(entry.language, entry.language)
+            elif kind in ("text-to-speech", "text-to-speech-reading"):
+                text = entry.term if kind == "text-to-speech" else entry.reading
+                voice = source.get("voice", "") if isinstance(source, dict) else ""
+                if self._speak(text or "", entry.language, volume, voice=voice):
+                    self.current_clip = None
+                    return
+            elif kind in ONLINE_TYPES:
+                language = entry.language
+                if kind in ("online", "wiktionary", "lingua-libre"):
+                    language = {"zh-hant": "zh", "zh-hans": "zh", "zh-tw": "zh", "zh-hk": "zh",
+                                "cmn": "zh", "fil": "tl"}.get(language, language)
                 iso3 = "cmn" if language == "zh" else QLocale.languageToCode(
                     QLocale.codeToLanguage(language.split("-", 1)[0]), QLocale.LanguageCodeType.ISO639Part3)
                 self.worker.submit(AudioRequest(self.latest[0], self.latest[1], "", (),
-                                                language=language, iso3=iso3, online=True))
+                                                language=language, iso3=iso3, online=True, source=source))
                 return
-            elif path:
+            elif path and is_local(source):
                 self.worker.submit(AudioRequest(self.latest[0], self.latest[1], path,
-                                                (source[3:],) if source.startswith("db:") else (),
-                                                strict_sources=source.startswith("db:")))
+                                                (kind[3:],), strict_sources=True))
                 return
         self._pending = None
         self.failed.emit(self._speech_error or "No pronunciation available from the selected sources.")
@@ -146,8 +154,10 @@ class LookupAudio(QObject):
         # Some engines emit an error synchronously inside say().
         QTimer.singleShot(0, fallback)
 
-    def _speak(self, text, language, volume):
+    def _speak(self, text, language, volume, *, voice=""):
         from PyQt6.QtTextToSpeech import QTextToSpeech
+        if not text:
+            return False
         locale = speech_locale(language)
         if locale is None:
             self._speech_error = f"No {language} system voice installed."
@@ -157,8 +167,10 @@ class LookupAudio(QObject):
             self.speech.errorOccurred.connect(self._speech_failed)
         self.speech.setLocale(locale)
         voices = [v for v in self.speech.availableVoices() if v.locale().language() == locale.language()]
+        if voice:
+            voices = [v for v in voices if v.name() == voice]
         if not voices:
-            self._speech_error = f"No {locale.nativeLanguageName()} system voice installed."
+            self._speech_error = f"System voice unavailable: {voice}" if voice else f"No {locale.nativeLanguageName()} system voice installed."
             return False
         self.speech.setVoice(voices[0])
         self.speech.setVolume(volume / 100)

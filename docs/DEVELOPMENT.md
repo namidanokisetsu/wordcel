@@ -43,6 +43,14 @@ converters live in `dictionary/structured_content.py` and `dictionary/plain_cont
 | Installed data | `data_assets.py`, `gui/data_manager.py` | Worker inventory and sizes; shared models precede per-language downloads. Reuse setup jobs and dictionary removal; never delete linked external data. |
 | Screen lookup | `gui/unified_ocr.py`, `gui/lookup_session.py`, `ocr/` | Capture/OCR and lookup run off the UI thread. Reject stale results; pinning freezes the current result. |
 | Translation | `dictionary/translation.py` | Explicit model setup; lazy local inference, cancellation and loopback-only custom servers. |
+| Pronunciation | `audio/yomitan.py`, `audio/online.py`, `gui/lookup_audio.py` | Yomitan source IDs, `{term}`/`{reading}`/`{language}` URLs and `audioSourceList` JSON; worker downloads, cancellation and bounded caches; local `android.db` remains supported. |
+
+Audio provider lookup is ported from Yomitan under GPL-3.0-or-later with bundled
+attribution. Custom sources use HTTP(S), including user-configured local servers;
+placeholder values are URL-encoded. JSON source names label downloaded clips,
+which remain available for Anki. Wikimedia retains Japanese reading-qualified matching and attribution.
+Explicit source choices have no hidden provider fallbacks. Yomitan settings imports
+retain source order and URLs; system voice names must exist in the OS speech engine.
 
 Japanese uses bundled deconjugation rules. Its headword/reading groups rank by
 installed frequency ranks, kana preference and deconjugation cost. The result

@@ -1,0 +1,11 @@
+Pronunciation providers in wordcel/audio/yomitan.py are adapted from Yomitan:
+https://github.com/yomidevs/yomitan/blob/master/ext/js/media/audio-downloader.js
+Custom JSON validation follows ext/data/schemas/custom-audio-list-schema.json.
+
+Copyright (C) 2023-2026 Yomitan Authors
+Copyright (C) 2017-2022 Yomichan Authors
+License: GPL-3.0-or-later. See the accompanying GPL-3.0.txt.
+
+Wordcel ports provider lookup and validation to Python, shares its cancellable,
+bounded audio worker and cache, and retains its Japanese reading disambiguation.
+Modified 2026-10-28.
