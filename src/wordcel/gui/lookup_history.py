@@ -154,10 +154,6 @@ class HistoryService(QObject):
         self.browser.activateWindow()
         self.browser.refresh()
 
-    def open_settings(self):
-        self.window.open_settings()
-        self.window._setup.tabs.setCurrentWidget(self.window._setup.history_tab)
-
     def shutdown(self):
         if self.closed:
             return
@@ -290,10 +286,6 @@ class HistoryWindow(QDialog):
         self.enable = QPushButton("Enable history")
         self.enable.clicked.connect(self.enable_history)
         banner.addWidget(self.enable)
-        settings = QPushButton("Settings")
-        settings.setFlat(True)
-        settings.clicked.connect(service.open_settings)
-        banner.addWidget(settings)
         layout.addLayout(banner)
         row = QHBoxLayout()
         self.query = QLineEdit()
@@ -317,7 +309,7 @@ class HistoryWindow(QDialog):
         self.status = QLabel()
         layout.addWidget(self.status)
         footer = QHBoxLayout()
-        delete = QPushButton("Delete")
+        delete = QPushButton("Delete entry")
         delete.clicked.connect(self.delete_selected)
         footer.addWidget(delete)
         clear = QPushButton("Clear history")
@@ -343,6 +335,7 @@ class HistoryWindow(QDialog):
     def sync(self):
         enabled = self.service.enabled()
         self.state.setText("" if enabled else "History is off")
+        self.state.setVisible(not enabled)
         self.enable.setVisible(not enabled)
         self.enable.setToolTip("Defaults: pinned and manual/text lookups")
         if not enabled and not self.service.settings.contains("history/enabled"):
