@@ -5,11 +5,11 @@ from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, QSignalBlocker, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QAbstractTextDocumentLayout, QPalette, QTextDocument
+from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, QSignalBlocker, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QAbstractTextDocumentLayout, QPalette, QTextDocument, QTextOption
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFormLayout,
                             QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                            QApplication, QMenu, QMessageBox, QPushButton, QStyleOptionToolButton,
+                            QApplication, QMenu, QMessageBox, QPushButton,
                             QStyledItemDelegate, QStyle, QToolTip, QVBoxLayout, QWidget)
 
 from wordcel.history import EncounterSession, HistoryStore, primary_entries
@@ -223,7 +223,9 @@ class CardDelegate(QStyledItemDelegate):
         self.documents = OrderedDict()
 
     def action_width(self):
-        return self.parent().style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize) + 10
+        metrics = self.parent().fontMetrics()
+        spacing = self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutHorizontalSpacing)
+        return max(metrics.horizontalAdvance(text) for text in ("Copy word", "Copy sentence")) + 2 * spacing
 
     def action_rects(self, option):
         rect = option.rect
@@ -251,6 +253,9 @@ class CardDelegate(QStyledItemDelegate):
         doc.setDefaultFont(font)
         doc.setDocumentMargin(self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutHorizontalSpacing) * 2)
         doc.setHtml(index.data(Qt.ItemDataRole.DisplayRole))
+        text_option = doc.defaultTextOption()
+        text_option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        doc.setDefaultTextOption(text_option)
         doc.setTextWidth(max(1, width))
         self.documents[key] = doc
         if len(self.documents) > 256:
@@ -260,7 +265,8 @@ class CardDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         size = self.document(option, index).size().toSize()
         if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
-            size.setHeight(max(size.height(), 2 * self.action_width()))
+            spacing = self.parent().style().pixelMetric(QStyle.PixelMetric.PM_LayoutVerticalSpacing)
+            size.setHeight(max(size.height(), 2 * (self.parent().fontMetrics().height() + spacing)))
         size.setWidth(self.parent().viewport().width())
         return size
 
@@ -269,6 +275,8 @@ class CardDelegate(QStyledItemDelegate):
         if option.state & QStyle.StateFlag.State_Selected:
             painter.fillRect(option.rect, option.palette.highlight())
         doc = self.document(option, index)
+        if not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
+            painter.setClipRect(option.rect.adjusted(0, 0, -min(self.action_width(), option.rect.width()), 0))
         painter.translate(option.rect.topLeft())
         context = QAbstractTextDocumentLayout.PaintContext()
         context.palette = option.palette
@@ -282,14 +290,8 @@ class CardDelegate(QStyledItemDelegate):
             painter.setOpacity(0.35)
             painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
             painter.setOpacity(1.0)
-            from wordcel.gui.action_icons import action_icon
-            for rect, name in zip(self.action_rects(option), ("copy_word", "copy_sentence")):
-                button = QStyleOptionToolButton()
-                button.rect = rect
-                button.state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_AutoRaise
-                button.icon = action_icon(name, option.palette.text().color().name())
-                button.iconSize = QSize(16, 16)
-                self.parent().style().drawComplexControl(QStyle.ComplexControl.CC_ToolButton, button, painter)
+            for rect, label in zip(self.action_rects(option), ("Copy word", "Copy sentence")):
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
             painter.restore()
 
     def editorEvent(self, event, model, option, index):
