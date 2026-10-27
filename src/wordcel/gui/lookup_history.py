@@ -10,9 +10,10 @@ from PyQt6.QtGui import QAbstractTextDocumentLayout, QPalette, QTextDocument, QT
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFormLayout,
                             QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
                             QApplication, QMenu, QMessageBox, QPushButton,
-                            QStyledItemDelegate, QStyle, QToolTip, QVBoxLayout, QWidget)
+                            QStyledItemDelegate, QStyle, QStyleOptionButton, QToolTip, QVBoxLayout, QWidget)
 
 from wordcel.history import EncounterSession, HistoryStore, primary_entries
+from wordcel.gui.copy_feedback import CopyFeedback
 
 
 class HistoryService(QObject):
@@ -292,7 +293,15 @@ class CardDelegate(QStyledItemDelegate):
             painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
             painter.setOpacity(1.0)
             for rect, label in zip(self.action_rects(option), ("Copy word", "Copy sentence")):
-                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
+                button = QStyleOptionButton()
+                button.text = label
+                button.state = QStyle.StateFlag.State_Enabled
+                size = self.parent().style().sizeFromContents(
+                    QStyle.ContentsType.CT_PushButton, button,
+                    self.parent().fontMetrics().size(Qt.TextFlag.TextShowMnemonic, label), self.parent())
+                button.rect = QStyle.alignedRect(Qt.LayoutDirection.LeftToRight, Qt.AlignmentFlag.AlignCenter,
+                                                 size.boundedTo(rect.size()), rect)
+                self.parent().style().drawControl(QStyle.ControlElement.CE_PushButton, button, painter, self.parent())
             painter.restore()
 
     def editorEvent(self, event, model, option, index):
@@ -304,7 +313,7 @@ class CardDelegate(QStyledItemDelegate):
                     if event.type() == QEvent.Type.MouseButtonRelease:
                         row = self.parent().window().rows.get(index.data(Qt.ItemDataRole.UserRole))
                         if row:
-                            QApplication.clipboard().setText(row[field])
+                            self.parent().window().copy_text(row[field])
                     return True
         return super().editorEvent(event, model, option, index)
 
@@ -318,6 +327,20 @@ class CardDelegate(QStyledItemDelegate):
 
 
 class CardList(QListWidget):
+    def mouseMoveEvent(self, event):
+        index = self.indexAt(event.position().toPoint())
+        clickable = False
+        if index.isValid() and not isinstance(index.data(Qt.ItemDataRole.UserRole), str):
+            option = QStyleOptionButton()
+            option.rect = self.visualRect(index)
+            clickable = any(rect.contains(event.position().toPoint()) for rect in self.itemDelegate().action_rects(option))
+        self.viewport().setCursor(Qt.CursorShape.PointingHandCursor if clickable else Qt.CursorShape.ArrowCursor)
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event):
+        self.viewport().unsetCursor()
+        super().leaveEvent(event)
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Delete:
             self.window().delete_selected()
@@ -357,6 +380,7 @@ class HistoryWindow(QDialog):
         row.addWidget(self.language)
         layout.addLayout(row)
         self.cards = CardList()
+        self.cards.setMouseTracking(True)
         self.cards.setSpacing(0)
         self.cards.setItemDelegate(CardDelegate(self.cards))
         self.cards.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
@@ -367,6 +391,7 @@ class HistoryWindow(QDialog):
         layout.addWidget(self.cards, 1)
         self.status = QLabel()
         layout.addWidget(self.status)
+        self.copy_feedback = CopyFeedback(self)
         footer = QHBoxLayout()
         clear = QPushButton("Clear history")
         clear.clicked.connect(lambda: service.clear(self))
@@ -502,6 +527,10 @@ class HistoryWindow(QDialog):
         if row:
             self.service.window.restore_encounter(row)
 
+    def copy_text(self, text):
+        QApplication.clipboard().setText(text)
+        self.copy_feedback.show_confirmation()
+
     def card_menu(self, position):
         item = self.cards.itemAt(position)
         row = self.rows.get(item.data(Qt.ItemDataRole.UserRole)) if item else None
@@ -509,8 +538,8 @@ class HistoryWindow(QDialog):
             return
         self.cards.setCurrentItem(item)
         menu = QMenu(self.cards)
-        menu.addAction("Copy word", lambda: QApplication.clipboard().setText(row["form"]))
-        menu.addAction("Copy sentence", lambda: QApplication.clipboard().setText(row["context"]))
+        menu.addAction("Copy word", lambda: self.copy_text(row["form"]))
+        menu.addAction("Copy sentence", lambda: self.copy_text(row["context"]))
         menu.addAction("Add to Anki", lambda: self.service.window.restore_encounter(row, add_to_anki=True))
         menu.addSeparator()
         menu.addAction("Delete", lambda: self.service.delete(row["id"]))
