@@ -265,11 +265,6 @@ class RubyBrowser(DictionaryBrowser):
         self._pressed_kanji = self._ruby_kanji_at(event.position().toPoint())
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event):
-        super().mouseMoveEvent(event)
-        if self._ruby_kanji_at(event.position().toPoint()):
-            self.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
-
     def mouseReleaseEvent(self, event):
         character = self._ruby_kanji_at(event.position().toPoint())
         clicked = (event.button() == Qt.MouseButton.LeftButton and character

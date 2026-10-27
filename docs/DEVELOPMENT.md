@@ -113,6 +113,9 @@ smaller actions center on the line. Pinning preserves the text baseline. Icon ac
 one square button geometry; reading surfaces share a zero document margin.
 Action SVGs render at the requested display scale; audio keeps natural proportions
 and Close uses a smaller drawing within the shared button geometry.
+Action buttons keep their own hand cursor when placed inside reading panes.
+Reading panes use a hand for links, a text cursor for selectable text and an arrow
+for empty space; Japanese ruby kanji use the same link hit testing.
 Pinned dictionary footer actions share the heading actions' viewport right edge,
 including the scrollbar gutter as it appears or disappears.
 Reading fonts prefer antialiased outlines without grid hinting; family and size remain configurable.

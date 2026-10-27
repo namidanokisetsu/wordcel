@@ -26,6 +26,22 @@ class DictionaryBrowser(QTextBrowser):
         self.selecting = event.button() == Qt.MouseButton.LeftButton
         super().mousePressEvent(event)
 
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        point = event.position().toPoint()
+        flags = self.textInteractionFlags()
+        shape = Qt.CursorShape.ArrowCursor
+        if (flags & Qt.TextInteractionFlag.LinksAccessibleByMouse
+                and not self.selecting and self.anchorAt(point)):
+            shape = Qt.CursorShape.PointingHandCursor
+        elif flags & Qt.TextInteractionFlag.TextSelectableByMouse:
+            document_point = QPointF(point.x() + self.horizontalScrollBar().value(),
+                                     point.y() + self.verticalScrollBar().value())
+            if (self.selecting or self.document().documentLayout().hitTest(
+                    document_point, Qt.HitTestAccuracy.ExactHit) >= 0):
+                shape = Qt.CursorShape.IBeamCursor
+        self.viewport().setCursor(shape)
+
     def selected_text(self):
         return self.textCursor().selectedText().replace("\u2029", "\n").strip()
 

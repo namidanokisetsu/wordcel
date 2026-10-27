@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication
 
 from wordcel.dictionary.library import Entry
 from wordcel.dictionary.search import SearchResult
+from wordcel.gui.action_icons import POPUP_ACTIONS, action_button
 from wordcel.gui.quick_lookup import LocalDictionaryBrowser, render_result
 
 
@@ -88,3 +89,26 @@ class DictionaryControlTests(unittest.TestCase):
         QTest.mouseDClick(self.browser.viewport(), Qt.MouseButton.LeftButton, pos=point)
         QTest.mouseRelease(self.browser.viewport(), Qt.MouseButton.LeftButton, pos=point)
         self.assertEqual(self.lookups, ["progress"])
+
+    def test_hover_cursors_follow_links_text_and_empty_space(self):
+        entry = Entry("fixture", "terakki", "", "Wiktionary", "tr", ("progress",))
+        self.browser.setHtml(render_result(SearchResult("terakki", "tr", "en", (entry,))))
+        self.app.processEvents()
+        for point, shape in ((self.point("Wiktionary"), Qt.CursorShape.PointingHandCursor),
+                             (self.point("progress"), Qt.CursorShape.IBeamCursor),
+                             (self.browser.viewport().rect().bottomRight() - QPoint(2, 2),
+                              Qt.CursorShape.ArrowCursor),
+                             (self.point("Wiktionary"), Qt.CursorShape.PointingHandCursor)):
+            QTest.mouseMove(self.browser.viewport(), point)
+            self.assertEqual(self.browser.viewport().cursor().shape(), shape)
+
+    def test_actions_never_inherit_the_reading_pane_cursor(self):
+        self.browser.setHtml("<p>progress</p>")
+        self.app.processEvents()
+        QTest.mouseMove(self.browser.viewport(), self.point("progress"))
+        self.assertEqual(self.browser.viewport().cursor().shape(), Qt.CursorShape.IBeamCursor)
+        for name, description in POPUP_ACTIONS:
+            with self.subTest(action=name):
+                button = action_button(name, description, "#ffffff")
+                button.setParent(self.browser.viewport())
+                self.assertEqual(button.cursor().shape(), Qt.CursorShape.PointingHandCursor)

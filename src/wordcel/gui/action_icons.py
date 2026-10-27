@@ -80,6 +80,7 @@ def action_icon(name, color):
 
 def action_button(name, description, color):
     button = QToolButton()
+    button.setCursor(Qt.CursorShape.PointingHandCursor)
     button.setProperty("action_name", name)
     button.setIcon(action_icon(name, color))
     button.setIconSize(QSize(16, 16))
