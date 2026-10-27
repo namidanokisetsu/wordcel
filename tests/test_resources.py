@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from PyQt6.QtCore import QSettings
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication, QMessageBox, QWidget
 from wordcel.dictionary.translation import TranslationSettings, load_profile_settings, save_profile_settings
 from wordcel.gui.dictionary_manager import SetupDialog
 from wordcel.gui.resources import translation_ready
@@ -45,6 +45,8 @@ class ResourceTests(unittest.TestCase):
                     dialog.data._update((asset, missing))
                     row = dialog.data.rows[asset.key]
                     self.assertTrue(row.enabled.isChecked())
+                    self.assertEqual(row.title.text().splitlines()[1], "Source unknown")
+                    self.assertEqual(dialog.data.groups[("ja", "Dictionaries")][1], row.container)
                     row.enabled.setChecked(False)
                     self.assertEqual(item.checkState(), Qt.CheckState.Unchecked)
                     dialog.data.sections["ja"][0].toggle.setChecked(False)
@@ -191,6 +193,12 @@ class ResourceTests(unittest.TestCase):
                 try:
                     self.assertTrue(dialog.resources.dictionary_install.isHidden())
                     self.assertEqual(dialog.resources.dictionary_status.text(), "Dictionaries: 1 installed, 1 enabled")
+                    self.assertIn("Imported ZIP; also recommended", dialog.packs.item(0).text())
+                    with patch.object(dialog, "begin_operation") as remove, \
+                            patch("wordcel.gui.dictionary_manager.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes):
+                        dialog.packs.setCurrentRow(0)
+                        dialog.remove_pack.click()
+                        remove.assert_called_once_with([], remove=pack.name)
                     remove_dictionary(root / "library", pack.name, lambda: None, threading.Event())
                     dialog.resources.refresh()
                     self.assertFalse(dialog.resources.dictionary_install.isHidden())

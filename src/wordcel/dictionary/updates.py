@@ -76,7 +76,8 @@ def replace_dictionary(archive, directory, identity, progress=None, cancelled=No
     # after its complete database and media are on disk, including after a restart.
     path = import_yomitan(archive, directory, language=selected["language"], progress=progress,
                           cancelled=cancelled, resource_id=identity, source=selected.get("source", ""),
-                          expected_language=selected["language"], expected_metadata=selected)
+                          expected_language=selected["language"], expected_metadata=selected,
+                          origin=selected.get("origin", "unknown"))
     library_changed(directory)
     return path
 

@@ -299,6 +299,10 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.down.setToolTip("Lower priority")
         self.down.clicked.connect(lambda: self.move_pack(1))
         actions.addWidget(self.down)
+        self.remove_pack = QPushButton("Remove")
+        self.remove_pack.setToolTip("Remove the selected dictionary from all profiles")
+        self.remove_pack.clicked.connect(self.remove_dictionary)
+        actions.addWidget(self.remove_pack)
         actions.addStretch()
         dictionary_layout.insertLayout(0, actions)
         self.combine_frequencies = QCheckBox("Combine frequency rankings")
@@ -796,13 +800,19 @@ class SetupDialog(SettingsNavigation, QDialog):
             library.set_preferences(dictionary_preferences(self.settings, self.profile.currentData()))
             packs = list(library.packs)
             from wordcel.dictionary.wiktionary_sections import is_wiktionary
+            from wordcel.dictionary.catalog import recommendations
             section_paths = []
             for path, metadata, _ in packs:
                 if is_wiktionary(metadata["title"]) and path.name not in self._section_scans:
                     self._section_scans.add(path.name)
                     section_paths.append(path)
-                item = QListWidgetItem(metadata["title"])
-                item.setToolTip(f'{int(metadata.get("entries", 0)):,} entries')
+                recommended = next((rec for rec in recommendations(metadata["language"]) if rec.matches(metadata)), None)
+                origin = {"recommended": "Downloaded recommendation", "imported": "Imported ZIP"}.get(
+                    metadata.get("origin"), "Source unknown")
+                if recommended and metadata.get("origin") != "recommended":
+                    origin += "; also recommended"
+                item = QListWidgetItem(f'{metadata["title"]}  ({origin})')
+                item.setToolTip(f'{origin}\n{int(metadata.get("entries", 0)):,} entries')
                 item.setData(Qt.ItemDataRole.UserRole, path.name)
                 item.setData(Qt.ItemDataRole.UserRole + 1, metadata["language"])
                 item.setData(Qt.ItemDataRole.UserRole + 2, metadata["title"])
@@ -987,8 +997,8 @@ class SetupDialog(SettingsNavigation, QDialog):
         item = self.packs.currentItem()
         if item is None or item.isHidden():
             return
-        title = item.text()
-        if QMessageBox.question(self, "Remove dictionary", f"Remove {title}?") == QMessageBox.StandardButton.Yes:
+        title = item.data(Qt.ItemDataRole.UserRole + 2)
+        if QMessageBox.question(self, "Remove dictionary", f"Remove {title} from all profiles?") == QMessageBox.StandardButton.Yes:
             self.begin_operation([], remove=item.data(Qt.ItemDataRole.UserRole))
 
     def save_dictionaries(self):
@@ -1465,7 +1475,7 @@ class SetupDialog(SettingsNavigation, QDialog):
     def set_operation_busy(self, busy):
         if hasattr(self, "data"):
             self.data.set_busy()
-        for control in (self.import_button, self.packs, self.up, self.down, self.language):
+        for control in (self.import_button, self.packs, self.up, self.down, self.remove_pack, self.language):
             control.setEnabled(not self.operation_busy("dictionaries"))
         self.remove_profile_button.setEnabled(not busy and self.profile.count() > 1)
 

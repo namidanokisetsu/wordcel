@@ -22,6 +22,7 @@ class DataAsset:
     identity: str = ""
     source: str = ""
     revision: str = ""
+    origin: str = ""
 
 
 def _roots(data_root, cache_root):
@@ -81,12 +82,12 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
     assets, languages, installed_packs = [], set(profiles), []
 
     def add(key, title, language="", kind="", value="", paths=(), *, removable=True, status=None,
-            identity="", source="", revision=""):
+            identity="", source="", revision="", origin=""):
         paths = tuple(Path(path) for path in paths)
         size = sum(_size(path) for path in paths) if removable else 0
         present = size > 0 if removable else any(path.exists() for path in paths)
         assets.append(DataAsset(key, title, language, kind, value, paths, size,
-                                status or ("Installed" if present else "Not installed"), removable, identity, source, revision))
+                                status or ("Installed" if present else "Not installed"), removable, identity, source, revision, origin))
 
     from wordcel.optional_runtimes import manifest as engine_manifest, runtime_root, ready as engine_ready
     engine_config = engine_manifest()
@@ -156,7 +157,7 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
             add("dictionary:" + path.name, meta["title"], code, "dictionary", path.name,
                 (path, path.with_suffix(".assets")), status="Enabled" if meta["enabled"] else "Disabled",
                 identity=meta["resource_id"], source=meta.get("source", "") or meta.get("index_url", ""),
-                revision=meta.get("revision", ""))
+                revision=meta.get("revision", ""), origin=meta.get("origin", ""))
     finally:
         library.close()
     for path in (data / "languages").glob("*/stanza"):

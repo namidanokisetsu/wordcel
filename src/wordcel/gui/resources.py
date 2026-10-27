@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMenu, QPushButton, QVBoxLayout, QWidget
 
 
 def ocr_ready(provider, component_directory=""):
@@ -93,9 +93,12 @@ class ResourcesPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.dictionary_status = QLabel()
         layout.addWidget(self.dictionary_status)
-        self.dictionary_install = QPushButton("Download recommended dictionaries")
+        self.dictionary_install = QPushButton("Download missing recommendations")
         self.dictionary_install.clicked.connect(self.install_dictionaries)
         layout.addWidget(self.dictionary_install, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.dictionary_choose = QPushButton("Choose recommendation…")
+        self.dictionary_choose.setMenu(QMenu(self.dictionary_choose))
+        layout.addWidget(self.dictionary_choose, alignment=Qt.AlignmentFlag.AlignLeft)
         self.base_status = QLabel()
         layout.addWidget(self.base_status)
         self.base_install = QPushButton("Download word-form support")
@@ -156,6 +159,12 @@ class ResourcesPanel(QWidget):
         self.dictionary_install.setVisible(bool(self.missing_dictionaries))
         self.dictionary_install.setEnabled(bool(self.missing_dictionaries) and not owner.operation_busy("dictionaries"))
         self.dictionary_install.setToolTip("\n".join(item.title for item in self.missing_dictionaries))
+        menu = self.dictionary_choose.menu()
+        menu.clear()
+        for item in self.missing_dictionaries:
+            menu.addAction(item.title, lambda checked=False, item=item: owner.begin_operation([], recommended=item))
+        self.dictionary_choose.setVisible(bool(self.missing_dictionaries))
+        self.dictionary_choose.setEnabled(bool(self.missing_dictionaries) and not owner.operation_busy("dictionaries"))
         enabled = sum(bool(meta["enabled"]) for meta in packs)
         self.dictionary_status.setText(f"Dictionaries: {len(packs)} installed, {enabled} enabled" if packs else "No dictionaries installed")
         owner.combine_frequencies.setVisible(sum(int(meta.get("frequencies", 0)) > 0 for meta in packs if meta["enabled"]) > 1)

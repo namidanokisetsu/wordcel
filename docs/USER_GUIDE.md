@@ -31,6 +31,10 @@ collapse it, or a kanji to see its details. Hover over an icon to see what it do
 Choose your profile in Settings to change its dictionaries, OCR, audio or Anki
 options. In **Dictionaries**, use **Import ZIPs** to add Yomitan packs.
 If a bundle contains several ZIPs, extract the outer archive first.
+Select a dictionary and choose **Remove** to remove it from every profile.
+Use **Choose recommendation** to download individual missing recommendations.
+The list labels ZIP imports and recommended downloads; older installs may have
+an unknown source. Recommended dictionaries are downloads, not built in.
 
 Shared shortcuts are under **App > Shortcuts**. **Storage** manages downloads.
 

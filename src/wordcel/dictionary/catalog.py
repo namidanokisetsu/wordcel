@@ -71,4 +71,4 @@ def install_recommended(dictionary, directory, progress, cancelled):
                 progress(download_progress(dictionary.title, total, size))
         return import_yomitan(archive, directory, language=dictionary.language,
                              progress=progress, cancelled=cancelled.is_set,
-                             resource_id=dictionary.identity, source=dictionary.website)
+                             resource_id=dictionary.identity, source=dictionary.website, origin="recommended")

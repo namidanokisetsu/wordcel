@@ -3,7 +3,7 @@ import threading
 
 from PyQt6.QtCore import QObject, QSignalBlocker, QUrl, Qt, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
-from PyQt6.QtWidgets import QCheckBox, QFileDialog, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QCheckBox, QFileDialog, QGroupBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
 from wordcel.data_assets import inventory, resource_usage
 from wordcel.config.profiles import profile_name, languages as profile_languages
@@ -15,6 +15,13 @@ def size_label(size):
         if size < 1024 or unit == "GB":
             return f"{size:.1f} {unit}" if unit != "B" else f"{size} B"
         size /= 1024
+
+
+def asset_group(kind):
+    return {"dictionary": "Dictionaries", "recommended": "Dictionaries", "ocr": "OCR",
+            "engine": "Engines", "morphology": "Word forms", "translation": "Translation",
+            "runtime": "Translation", "fonts": "Fonts", "cache": "Caches",
+            "pending": "Other"}.get(kind, "Other")
 
 
 class InventoryTask(QObject):
@@ -65,6 +72,7 @@ class DataPanel(QWidget):
         self.owner = owner
         self._task, self._pending = None, False
         self.rows, self.sections = {}, {}
+        self.groups = {}
         self.updates = {}
         self._update_task = None
         self.assets = ()
@@ -121,7 +129,7 @@ class DataPanel(QWidget):
         from wordcel.gui.resource_jobs import jobs
         jobs.changed.connect(self.refresh_jobs)
         self.refresh_jobs()
-        self.body.addWidget(QLabel("Shared models"))
+        self.body.addWidget(QLabel("Shared data"))
         self.shared = QVBoxLayout()
         self.body.addLayout(self.shared)
         self.body.addStretch()
@@ -205,6 +213,8 @@ class DataPanel(QWidget):
             section.hide()
             section.deleteLater()
             self.import_buttons.pop(code, None)
+            for key in [key for key in self.groups if key[0] == code]:
+                self.groups.pop(key)
         for code in languages:
             if code not in self.sections:
                 content = QWidget()
@@ -220,6 +230,13 @@ class DataPanel(QWidget):
                 section.toggle.setChecked(code == self.owner.editing_language)
                 self.body.insertWidget(self.body.count() - 1, section)
         for asset in assets:
+            group_key = (asset.language, asset_group(asset.kind))
+            if group_key not in self.groups:
+                group = QGroupBox(group_key[1])
+                layout = QVBoxLayout(group)
+                target = self.sections[asset.language][1] if asset.language else self.shared
+                target.addWidget(group)
+                self.groups[group_key] = group, layout
             if asset.key not in self.rows:
                 row = QWidget()
                 layout = QHBoxLayout(row)
@@ -240,7 +257,7 @@ class DataPanel(QWidget):
                 for button in (row.open, row.download, row.update, row.replace, row.remove):
                     layout.addWidget(button)
                 self.rows[asset.key] = row
-                target = self.sections[asset.language][1] if asset.language else self.shared
+                target = self.groups[group_key][1]
                 target.addWidget(row)
                 row.container = target
                 row.enabled.toggled.connect(lambda enabled, row=row: self._enable(row.asset, enabled))
@@ -255,9 +272,17 @@ class DataPanel(QWidget):
             row.using = using
             source = asset.source or {"ocr": "Local OCR", "runtime": "llama.cpp", "translation": "Tencent Hy-MT2",
                                       "morphology": "Stanza", "fonts": "KanjiStrokeOrders"}.get(asset.kind, "")
-            details = " ? ".join(value for value in (asset.revision, source) if value)
+            origin = ""
+            if asset.kind == "dictionary":
+                from wordcel.dictionary.catalog import recommendations
+                rec = next((rec for rec in recommendations(asset.language)
+                            if rec.matches({"language": asset.language, "title": asset.title})), None)
+                origin = {"recommended": "Downloaded recommendation", "imported": "Imported ZIP"}.get(
+                    asset.origin, "Source unknown")
+                if rec and asset.origin != "recommended":
+                    origin += "; also recommended"
             users = ", ".join(profile_name(self.owner.settings, identity) for identity in using)
-            row.title.setText("\n".join(value for value in (asset.title, details, "Used by: " + users if users else "Unused") if value))
+            row.title.setText("\n".join(value for value in (asset.title, origin, "Used by: " + users if users else "Unused") if value))
             update = self.updates.get(asset.identity)
             failed = update and update.status not in {"Update available", "Up to date", "Replace from ZIP"}
             if failed:
@@ -265,7 +290,7 @@ class DataPanel(QWidget):
             row.update.setVisible(bool(update and update.status == "Update available"))
             row.update.setToolTip("Available: " + update.available if update else "")
             row.replace.setVisible(asset.kind == "dictionary")
-            row.title.setToolTip(update.status if failed else "\n".join(map(str, asset.paths)))
+            row.title.setToolTip(update.status if failed else "\n".join(filter(None, (asset.revision, source, *map(str, asset.paths)))))
             row.enabled.hide()
             with QSignalBlocker(row.enabled):
                 row.enabled.setChecked(asset.status == "Enabled")
@@ -323,7 +348,9 @@ class DataPanel(QWidget):
             row.setVisible(visible and (not self.unused.isChecked() or not row.using))
         for section, content in self.sections.values():
             section.setVisible(any(not self.rows[asset.key].isHidden() for asset in self.assets if asset.language and
-                                  self.rows[asset.key].container is content))
+                                  self.sections[asset.language][1] is content))
+        for key, (group, layout) in self.groups.items():
+            group.setVisible(any(row.container is layout and not row.isHidden() for row in self.rows.values()))
 
     def check_dictionary_updates(self):
         if self._update_task:

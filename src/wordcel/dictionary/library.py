@@ -82,7 +82,7 @@ def resource_identity(metadata):
 
 
 def import_yomitan(archive, directory=None, language=None, progress=None, cancelled=None, warnings=None,
-                  resource_id=None, source=None, expected_language=None, expected_metadata=None):
+                  resource_id=None, source=None, expected_language=None, expected_metadata=None, origin="imported"):
     """Read one bank at a time, then atomically publish a complete pack.
 
     Existing packs stay readable during imports. The archive hash makes reimport
@@ -287,6 +287,7 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
             metadata.update(index_url=str(index.get("indexUrl", "")), download_url=str(index.get("downloadUrl", "")),
                             source=str(source or index.get("url", "")), publisher=str(index.get("author", "")))
             metadata["resource_id"] = resource_id or resource_identity(metadata)
+            metadata["origin"] = origin
             metadata["checksum_warnings"] = json.dumps(sorted(zf.checksum_warnings))
             metadata.update(media_version="1", images=str(len(images.imported)),
                             image_files=json.dumps(sorted(image[0] for image in images.imported.values())),
