@@ -184,6 +184,74 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(request.call_args.args[1], "beautiful")
         self.assertEqual(request.call_args.kwargs["context"], ("a beautiful sea", 2, 11))
 
+    def test_captured_japanese_uses_prefix_lookup_without_sentence_detection(self):
+        for text in ("試合再開後 ブルーは81球目", "試合が再開した。", "「試合が再開した。」"):
+            with self.subTest(text=text), patch.object(self.window.worker, "request") as request:
+                start = text.index("試")
+                self.window._selection_for_search = True
+                self.window._selected_text_ready(text)
+                self.assertEqual(request.call_args.args[1], text[start:])
+                self.assertFalse(request.call_args.kwargs["exact_only"])
+                self.assertEqual(request.call_args.kwargs["context"], (text, start, len(text)))
+                self.window.deliver(self.window.revision,
+                    SearchResult(text[start:], "ja", "en", (entry("試合"),), matched_length=2))
+                self.assertEqual(self.window.search.text(), text)
+                self.assertEqual(self.window.search.selectedText(), "試合")
+                self.assertEqual(self.window._context, text)
+                self.assertEqual(self.window._context_span, (start, start + 2))
+
+    def test_captured_text_hover_reuses_match_and_rejects_stale_results(self):
+        text = "試合再開後 ブルーは81球目"
+        with patch.object(self.window.worker, "request") as request:
+            self.window.lookup_selected(text)
+            self.window.deliver(self.window.revision,
+                SearchResult(text, "ja", "en", (entry("試合"),), matched_length=2))
+            request.reset_mock()
+            geometry = self.window.geometry()
+            self.window.search.position_hovered.emit(1)
+            request.assert_not_called()
+            self.window.search.position_hovered.emit(2)
+            self.assertEqual(request.call_count, 1)
+            self.assertEqual(request.call_args.args[1], text[2:])
+            old_revision = self.window.revision
+            self.window.search.position_hovered.emit(2)
+            self.assertEqual(request.call_count, 1)
+            self.window.search.position_hovered.emit(10)
+            self.window.deliver(old_revision,
+                SearchResult(text[2:], "ja", "en", (entry("再開"),), matched_length=2))
+            self.assertEqual(self.window.search.selectedText(), "試合")
+            self.window.deliver(self.window.revision,
+                SearchResult(text[10:], "ja", "en", (entry("81"),), matched_length=2))
+            self.assertEqual(self.window.search.selectedText(), "81")
+            self.assertEqual(self.window._context_span, (10, 12))
+            self.assertEqual(self.window.geometry(), geometry)
+            with patch("wordcel.gui.quick_lookup.QApplication.clipboard") as clipboard:
+                self.window.copy_sentence()
+                clipboard.return_value.setText.assert_called_once_with(text)
+            self.window.translation_worker = Mock()
+            self.window._translate_clicked()
+            translation = self.window.translation_worker.request
+            self.assertEqual(translation.call_args.args[1], text)
+            self.assertTrue(translation.call_args.kwargs["translate"])
+
+    def test_hover_leaves_typed_search_and_manual_selection_alone(self):
+        with patch.object(self.window.worker, "request") as request:
+            self.window.open_search("試合再開後")
+            request.reset_mock()
+            self.window.search.position_hovered.emit(2)
+            request.assert_not_called()
+            self.window.lookup_selected("試合再開後")
+            self.window.pin.setChecked(True)
+            request.reset_mock()
+            self.window.search.position_hovered.emit(2)
+            request.assert_not_called()
+            self.window.pin.setChecked(False)
+            self.window.search.setText("再開した。")
+            self.window.search.textEdited.emit("再開した。")
+            request.reset_mock()
+            self.window.search.position_hovered.emit(1)
+            request.assert_not_called()
+
     def test_small_heading_actions_align_with_text_and_clear_the_next_block(self):
         for size in (10, 14, 18):
             with self.subTest(size=size):

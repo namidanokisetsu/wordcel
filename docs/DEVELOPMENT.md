@@ -54,6 +54,9 @@ Exact compounds may append shorter direct prefixes without changing the longest
 match span. Entries retain their source match length so history can omit those
 shorter fallback groups. Manual search adds whole-query romkan2 candidates while preserving
 English precedence; OCR and exact phrase checks keep their existing behavior.
+Captured unspaced text uses prefix lookup from its first lexical character,
+without sentence classification. The search field retains the full context;
+hover reuses its positional lookup and skips the current match or pending start.
 
 Turkish uses Zeyrek 0.1.3, accent recovery and precomputed lexicon rankings,
 retaining full morpheme paths. Profile activation prepares a shared analyzer in
