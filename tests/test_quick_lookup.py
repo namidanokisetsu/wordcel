@@ -2582,6 +2582,9 @@ class QuickLookupTests(unittest.TestCase):
         self.window.open_search()
         size = QSize(560, 420)
         self.window.resize(size)
+        area = QApplication.primaryScreen().availableGeometry()
+        position = QPoint(area.right() + 1 - size.width(), area.bottom() + 1 - size.height())
+        self.window.move(position)
         self.window._display(SearchResult("猫", "ja", "en", (entry(),)))
         self.window._fit_preview()
         self.assertEqual(self.window.size(), size)
@@ -2595,6 +2598,8 @@ class QuickLookupTests(unittest.TestCase):
         self.window.pin.setChecked(False)
         self.window.open_search()
         self.assertEqual(self.window.size(), size)
+        self.assertEqual(self.window.pos(), position)
+        self.assertEqual(self.settings.value("corner_position", type=QPoint), position)
 
     def test_macos_search_anchors_below_menu_bar_and_windows_stays_at_bottom(self):
         area = QRect(1440, 38, 1440, 840)
