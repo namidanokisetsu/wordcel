@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 from wordcel.dictionary.library import Library, default_library_path, language_code, save_preferences
 from wordcel.dictionary.translation import TranslationSettings, load_settings, load_profile_settings, save_profile_settings
 from wordcel.gui.quick_lookup import LANGUAGE_NAMES, language_name, default_text_shortcut, shortcut_preset, audio_autoplay_mode
-from wordcel.gui.shortcut_edit import ShortcutEdit
+from wordcel.gui.shortcut_edit import LOOKUP_PRESETS, ShortcutEdit
 from wordcel.gui.settings_section import SettingsSection, StatusLabel, align_form_columns
 from wordcel.language.profiles import configured_profiles, default_partner, visible_profiles
 from wordcel.config.profiles import (profile_ids, profile_language, profile_name, create_profile, delete_profile,
@@ -399,7 +399,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.pin_shortcut.setToolTip("Pin the preview while holding the screen lookup shortcut")
         self.shortcut = ShortcutEdit(settings.value(f"profiles/{self.profile.currentData()}/hotkey", default_text_shortcut()),
                                      settings.value(f"profiles/{self.profile.currentData()}/hotkey_preset", shortcut_preset()))
-        self.shortcut.setToolTip("Look up selected or copied text")
+        self.shortcut.setToolTip("Look up selected text or open search")
         shared_layout.addRow("Text lookup", self.shortcut)
         self.translation_shortcut = ShortcutEdit(settings.value(f"profiles/{self.profile.currentData()}/translation_hotkey", ""),
             settings.value(f"profiles/{self.profile.currentData()}/translation_hotkey_preset", "Ctrl+Shift+T"))
@@ -1214,7 +1214,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.profile_language_label.setText(language_name(self.editing_language))
         self.update_active_label()
         for key, editor in (("hotkey", self.shortcut), ("translation_hotkey", self.translation_shortcut), ("hover_hotkey", self.hover_shortcut), ("copy_hotkey", self.copy_shortcut)):
-            editor.set_value(self.settings.value(f"profiles/{code}/{key}", default_text_shortcut() if key == "hotkey" else ""), self.settings.value(f"profiles/{code}/{key}_preset", editor.recorder.keySequence().toString()))
+            editor.set_value(self.settings.value(f"profiles/{code}/{key}", default_text_shortcut() if key == "hotkey" else ""), self.settings.value(f"profiles/{code}/{key}_preset", LOOKUP_PRESETS[key]))
         self.translation_split.setChecked(self.settings.value(f"profiles/{code}/translation_side_by_side", False, bool))
         self.close_on_cursor_leave.setChecked(self.settings.value(f"profiles/{code}/close_on_cursor_leave", False, bool))
         self.cursor_close_margin.setValue(self.settings.value(f"profiles/{code}/cursor_close_margin", 24, int))

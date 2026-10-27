@@ -5,6 +5,10 @@ from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QCheckBox, QKeySequenceEdit
 
 
+LOOKUP_PRESETS = {"hotkey": "Ctrl+Shift+D", "translation_hotkey": "Ctrl+Shift+T",
+                  "copy_hotkey": "Ctrl+Shift+X", "hover_hotkey": "Ctrl+Shift+H", "pin_shortcut": "C"}
+
+
 class ShortcutEdit(QWidget):
     def __init__(self, value="", preset="Ctrl+Alt+L"):
         super().__init__()

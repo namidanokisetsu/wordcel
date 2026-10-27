@@ -3,6 +3,7 @@ from PyQt6.QtCore import QSignalBlocker
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QSpinBox, QVBoxLayout, QWidget
 
 from wordcel.config.inheritance import overridden, set_override
+from wordcel.gui.shortcut_edit import LOOKUP_PRESETS
 
 
 class PreferenceGroups:
@@ -55,7 +56,7 @@ class PreferenceGroups:
                                     ("hover_hotkey", owner.hover_shortcut), ("copy_hotkey", owner.copy_shortcut), ("pin_shortcut", owner.pin_shortcut)):
                     default = default_text_shortcut() if key == "hotkey" else "c" if key == "pin_shortcut" else ""
                     editor.set_value(settings.value(prefix + key, default),
-                                     settings.value(prefix + key + "_preset", editor.recorder.keySequence().toString()))
+                                     settings.value(prefix + key + "_preset", LOOKUP_PRESETS[key]))
                 for action, _, default in POPUP_ACTIONS:
                     owner.popup_shortcuts[action].set_value(popup_bindings(settings, owner.profile.currentData())[action],
                         settings.value(shortcut_key(owner.profile.currentData(), action) + "_preset", default))

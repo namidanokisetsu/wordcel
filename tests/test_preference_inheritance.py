@@ -123,6 +123,62 @@ class PreferenceInheritanceTests(unittest.TestCase):
         self.assertIs(dialog.tabs.currentWidget(), dialog.shortcuts_tab)
         self.assertTrue(dialog.scan_key.isEnabled())
 
+    def test_passage_shortcut_presets_do_not_leak_between_scopes(self):
+        from wordcel.gui.dictionary_manager import SetupDialog
+        set_override(self.settings, "ja", "shortcuts", True)
+        self.raw.setValue("profiles/ja/copy_hotkey_preset", "Ctrl+Alt+X")
+        dialog = SetupDialog(self.root / "library", self.settings, Mock())
+        self.addCleanup(dialog.deleteLater)
+        self.addCleanup(dialog.audio_sources.shutdown)
+        dialog.tabs.setCurrentWidget(dialog.shortcuts_tab)
+        self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Alt+X")
+        dialog.scope.setCurrentIndex(dialog.scope.findData("tr"))
+        self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Shift+X")
+        self.assertFalse(dialog.copy_shortcut.enabled.isChecked())
+        dialog.scope.setCurrentIndex(dialog.scope.findData("ja"))
+        self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Alt+X")
+        dialog.scope.setCurrentIndex(0)
+        self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Shift+X")
+        dialog.copy_shortcut.enabled.setChecked(True)
+        self.assertEqual(self.raw.value("defaults/shortcuts/copy_hotkey"), "<ctrl>+<shift>+x")
+        dialog.scope.setCurrentIndex(dialog.scope.findData("ja"))
+        self.assertFalse(dialog.copy_shortcut.enabled.isChecked())
+        self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Alt+X")
+
+    def test_recent_features_keep_settings_pages_and_scope(self):
+        from wordcel.gui.dictionary_manager import SetupDialog
+        self.raw.setValue("profiles/ja/anki/enabled", True)
+        refresh = patch("wordcel.gui.anki.AnkiSettingsPanel.refresh")
+        refresh.start()
+        self.addCleanup(refresh.stop)
+        dialog = SetupDialog(self.root / "library", self.settings, Mock())
+        self.addCleanup(dialog.deleteLater)
+        self.addCleanup(dialog.audio_sources.shutdown)
+        dialog.show()
+        for query, page in (("preload", dialog.app_tab), ("copy text", dialog.shortcuts_tab),
+                            ("source priority", dialog.audio_tab), ("notifications", dialog.anki_tab),
+                            ("duplicates", dialog.anki_tab)):
+            dialog.search.setText(query)
+            self.assertGreater(dialog.search_results.count(), 0, query)
+            dialog.open_search_result(dialog.search_results.item(0))
+            self.assertIs(dialog.tabs.currentWidget(), page, query)
+        dialog.preload_ocr.setChecked(False)
+        dialog.anki.notifications.setChecked(True)
+        dialog.audio_sources.load(["tts"], "", language="ja")
+        dialog.save_audio()
+        dialog.scope.setCurrentIndex(dialog.scope.findData("tr"))
+        self.assertFalse(dialog.preload_ocr.isChecked())
+        self.assertFalse(dialog.anki.notifications.isChecked())
+        self.assertNotEqual(dialog.audio_sources.order(), ["tts"])
+        dialog.scope.setCurrentIndex(dialog.scope.findData("ja"))
+        self.assertTrue(dialog.anki.notifications.isChecked())
+        self.assertEqual(dialog.audio_sources.order(), ["tts"])
+        dialog.scope.setCurrentIndex(0)
+        dialog.tabs.setCurrentWidget(dialog.preference_groups.global_audio_page)
+        self.assertIs(dialog.tabs.currentWidget(), dialog.preference_groups.global_audio_page)
+        self.assertFalse(self.raw.value("ocr/preload", True, bool))
+        self.assertEqual(self.raw.value("profile"), "ja")
+
     def test_popup_scope_search_and_profile_switch_keep_custom_values(self):
         from wordcel.gui.dictionary_manager import SetupDialog
         dialog = SetupDialog(self.root / "library", self.settings, Mock())
