@@ -18,8 +18,8 @@ class TrayLanguageIcons:
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        self.base_icon.paint(painter, 0, 0, 64, 37)
-        badge = QRectF(1, 37, 62, 26)
+        self.base_icon.paint(painter, 0, 0, 64, 64)
+        badge = QRectF(26, 39, 38, 25)
         painter.setPen(Qt.PenStyle.NoPen)
         if self.mask:
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
@@ -30,7 +30,7 @@ class TrayLanguageIcons:
         painter.drawRoundedRect(badge, 5, 5)
         font = QFont()
         font.setBold(True)
-        font.setPixelSize(27)
+        font.setPixelSize(24)
         while QFontMetricsF(font).horizontalAdvance(label) > badge.width() - 4 and font.pixelSize() > 8:
             font.setPixelSize(font.pixelSize() - 1)
         painter.setFont(font)
