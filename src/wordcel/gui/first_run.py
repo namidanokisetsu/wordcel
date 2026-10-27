@@ -61,7 +61,6 @@ class FirstLanguage(QDialog):
         from wordcel.config.profiles import create_profile
         identity = create_profile(self.settings, code)
         self.settings.setValue("profile", identity)
-        self.settings.setValue("initial_profile", identity)
         self.settings.sync()
         super().accept()
 

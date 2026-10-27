@@ -56,6 +56,21 @@ class NamedProfileTests(unittest.TestCase):
         self.assertNotEqual(self.settings.value("profiles/ja/anki/connection"), self.settings.value("profiles/tr/anki/connection"))
         self.assertTrue(dictionary_preferences(self.settings, "ja")["disabled"])
         self.assertNotEqual(self.settings.value("profiles/ja/collapsed_dictionaries"), ["Words"])
+        self.assertEqual(self.settings.value("initial_profile", ""), "")
+
+    def test_startup_profile_defaults_to_last_used_and_preserves_selection(self):
+        from wordcel.gui.dictionary_manager import SetupDialog
+        migrate(self.settings, self.directory)
+        duplicate = create_profile(self.settings, "ja", "Anime")
+        dialog = SetupDialog(self.directory, self.settings, Mock())
+        self.addCleanup(dialog.deleteLater)
+        self.assertEqual(dialog.initial_profile.currentText(), "Last used")
+        dialog.initial_profile.setCurrentIndex(dialog.initial_profile.findData(duplicate))
+        dialog.rebuild_profiles()
+        self.assertEqual(self.settings.value("initial_profile"), duplicate)
+        self.assertEqual(dialog.initial_profile.currentData(), duplicate)
+        dialog.initial_profile.setCurrentIndex(0)
+        self.assertEqual(self.settings.value("initial_profile"), "")
 
     def test_duplicate_and_delete_share_files_but_settings_are_independent(self):
         migrate(self.settings, self.directory)

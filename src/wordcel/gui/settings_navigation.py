@@ -88,6 +88,7 @@ class SettingsNavigation:
         with QSignalBlocker(self.profile), QSignalBlocker(self.initial_profile), QSignalBlocker(self.scope):
             self.profile.clear()
             self.initial_profile.clear()
+            self.initial_profile.addItem("Last used", "")
             self.scope.clear()
             self.scope.addItem("Shared defaults", "shared")
             for identity in profile_ids(self.settings):

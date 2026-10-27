@@ -118,7 +118,6 @@ def migrate(settings, directory=None):
     settings.setValue("profile_order", list(profile_ids(settings)))
     if not settings.value("profile", "") and profile_ids(settings):
         settings.setValue("profile", profile_ids(settings)[0])
-    settings.setValue("initial_profile", settings.value("profile", ""))
     settings.setValue("profiles_version", 1)
     settings.sync()
 
@@ -149,7 +148,6 @@ def create_profile(settings, language, name=None, duplicate=None):
     settings.setValue("profile_order", list(profile_ids(settings)))
     if not settings.value("profile", ""):
         settings.setValue("profile", identity)
-        settings.setValue("initial_profile", identity)
     settings.sync()
     return identity
 
