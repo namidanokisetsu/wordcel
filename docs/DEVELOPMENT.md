@@ -69,8 +69,10 @@ NLP imports are lazy, setup is explicit and runtime analysis stays offline.
 Language availability belongs in `language/support.py` and the translation registry.
 
 Dictionary lookup must not use LLM explanation, rewriting, aggregation or
-reranking. Explicit sentence translation remains a separate action, including
-on dictionary misses.
+reranking. Translation stays separate from dictionary analysis. Submitted text
+can translate automatically on missing definitions (default on) or sentence
+input (default off), using per-profile Translation settings. Sentence detection
+uses punctuation, line breaks or at least three word groups, never a partial match.
 
 ### UI and asynchronous state
 
@@ -95,6 +97,9 @@ immediately and debounce outside IME composition; output must match the current
 revision and text. Back/dismissal cancels work. Long input uses the explicit
 passage-size setting; dictionary input retains its separate 2,000-character limit.
 Fresh captured text uses the lookup source; manual direction is session-specific.
+Automatic output reuses the translation view in a separate pane without rebuilding
+definitions. It requires configured resources; typing previews, positional word
+lookups, history restoration and OCR hover never start automatic translation.
 Autoplay occurs on new lookup results or the separate pin preference, never on
 rendering, restoration or translation completion.
 

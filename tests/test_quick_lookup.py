@@ -200,6 +200,112 @@ class QuickLookupTests(unittest.TestCase):
                 self.assertEqual(self.window._context, text)
                 self.assertEqual(self.window._context_span, (start, start + 2))
 
+    def test_missing_definition_auto_translates_once_without_replacing_dictionary(self):
+        self.window.translation_worker = Mock()
+        with patch.object(self.window.worker, "request"):
+            self.window.open_search("unknown")
+            self.window.deliver(self.window.revision,
+                SearchResult("unknown", "en", "ja", suggestions=("known",)))
+            request = self.window.translation_worker.request
+            self.assertEqual(request.call_count, 1)
+            self.assertEqual(request.call_args.args[1], "unknown")
+            self.assertTrue(request.call_args.kwargs["translate"])
+            self.assertFalse(self.window._translation_view)
+            document = self.window.browser.document().revision()
+            geometry = self.window.geometry()
+            result = SearchResult("unknown", "en", "ja", translation="translation")
+            self.window._translation_progress(self.window.revision, result)
+            self.window._flush_translation()
+            self.window.deliver(self.window.revision, result)
+            self.assertEqual(self.window.automatic_output.toPlainText(), "translation")
+            self.assertIn("known", self.window.browser.toPlainText())
+            self.assertEqual(self.window.browser.document().revision(), document)
+            self.assertEqual(self.window.geometry(), geometry)
+            self.assertEqual(request.call_count, 1)
+
+    def test_sentence_auto_translation_keeps_first_word_and_uses_whole_context(self):
+        self.settings.setValue("profiles/ja/auto_translate_sentences", True)
+        self.window.translation_worker = Mock()
+        text = "試合が再開した。"
+        with patch.object(self.window.worker, "request"):
+            self.window.lookup_selected(text)
+            self.window.deliver(self.window.revision,
+                SearchResult(text, "ja", "en", (entry("試合"),), matched_length=2))
+            request = self.window.translation_worker.request
+            self.assertEqual(request.call_args.args[1], text)
+            self.assertEqual(request.call_args.args[2], "ja")
+            self.assertEqual(self.window.search.selectedText(), "試合")
+            self.assertIn("試合", self.window.browser.toPlainText())
+            revision = self.window.revision
+            self.window.search.position_clicked.emit(3)
+            self.window.deliver(revision, SearchResult(text, "ja", "en", translation="stale"))
+            self.assertTrue(self.window.automatic_output.isHidden())
+            self.assertNotIn("stale", self.window.browser.toPlainText())
+            self.assertEqual(request.call_count, 1)
+
+    def test_auto_translation_switches_and_availability_are_independent(self):
+        self.window.translation_worker = Mock()
+        for missing, sentence, entries, text, available, expected in (
+                (False, False, (), "unknown", True, False),
+                (True, False, (entry(),), "猫がいる", True, False),
+                (True, False, (entry(definitions=()),), "unknown", True, True),
+                (False, True, (entry(),), "猫がいる。", True, True),
+                (False, True, (entry(),), "猫がいる", True, False),
+                (True, True, (), "猫がいる。", True, True),
+                (True, True, (), "猫がいる。", False, False)):
+            with self.subTest(missing=missing, sentence=sentence, text=text, available=available), \
+                    patch.object(self.window.worker, "request"), \
+                    patch.object(self.window, "translation_available", return_value=available):
+                self.settings.setValue("profiles/ja/auto_translate_miss", missing)
+                self.settings.setValue("profiles/ja/auto_translate_sentences", sentence)
+                self.window.translation_worker.request.reset_mock()
+                self.window.open_search(text)
+                self.window.deliver(self.window.revision, SearchResult(text, "ja", "en", entries))
+                self.assertEqual(self.window.translation_worker.request.call_count, int(expected))
+
+    def test_auto_translation_skips_debounce_word_clicks_and_history(self):
+        self.settings.setValue("profiles/ja/auto_translate_sentences", True)
+        self.window.translation_worker = Mock()
+        text = "猫がいる。"
+        with patch.object(self.window.worker, "request"):
+            self.window.search.setText(text)
+            self.window.debounce.timeout.emit()
+            self.window.deliver(self.window.revision, SearchResult(text, "ja", "en"))
+            self.window.search.position_clicked.emit(2)
+            self.window.deliver(self.window.revision, SearchResult(text[2:], "ja", "en"))
+            self.window.restore_encounter(dict(form=text, language="ja", context=text, start=0, end=len(text)))
+            self.window.deliver(self.window.revision, SearchResult(text, "ja", "en"))
+            self.window.translation_worker.request.assert_not_called()
+
+    def test_automatic_translation_failure_retains_partial_output_and_retry(self):
+        self.window.translation_worker = Mock()
+        with patch.object(self.window.worker, "request"):
+            self.window.open_search("unknown")
+            self.window.deliver(self.window.revision, SearchResult("unknown", "en", "ja"))
+            self.window._translation_progress(self.window.revision,
+                SearchResult("unknown", "en", "ja", translation="partial"))
+            self.window._flush_translation()
+            self.window._failed(self.window.revision, "Connection interrupted")
+            self.assertIn("partial", self.window.automatic_output.toPlainText())
+            self.assertIn("Connection interrupted", self.window.automatic_output.toPlainText())
+            self.assertFalse(self.window._translation_busy)
+            self.window._translate_clicked()
+            self.assertEqual(self.window.translation_worker.request.call_count, 2)
+
+    def test_automatic_translation_preferences_are_per_profile(self):
+        self.window.open_settings()
+        dialog = self.window._setup
+        self.assertTrue(dialog.auto_translate_miss.isChecked())
+        self.assertFalse(dialog.auto_translate_sentences.isChecked())
+        dialog.auto_translate_miss.setChecked(False)
+        dialog.auto_translate_sentences.setChecked(True)
+        dialog.sync_profile("tr")
+        self.assertTrue(dialog.auto_translate_miss.isChecked())
+        self.assertFalse(dialog.auto_translate_sentences.isChecked())
+        dialog.sync_profile("ja")
+        self.assertFalse(dialog.auto_translate_miss.isChecked())
+        self.assertTrue(dialog.auto_translate_sentences.isChecked())
+
     def test_captured_text_click_preserves_context_and_rejects_stale_results(self):
         text = "試合再開後 ブルーは81球目"
         with patch.object(self.window.worker, "request") as request:
@@ -2042,6 +2148,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertNotIn("No entry", self.window.browser.toPlainText())
 
     def test_incidental_turkish_gloss_matches_require_explicit_translation(self):
+        self.settings.setValue("profiles/tr/auto_translate_miss", False)
         from wordcel.dictionary.library import import_yomitan
         from wordcel.dictionary.search import SearchEngine
         archive = Path(self.temp.name) / "fixture.zip"

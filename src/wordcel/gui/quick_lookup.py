@@ -948,6 +948,8 @@ class QuickLookupWindow(QDialog):
         self._anki_browse_task = None
         self._action_heading = None
         self._translation_view = False
+        self._automatic_translation = False
+        self._auto_translation_pending = None
         self._translation_return = None
         self._translation_text = ""
         self._translation_direction = ("auto", "auto")
@@ -1127,7 +1129,6 @@ class QuickLookupWindow(QDialog):
         self.content_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         self.content_stack.setMinimumHeight(self.browser.fontMetrics().height())
         self.kanji_splitter.addWidget(self.content_stack)
-        layout.addWidget(self.kanji_splitter, 1)
         self.kanji_panel = QWidget()
         kanji_layout = QVBoxLayout(self.kanji_panel)
         kanji_layout.setContentsMargins(0, PANE_PADDING, 0, PANE_PADDING)
@@ -1158,6 +1159,18 @@ class QuickLookupWindow(QDialog):
         self.kanji_splitter.handle(1).setToolTip("Resize kanji pane")
         self.kanji_splitter.splitterMoved.connect(self._save_kanji_split)
         self.kanji_panel.hide()
+        from wordcel.gui.translation_view import TranslationView
+        self.automatic_output = TranslationView()
+        self.automatic_output.setAccessibleName("Automatic translation")
+        self.lookup_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.lookup_splitter.setChildrenCollapsible(False)
+        self.lookup_splitter.setHandleWidth(DIVIDER_WIDTH)
+        self.lookup_splitter.addWidget(self.kanji_splitter)
+        self.lookup_splitter.addWidget(self.automatic_output)
+        self.lookup_splitter.setStretchFactor(0, 1)
+        self.lookup_splitter.setStretchFactor(1, 1)
+        self.automatic_output.hide()
+        layout.addWidget(self.lookup_splitter, 1)
         self._kanji_html = ""
         self._kanji_extra_html = ""
         self._kanji_more_start = None
@@ -1179,7 +1192,7 @@ class QuickLookupWindow(QDialog):
         self.debounce = QTimer(self)
         self.debounce.setSingleShot(True)
         self.debounce.setInterval(180)
-        self.debounce.timeout.connect(self.submit)
+        self.debounce.timeout.connect(lambda: self.submit(auto_translate=False))
         self.busy_delay = QTimer(self)
         self.busy_delay.setSingleShot(True)
         self.busy_delay.setInterval(175)
@@ -1301,6 +1314,7 @@ class QuickLookupWindow(QDialog):
         self.browser.setFont(font)
         self.kanji_browser.setFont(font)
         self.translation_browser.setFont(document_font(config.font_family, config.font_size_sentence, self.preferred_foreign))
+        self.automatic_output.setFont(self.translation_browser.font())
         self.translation_panel.source.setFont(self.translation_browser.font())
         self.translation_panel.set_side_by_side(self.settings.value(f"profiles/{self.active_profile}/translation_side_by_side", False, bool))
         self.search.setFont(font)
@@ -1427,6 +1441,10 @@ class QuickLookupWindow(QDialog):
         self._edited()
 
     def _invalidate(self):
+        self._auto_translation_pending = None
+        self._automatic_translation = False
+        self.automatic_output.set_busy(False)
+        self.automatic_output.hide()
         self.translation_debounce.stop()
         self.revision += 1
         self._pending_context = None
@@ -1636,6 +1654,7 @@ class QuickLookupWindow(QDialog):
     def _set_translation_busy(self, busy):
         self._translation_busy = busy
         self.translation_panel.set_busy(busy)
+        self.automatic_output.set_busy(busy and self._automatic_translation)
         available = self.translation_available()
         self.translate.setEnabled(bool(busy or available and (self.search.text().strip() or self._context)))
         self.translate.setIcon(action_icon("translate", config.color_foreground))
@@ -1677,12 +1696,14 @@ class QuickLookupWindow(QDialog):
                 return
 
     def submit(self, translate=None, *, context=False, remember=False, selection=False, translation_text=None,
-               lookup_span=None, saved_encounter=None):
+               lookup_span=None, saved_encounter=None, auto_translate=True, automatic=False):
         if not translate:
             self._leave_translation()
         input_text = self.search.text().strip()
         selected = self.search.selectedText().strip() if selection else ""
         selected = selected if selected != input_text else ""
+        eligible = (auto_translate and not translate and not context and not selected
+                    and lookup_span is None and not saved_encounter and not self._peek)
         sentence = self._context if context else input_text if selected else None
         text = self._context if context else selected or input_text
         if translate and translation_text is not None:
@@ -1717,6 +1738,8 @@ class QuickLookupWindow(QDialog):
         if translate is None:
             translate = False
         self._invalidate()
+        self._automatic_translation = automatic
+        self._auto_translation_pending = (self.revision, input_text) if eligible else None
         if translate:
             self.lookup_history.timer.stop()
         self._encounter_restore = (self.revision, saved_encounter) if saved_encounter else None
@@ -1777,7 +1800,11 @@ class QuickLookupWindow(QDialog):
                                   else self.foreign.currentData())
             self._translation_direction = ((source, target or "auto") if context else
                                            (selected_source, selected_target))
-            self._show_translation(text, display_source, display_target)
+            if automatic:
+                self.automatic_output.set_content("")
+                self.automatic_output.show()
+            else:
+                self._show_translation(text, display_source, display_target)
         from wordcel.dictionary.translation import load_profile_settings
         try:
             translation_settings = load_profile_settings(self.settings, self.active_profile) if translate else None
@@ -1809,6 +1836,12 @@ class QuickLookupWindow(QDialog):
         self._partial_translation = False
         self.busy_delay.stop()
         self._set_translation_busy(False)
+        if self._automatic_translation:
+            self.automatic_output.set_content(result.translation, result.message)
+            self._result = replace(self._translation_base, translation=result.translation,
+                                   translation_model=result.translation_model)
+            self._display_revision = revision
+            return
         if self._last_request_translate and self._translation_view:
             self._translation_content = result
         if self._last_request_translate and self._translation_base is not None:
@@ -1861,10 +1894,20 @@ class QuickLookupWindow(QDialog):
         self.status.setText(f"{language_name(result.source)} → {language_name(result.target)}")
         self.status.hide()
 
+        pending, self._auto_translation_pending = self._auto_translation_pending, None
+        if pending and pending[0] == revision and not self._last_request_translate and self.translation_available():
+            text = pending[1]
+            prefix = f"profiles/{self.active_profile}/auto_translate_"
+            missing = not any(entry.definitions for entry in result.entries)
+            if (missing and self.settings.value(prefix + "miss", True, bool)
+                    or is_sentence(text) and self.settings.value(prefix + "sentences", False, bool)):
+                self.submit(translate=True, context=True, automatic=True)
+
     def _translation_state_changed(self, revision, state):
         if revision == self.revision and self._translation_busy:
             self._translation_model_state = state
-            self.translation_browser.set_loading_state(state)
+            output = self.automatic_output if self._automatic_translation else self.translation_browser
+            output.set_loading_state(state)
             self.translate.setToolTip("Cancel translation\n" + state)
 
     def _translation_progress(self, revision, result):
@@ -1879,6 +1922,13 @@ class QuickLookupWindow(QDialog):
     def _flush_translation(self):
         result, self._translation_chunk = self._translation_chunk, None
         if result is None or not self._translation_busy:
+            return
+        if self._automatic_translation:
+            if self.automatic_output.selecting:
+                self._translation_chunk = result
+                self.stream_timer.start()
+            else:
+                self.automatic_output.set_content(result.translation, result.message)
             return
         if self._translation_view:
             self._translation_content = result
@@ -2037,7 +2087,8 @@ class QuickLookupWindow(QDialog):
             position = (ReadingPosition(self.browser)
                         if getattr(self, "_rendered_result_key", None) == result_key else None)
             mark("html_begin", self.revision)
-            dictionary_result = replace(self._result, translation="") if self._result.entries else self._result
+            dictionary_result = (replace(self._result, translation="")
+                                 if self._result.entries or self._automatic_translation else self._result)
             self._action_heading = None
             self._headword_blocks = []
             self.browser.setHtml(render_result(dictionary_result, expanded, **preview_options,
@@ -2170,7 +2221,9 @@ class QuickLookupWindow(QDialog):
             self.busy_delay.stop()
             self._set_translation_busy(False)
             self._restore_actions()
-            if self._translation_view:
+            if self._automatic_translation:
+                self.automatic_output.set_content(self.automatic_output.toPlainText(), str(message))
+            elif self._translation_view:
                 self._translation_content = replace(self._translation_content, message=str(message))
                 self._render_translation()
             else:
@@ -3372,7 +3425,8 @@ class QuickLookupWindow(QDialog):
     def _reading_browsers(self):
         if self._translation_view:
             return (self.translation_panel.source, self.translation_browser)
-        return (self.browser,) if self.kanji_panel.isHidden() else (self.kanji_browser, self.browser)
+        browsers = (self.browser,) if self.kanji_panel.isHidden() else (self.kanji_browser, self.browser)
+        return browsers if self.automatic_output.isHidden() else (*browsers, self.automatic_output)
 
     def _selected_reading_browser(self):
         browsers = self._reading_browsers()

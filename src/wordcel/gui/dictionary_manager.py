@@ -330,6 +330,16 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.translation_mode.addItem("Custom local server", "custom")
         self.translation_mode.setToolTip("Sizes are downloads. Running a model needs additional memory.")
         translation_form.addRow("Model", self.translation_mode)
+        self.auto_translate_miss = QCheckBox("Translate when no definition is found")
+        self.auto_translate_sentences = QCheckBox("Auto-translate sentences")
+        self.auto_translate_miss.setToolTip("Translate submitted text when lookup finds no definition")
+        self.auto_translate_sentences.setToolTip("Uses sentence punctuation, line breaks, or three or more word groups")
+        for key, control, default in (("miss", self.auto_translate_miss, True),
+                                       ("sentences", self.auto_translate_sentences, False)):
+            control.setChecked(settings.value(f"profiles/{self.profile.currentData()}/auto_translate_{key}", default, bool))
+            translation_form.addRow(control)
+            control.toggled.connect(lambda enabled, name=key: self.autosave(
+                lambda: self.save_auto_translation(name, enabled)))
         self.translation_endpoint = QLineEdit()
         self.translation_endpoint.setAccessibleName("Local translation server address")
         advanced_form.addRow("Address", self.translation_endpoint)
@@ -1083,6 +1093,12 @@ class SetupDialog(SettingsNavigation, QDialog):
         if self.is_active_edit():
             self.parent().translation_panel.set_side_by_side(enabled)
 
+    def save_auto_translation(self, name, enabled):
+        self.settings.setValue(f"profiles/{self.profile.currentData()}/auto_translate_{name}", enabled)
+        if self.is_active_edit() and self.parent()._automatic_translation:
+            self.parent()._invalidate()
+            self.parent()._restore_actions()
+
     def save_translation_shortcut(self):
         self._save_auxiliary_shortcut("translation", self.translation_shortcut)
 
@@ -1261,6 +1277,8 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.translation_stream.setChecked(translation.stream)
         self.translation_chunk_size.setValue(translation.chunk_size)
         self.translation_warm.setChecked(translation.keep_warm)
+        self.auto_translate_miss.setChecked(self.settings.value(f"profiles/{code}/auto_translate_miss", True, bool))
+        self.auto_translate_sentences.setChecked(self.settings.value(f"profiles/{code}/auto_translate_sentences", False, bool))
         self.appearance.reload()
         self.show_component_controls()
         self.pin_gesture.setCurrentIndex(max(0, self.pin_gesture.findData(self.settings.value(f"profiles/{code}/pin_gesture", "left"))))

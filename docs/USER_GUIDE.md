@@ -80,6 +80,12 @@ Anki remains the destination for deliberate study.
 
 ## Listen or translate
 
+In **Settings > Translation**, **Translate when no definition is found** is on
+by default; **Auto-translate sentences** is off. These apply per profile to
+submitted text when translation is set up. Sentence detection uses punctuation,
+line breaks or three or more word groups. Automatic output keeps definitions and
+click lookup available. Typing previews and OCR hover do not trigger translation.
+
 Use the popup's audio icons to hear a word or sentence. Choose voices and
 recordings in your profile's **Audio** settings.
 Profiles default to built-in recordings before system speech, with providers chosen by language.
