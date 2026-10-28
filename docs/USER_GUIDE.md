@@ -21,7 +21,7 @@ On macOS, allow Screen Recording, Input Monitoring and Accessibility in
 - For typed text, open **Search** from the tray.
 
 Select Japanese text and press **Ctrl+Shift+D** to look up its first word.
-Hover over the captured text in the search field to look up another word.
+Click the captured text in the search field to look up another word.
 The highlight marks the match; **Translate** uses the full selection.
 
 Point at the first character of Japanese or Chinese words. If subtitles change

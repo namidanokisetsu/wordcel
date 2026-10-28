@@ -12,8 +12,8 @@ import unittest
 from unittest.mock import Mock, patch
 import zipfile
 
-from PyQt6.QtCore import QEvent, QPoint, QRect, QSettings, QSize, Qt, QUrl
-from PyQt6.QtGui import QKeyEvent, QTextCursor, QTextFormat
+from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, QSettings, QSize, Qt, QUrl
+from PyQt6.QtGui import QKeyEvent, QMouseEvent, QTextCursor, QTextFormat
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
@@ -200,7 +200,7 @@ class QuickLookupTests(unittest.TestCase):
                 self.assertEqual(self.window._context, text)
                 self.assertEqual(self.window._context_span, (start, start + 2))
 
-    def test_captured_text_hover_reuses_match_and_rejects_stale_results(self):
+    def test_captured_text_click_preserves_context_and_rejects_stale_results(self):
         text = "試合再開後 ブルーは81球目"
         with patch.object(self.window.worker, "request") as request:
             self.window.lookup_selected(text)
@@ -208,15 +208,14 @@ class QuickLookupTests(unittest.TestCase):
                 SearchResult(text, "ja", "en", (entry("試合"),), matched_length=2))
             request.reset_mock()
             geometry = self.window.geometry()
-            self.window.search.position_hovered.emit(1)
+            QApplication.sendEvent(self.window.search, QMouseEvent(QEvent.Type.MouseMove,
+                QPointF(5, 5), Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
             request.assert_not_called()
-            self.window.search.position_hovered.emit(2)
+            self.window.search.position_clicked.emit(2)
             self.assertEqual(request.call_count, 1)
             self.assertEqual(request.call_args.args[1], text[2:])
             old_revision = self.window.revision
-            self.window.search.position_hovered.emit(2)
-            self.assertEqual(request.call_count, 1)
-            self.window.search.position_hovered.emit(10)
+            self.window.search.position_clicked.emit(10)
             self.window.deliver(old_revision,
                 SearchResult(text[2:], "ja", "en", (entry("再開"),), matched_length=2))
             self.assertEqual(self.window.search.selectedText(), "試合")
@@ -233,24 +232,6 @@ class QuickLookupTests(unittest.TestCase):
             translation = self.window.translation_worker.request
             self.assertEqual(translation.call_args.args[1], text)
             self.assertTrue(translation.call_args.kwargs["translate"])
-
-    def test_hover_leaves_typed_search_and_manual_selection_alone(self):
-        with patch.object(self.window.worker, "request") as request:
-            self.window.open_search("試合再開後")
-            request.reset_mock()
-            self.window.search.position_hovered.emit(2)
-            request.assert_not_called()
-            self.window.lookup_selected("試合再開後")
-            self.window.pin.setChecked(True)
-            request.reset_mock()
-            self.window.search.position_hovered.emit(2)
-            request.assert_not_called()
-            self.window.pin.setChecked(False)
-            self.window.search.setText("再開した。")
-            self.window.search.textEdited.emit("再開した。")
-            request.reset_mock()
-            self.window.search.position_hovered.emit(1)
-            request.assert_not_called()
 
     def test_small_heading_actions_align_with_text_and_clear_the_next_block(self):
         for size in (10, 14, 18):

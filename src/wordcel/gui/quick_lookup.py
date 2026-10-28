@@ -841,16 +841,6 @@ class LocalDictionaryBrowser(RubyBrowser):
 
 class LookupInput(QLineEdit):
     position_clicked = pyqtSignal(int)
-    position_hovered = pyqtSignal(int)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setMouseTracking(True)
-
-    def mouseMoveEvent(self, event):
-        super().mouseMoveEvent(event)
-        if not event.buttons() and not event.modifiers():
-            self.position_hovered.emit(self.cursorPositionAt(event.position().toPoint()))
 
     def mousePressEvent(self, event):
         self._lookup_press = event.position().toPoint()
@@ -1054,7 +1044,6 @@ class QuickLookupWindow(QDialog):
         self.translate_sentence = self.translate
         self.search = LookupInput()
         self.search.position_clicked.connect(self._lookup_input_position)
-        self.search.position_hovered.connect(lambda position: self._lookup_input_position(position, hover=True))
         self.search.selectionChanged.connect(lambda: setattr(self, "_input_lookup", None))
         self.search.setPlaceholderText("Search")
         self.search.setAccessibleName("Search text")
@@ -1657,7 +1646,6 @@ class QuickLookupWindow(QDialog):
         self.translate.setAccessibleName(name)
 
     def _edited(self):
-        self._input_match = None
         self.lookup_history.reset()
         self._invalidate()
         self._leave_translation()
@@ -1677,23 +1665,13 @@ class QuickLookupWindow(QDialog):
             self._clear_browser()
             self._close_kanji()
 
-    def _lookup_input_position(self, position, *, hover=False):
-        if hover and (not self._selection_lookup or self._translation_view or self._peek or self.is_pinned):
-            return
+    def _lookup_input_position(self, position):
         from wordcel.language.profiles import get_profile
         raw = self.search.text()
         start = len(raw.encode("utf-16-le")[:position * 2].decode("utf-16-le"))
         profile = get_profile(self._result.source if self._result else self.preferred_foreign)
         for left, right in profile.word_spans(raw):
             if left <= start < right:
-                if hover:
-                    pending = getattr(self, "_input_lookup", None)
-                    if pending == (self.revision, raw, left):
-                        return
-                    match = getattr(self, "_input_match", None)
-                    if (self._pending_revision is None and match and match[0] == raw
-                            and match[1] <= left < match[2]):
-                        return
                 end = len(raw) if profile.word_mode == "unspaced" else right
                 self.submit(lookup_span=(left, end))
                 return
@@ -1845,7 +1823,6 @@ class QuickLookupWindow(QDialog):
         input_lookup = getattr(self, "_input_lookup", None)
         if not self._peek and input_lookup and input_lookup[:2] == (revision, self.search.text()):
             raw, start = input_lookup[1:]
-            self._input_match = (raw, start, start + max(1, result.matched_length))
             offset = len(raw[:start].encode("utf-16-le")) // 2
             length = len(raw[start:start + result.matched_length].encode("utf-16-le")) // 2
             if self._selection_lookup:
