@@ -1824,6 +1824,7 @@ class QuickLookupWindow(QDialog):
 
     def deliver(self, revision, result):
         if (revision != self.revision or self._shutting_down
+                or self._automatic_translation and result.text != self._context
                 or self._last_request_translate and self._translation_view and result.text != self._translation_text):
             mark("discard", revision, reason="obsolete_lookup")
             return
@@ -1912,6 +1913,7 @@ class QuickLookupWindow(QDialog):
 
     def _translation_progress(self, revision, result):
         if (revision != self.revision or self._shutting_down or not self._translation_busy
+                or self._automatic_translation and result.text != self._context
                 or self._translation_view and result.text != self._translation_text):
             mark("discard", revision, reason="obsolete_chunk")
             return
