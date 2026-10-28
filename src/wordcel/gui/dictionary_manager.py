@@ -334,7 +334,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.auto_translate_sentences = QCheckBox("Auto-translate sentences")
         self.auto_translate_miss.setToolTip("Translate submitted text when lookup finds no definition")
         self.auto_translate_sentences.setToolTip("Uses sentence punctuation, line breaks, or three or more word groups")
-        for key, control, default in (("miss", self.auto_translate_miss, True),
+        for key, control, default in (("miss", self.auto_translate_miss, False),
                                        ("sentences", self.auto_translate_sentences, False)):
             control.setChecked(settings.value(f"profiles/{self.profile.currentData()}/auto_translate_{key}", default, bool))
             translation_form.addRow(control)
@@ -1277,7 +1277,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.translation_stream.setChecked(translation.stream)
         self.translation_chunk_size.setValue(translation.chunk_size)
         self.translation_warm.setChecked(translation.keep_warm)
-        self.auto_translate_miss.setChecked(self.settings.value(f"profiles/{code}/auto_translate_miss", True, bool))
+        self.auto_translate_miss.setChecked(self.settings.value(f"profiles/{code}/auto_translate_miss", False, bool))
         self.auto_translate_sentences.setChecked(self.settings.value(f"profiles/{code}/auto_translate_sentences", False, bool))
         self.appearance.reload()
         self.show_component_controls()

@@ -70,8 +70,8 @@ Language availability belongs in `language/support.py` and the translation regis
 
 Dictionary lookup must not use LLM explanation, rewriting, aggregation or
 reranking. Translation stays separate from dictionary analysis. Submitted text
-can translate automatically on missing definitions (default on) or sentence
-input (default off), using per-profile Translation settings. Sentence detection
+can translate automatically on missing definitions or sentence
+input, both off by default, using per-profile Translation settings. Sentence detection
 uses punctuation, line breaks or at least three word groups, never a partial match.
 
 ### UI and asynchronous state

@@ -1900,7 +1900,7 @@ class QuickLookupWindow(QDialog):
             text = pending[1]
             prefix = f"profiles/{self.active_profile}/auto_translate_"
             missing = not any(entry.definitions for entry in result.entries)
-            if (missing and self.settings.value(prefix + "miss", True, bool)
+            if (missing and self.settings.value(prefix + "miss", False, bool)
                     or is_sentence(text) and self.settings.value(prefix + "sentences", False, bool)):
                 self.submit(translate=True, context=True, automatic=True)
 

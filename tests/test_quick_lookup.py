@@ -200,7 +200,16 @@ class QuickLookupTests(unittest.TestCase):
                 self.assertEqual(self.window._context, text)
                 self.assertEqual(self.window._context_span, (start, start + 2))
 
+    def test_missing_definition_does_not_translate_by_default(self):
+        self.window.translation_worker = Mock()
+        with patch.object(self.window.worker, "request"):
+            self.window.open_search("unknown")
+            self.window.deliver(self.window.revision, SearchResult("unknown", "en", "ja"))
+            self.window.translation_worker.request.assert_not_called()
+            self.assertTrue(self.window.automatic_output.isHidden())
+
     def test_missing_definition_auto_translates_once_without_replacing_dictionary(self):
+        self.settings.setValue("profiles/ja/auto_translate_miss", True)
         self.window.translation_worker = Mock()
         with patch.object(self.window.worker, "request"):
             self.window.open_search("unknown")
@@ -282,6 +291,7 @@ class QuickLookupTests(unittest.TestCase):
             self.window.translation_worker.request.assert_not_called()
 
     def test_automatic_translation_failure_retains_partial_output_and_retry(self):
+        self.settings.setValue("profiles/ja/auto_translate_miss", True)
         self.window.translation_worker = Mock()
         with patch.object(self.window.worker, "request"):
             self.window.open_search("unknown")
@@ -299,15 +309,15 @@ class QuickLookupTests(unittest.TestCase):
     def test_automatic_translation_preferences_are_per_profile(self):
         self.window.open_settings()
         dialog = self.window._setup
-        self.assertTrue(dialog.auto_translate_miss.isChecked())
+        self.assertFalse(dialog.auto_translate_miss.isChecked())
         self.assertFalse(dialog.auto_translate_sentences.isChecked())
-        dialog.auto_translate_miss.setChecked(False)
+        dialog.auto_translate_miss.setChecked(True)
         dialog.auto_translate_sentences.setChecked(True)
         dialog.sync_profile("tr")
-        self.assertTrue(dialog.auto_translate_miss.isChecked())
+        self.assertFalse(dialog.auto_translate_miss.isChecked())
         self.assertFalse(dialog.auto_translate_sentences.isChecked())
         dialog.sync_profile("ja")
-        self.assertFalse(dialog.auto_translate_miss.isChecked())
+        self.assertTrue(dialog.auto_translate_miss.isChecked())
         self.assertTrue(dialog.auto_translate_sentences.isChecked())
 
     def test_captured_text_click_preserves_context_and_rejects_stale_results(self):

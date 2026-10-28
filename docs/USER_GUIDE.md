@@ -80,8 +80,8 @@ Anki remains the destination for deliberate study.
 
 ## Listen or translate
 
-In **Settings > Translation**, **Translate when no definition is found** is on
-by default; **Auto-translate sentences** is off. These apply per profile to
+In **Settings > Translation**, **Translate when no definition is found** and
+**Auto-translate sentences** are off by default. These apply per profile to
 submitted text when translation is set up. Sentence detection uses punctuation,
 line breaks or three or more word groups. Automatic output keeps definitions and
 click lookup available. Typing previews and OCR hover do not trigger translation.
