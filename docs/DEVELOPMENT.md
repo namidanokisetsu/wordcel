@@ -150,21 +150,43 @@ selection and scroll when refreshed. Storage/search never run on the GUI thread.
 
 Settings use the `wordcel/wordcel` Qt namespace; managed data/cache use platformdirs'
 `wordcel` directory. Source and installed builds share them. Meikipop data stays
-untouched. Prior-version settings/internal dictionary schemas are not migrated;
-Yomitan archives without language metadata remain supported.
+untouched. Prior-version internal dictionary schemas are not migrated; legacy
+shared preference values are migrated before use. Yomitan archives without
+language metadata remain supported.
 
-`config/inheritance.py` resolves `defaults/<group>/` and profile overrides.
-First override snapshots defaults; re-enabling inheritance preserves custom values.
-Profile duplication copies raw preferences. Popup combines appearance and behavior
-editors but retains separate saved groups. Startup, connections and profile-cycle
-shortcuts are global; language resources and analysis remain per profile.
+Settings presents eight stable destinations: app-wide General, plus profile
+pages for Lookup, Dictionaries, Shortcuts, Appearance, Audio, Translation and
+Anki. General owns startup, initial profile, history and storage. Feature pages
+keep enablement visible and place specialist capture, translation and Anki tuning
+under Advanced sections. Translation and Anki connection editors stay with their
+own features. Profile switching shortcuts are explicitly app-wide; other
+shortcuts and feature preferences belong to the profile being edited.
+
+`config/inheritance.py` performs a versioned, idempotent migration of legacy
+shared defaults before runtime settings are read. It snapshots each profile's
+effective values, including explicit empty and false values, writes independent
+profile preferences and records completion only after a successful sync. Profile
+IDs, names, languages, order and the active selection remain unchanged. New
+profiles use built-in defaults. Runtime editors no longer expose shared defaults
+or inheritance controls, and duplicating a profile copies preferences without
+copying downloaded resources or mutable connection state.
+
+Page-level restore actions and the profile menu's reset action use explicit key
+sets and authoritative defaults. A reset keeps identity, language, feature
+enablement, connection assignments, installed resources, history, credentials
+and Anki notes. It never starts downloads, requests permissions or clears the
+whole settings namespace. Profile editing and activation remain separate so
+changing a duplicate cannot change the source profile.
 
 Setup jobs are keyed by resource, retain progress across profile switches and
 block only conflicting actions. Verify model sizes/hashes before installation.
 Removal validates owned paths and never deletes linked external data. Removing
 a language retains shared OCR/translation resources; mapped files await startup
 cleanup. Model changes invalidate worker caches. Runtime-only translation setup
-preserves models. Downloads, generated packs and environments stay outside Git.
+preserves models. First run chooses a language, offers explicit resource setup,
+allows cancellation, retry and skipping, then leaves usable lookup without a
+tutorial or generic resume link. Downloads, generated packs and environments
+stay outside Git.
 
 ### Audio and Anki
 

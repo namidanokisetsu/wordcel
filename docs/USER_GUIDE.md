@@ -9,6 +9,10 @@ See [supported languages](LANGUAGES.md) for coverage.
 Wordcel runs in the system tray. Right-click its icon to open **Search**,
 **Translate**, **History** or **Settings**.
 
+After the first language choice, Wordcel offers the resources needed for that
+profile. You can skip downloads and install them later from the relevant
+settings page; setup then returns to usable Search without opening a tutorial.
+
 ### macOS permissions
 
 In **System Settings > Privacy & Security**, enable Wordcel under:
@@ -23,7 +27,9 @@ search window does not quit Wordcel. If running from source, grant access to
 the launching terminal or app shown in these lists.
 
 If manual search works but OCR or **Command+Shift+D** does nothing, check these
-permissions first. See Apple's [privacy settings guide](https://support.apple.com/guide/mac-help/change-privacy-security-settings-on-mac-mchl211c911f/mac).
+permissions first. Manual Search and Settings remain available when access is
+denied, with recovery actions shown beside the affected feature. See Apple's
+[privacy settings guide](https://support.apple.com/guide/mac-help/change-privacy-security-settings-on-mac-mchl211c911f/mac).
 
 ## Look up a word
 
@@ -51,21 +57,30 @@ the active profile. Select within one display at a time.
 
 ## Settings
 
-Choose your profile in Settings to change its dictionaries, OCR, audio or Anki
-options. In **Dictionaries**, use **Import ZIPs** to add Yomitan packs.
-If a bundle contains several ZIPs, extract the outer archive first.
-Select a dictionary and choose **Remove** to remove it from every profile.
-Use **Choose recommendation** to download individual missing recommendations.
-The list labels ZIP imports and recommended downloads; older installs may have
-an unknown source. Recommended dictionaries are downloads, not built in.
+Settings has one page for each task: **General** for startup, initial profile,
+history and storage; **Lookup** for OCR and capture; **Dictionaries** for
+installed sources and resources; **Shortcuts** for lookup, capture, popup and
+profile switching; **Appearance** for popup layout and content; **Audio** for
+playback and sources; **Translation** for translation options and its
+connection; and **Anki** for AnkiConnect, note mapping and saving.
 
-Choose a profile or **Shared defaults** in **Editing**, then select a category.
-Shared defaults apply to profiles that use them for popup, shortcuts or audio
-playback. Clear **Use shared defaults** in a profile to customize a group; its
-custom values are retained if you switch back to shared defaults. Profile settings
-include dictionaries, OCR, audio sources and Anki. Search settings to jump to a
-control. Switching profiles keeps the current category. **App-wide** settings
-apply regardless of the selected profile.
+Profile pages apply to the profile selected in **Editing**. The profile menu
+can create, duplicate, rename, reorder, activate and delete profiles. Editing
+a profile does not activate it; the header identifies the profile being edited
+and the active profile. Each profile has its own preferences, including OCR,
+dictionaries, shortcuts, appearance, audio, translation and Anki settings.
+
+Each page has **Restore defaults…**. The confirmation names the page and scope.
+The profile menu also has **Reset profile settings…**. These actions preserve
+the profile's language and identity, feature enablement, connection assignments,
+installed resources, history, credentials and Anki notes. They do not download
+resources or request permissions. On **Shortcuts**, profile switching keys have
+their own app-wide restore action.
+
+In **Dictionaries**, use **Import ZIPs** to add Yomitan packs. If a bundle
+contains several ZIPs, extract the outer archive first. Select a dictionary and
+choose **Remove** to remove it from every profile. Use the resource controls on
+the relevant page to install missing dictionaries, OCR or translation models.
 
 **Startup > Preload OCR** prepares the active engine in the background by default.
 Turn it off to load models on the first scan. Loaded models stay in memory until
@@ -109,14 +124,17 @@ same endpoint as Yomitan, including local audio servers. **Import Yomitan** read
 audio sources from an exported settings file; reorder sources to set priority.
 System voices come from your operating system; browser-only voices may be unavailable.
 
-Download a model in **Translation**, then open **Translate** from the tray.
+Translation is enabled by default for existing profiles; its automatic
+translation options remain individually configurable. Download a model in
+**Translation**, then open **Translate** from the tray.
 Choose the languages and enter text. Translation runs offline after setup.
 
 ## Save to Anki
 
 Install [AnkiConnect](https://ankiweb.net/shared/info/2055492159) and keep Anki open.
 
-1. Open your profile's **Anki** settings, tick **Enable Anki**, and click **Refresh**.
+1. Open your profile's **Anki** settings, tick **Enable Anki**, configure the
+   inline AnkiConnect connection, and click **Refresh**.
 2. Choose your deck and note type, then map the fields. Use **Word** for the first field.
 3. Click the popup's **+** icon to save. With duplicates prevented, the checkmark opens existing notes;
    with duplicates allowed, overlapping circles add another note.
