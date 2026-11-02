@@ -9,8 +9,21 @@ See [supported languages](LANGUAGES.md) for coverage.
 Wordcel runs in the system tray. Right-click its icon to open **Search**,
 **Translate**, **History** or **Settings**.
 
-On macOS, allow Screen Recording, Input Monitoring and Accessibility in
-**System Settings > Privacy & Security**, then reopen Wordcel.
+### macOS permissions
+
+In **System Settings > Privacy & Security**, enable Wordcel under:
+
+- **Screen & System Audio Recording** (called **Screen Recording** on older
+  versions): capture text for OCR.
+- **Input Monitoring**: detect scan keys, mouse buttons and global shortcuts.
+- **Accessibility**: handle scan/pin controls and copy selected text from other apps.
+
+Then choose **Quit** from Wordcel's menu-bar icon and reopen it. Closing the
+search window does not quit Wordcel. If running from source, grant access to
+the launching terminal or app shown in these lists.
+
+If manual search works but OCR or **Command+Shift+D** does nothing, check these
+permissions first. See Apple's [privacy settings guide](https://support.apple.com/guide/mac-help/change-privacy-security-settings-on-mac-mchl211c911f/mac).
 
 ## Look up a word
 
@@ -20,7 +33,8 @@ On macOS, allow Screen Recording, Input Monitoring and Accessibility in
   and select an area. Hover over words there without holding a key.
 - For typed text, open **Search** from the tray.
 
-Select Japanese text and press **Ctrl+Shift+D** to look up its first word.
+Select Japanese text and press **Ctrl+Shift+D** (**Command+Shift+D** on macOS)
+to look up its first word.
 Click the captured text in the search field to look up another word.
 The highlight marks the match; **Translate** uses the full selection.
 
