@@ -39,6 +39,7 @@ a = Analysis(
         ('src/wordcel/resources/tray.svg', 'wordcel/resources'),
         ('src/wordcel/scripts/deconjugator.json', 'wordcel/scripts'),
         ('src/wordcel/resources/licenses/*.txt', 'wordcel/resources/licenses'),
+        ('src/wordcel/resources/fonts/*.ttf', 'wordcel/resources/fonts'),
     ],
     hiddenimports=model_imports + ['PyQt6.QtTextToSpeech', 'Vision', 'Foundation', 'Quartz', 'AppKit', 'pynput.keyboard._darwin', 'pynput.mouse._darwin'],
     hookspath=[],

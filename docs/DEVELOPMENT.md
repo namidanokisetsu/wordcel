@@ -45,6 +45,15 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
 
 ## Contracts
 
+- **Shared UI:** configure Qt Fusion before creating widgets. Controls use bundled
+  Noto Sans at 13 logical pixels; default Japanese text uses Noto Sans JP. Preserve
+  explicit profile fonts and fall back without overwriting unavailable choices.
+  Use shared drawn icons and layout metrics, not font symbols or platform offsets.
+  Settings follow the system light/dark preference with shared palettes; popup
+  themes remain profile-specific. Tray, permissions, focus and shortcuts retain
+  native integration. Font registration happens once at startup, without downloads.
+  Fonts and OFL licences come from [Google Fonts](https://github.com/google/fonts/tree/2fe1e8c6b137fb13041a7cfca6fdcd8a910ea4dc/ofl)
+  (`notosans`, `notosansjp`); include them in wheels and desktop bundles.
 - **Lookup:** exact entries and imported forms precede analysis. Preserve source
   offsets, dictionary order and full records for Anki. Unspaced lookup starts at
   the pointed character. Japanese uses bundled deconjugation; Turkish uses shared

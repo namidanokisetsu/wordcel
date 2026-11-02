@@ -1,5 +1,4 @@
 """Live appearance controls and a saved custom palette per language profile."""
-import sys
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QFontComboBox, QFormLayout, QLabel,
@@ -17,7 +16,7 @@ KEYS = ("theme_name", "font_family", "font_size_header", "font_size_definitions"
 DEFAULTS = {key: getattr(config, key) for key in KEYS}
 _configured_font = DEFAULTS["font_family"]
 DEFAULTS["furigana_scale"] = 50
-DEFAULTS["font_family"] = DEFAULTS["font_family"] or ("Segoe UI" if sys.platform == "win32" else "Helvetica Neue" if sys.platform == "darwin" else "Noto Sans")
+DEFAULTS["font_family"] = DEFAULTS["font_family"] or "Noto Sans"
 
 
 def custom_palette(settings, profile):
@@ -220,8 +219,11 @@ class ProfileAppearance(QWidget):
         self.pinned_sentence.setChecked(self.settings.value(f"profiles/{self.profile()}/pinned_sentence", False, bool))
         self.snap_scrolling.setChecked(self.settings.value(f"profiles/{self.profile()}/snap_scrolling", True, bool))
         self.side_button_scrolling.setChecked(self.settings.value(f"profiles/{self.profile()}/side_button_scrolling", True, bool))
-        self.font.setCurrentFont(QFont(self.settings.value(f"profiles/{self.profile()}/font_family",
-                                                         _configured_font or default_family(profile_language(self.settings, self.profile())))))
+        self._font_family = self.settings.value(prefix + "font_family",
+                                               _configured_font or default_family(profile_language(self.settings, self.profile())))
+        self.font.setCurrentFont(QFont(self._font_family))
+        if self._font_family:
+            self.font.setEditText(self._font_family)
         self.headword_furigana.setChecked(self.settings.value(f"profiles/{self.profile()}/headword_furigana", False, bool))
         self.content_form.setRowVisible(self.headword_furigana, self.japanese_controls)
         self.definition_furigana.setChecked(self.settings.value(f"profiles/{self.profile()}/definition_furigana", True, bool))
@@ -287,7 +289,9 @@ class ProfileAppearance(QWidget):
             self.settings.setValue(prefix + name, getattr(self, name).isChecked())
         self.settings.setValue(prefix + "preview_definitions", self.preview_definitions.value())
         self.settings.setValue(prefix + "pinned_sentence", self.pinned_sentence.isChecked())
-        self.settings.setValue(prefix + "font_family", self.font.currentFont().family())
+        if self.sender() is self.font:
+            self._font_family = self.font.currentFont().family()
+        self.settings.setValue(prefix + "font_family", self._font_family)
         if self.japanese_controls:
             self.settings.setValue(prefix + "headword_furigana", self.headword_furigana.isChecked())
             self.settings.setValue(prefix + "definition_furigana", self.definition_furigana.isChecked())

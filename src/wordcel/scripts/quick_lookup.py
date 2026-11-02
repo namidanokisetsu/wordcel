@@ -169,7 +169,7 @@ def main(argv=None):
         return 0
 
     from PyQt6.QtCore import QSettings, QTimer
-    from PyQt6.QtGui import QActionGroup, QFont, QIcon
+    from PyQt6.QtGui import QActionGroup, QIcon
     from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QStyle
     from wordcel.gui.quick_lookup import QuickLookupWindow
     from wordcel.utils.paths import paths
@@ -180,8 +180,8 @@ def main(argv=None):
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setApplicationName("wordcel")
     app.setApplicationDisplayName("Wordcel")
-    if sys.platform == "win32":
-        app.setFont(QFont("Segoe UI", 10))
+    from wordcel.gui.application_style import configure_application
+    configure_application(app)
     app.setQuitOnLastWindowClosed(False)
     from wordcel.gui.single_instance import SingleInstance
     instance = SingleInstance(paths.data_dir, app)
