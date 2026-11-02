@@ -1143,7 +1143,7 @@ class SetupDialog(SettingsNavigation, QDialog):
             key = shortcut_key(profile, action)
             self.settings.setValue(key, value)
             self.settings.setValue(key + "_preset", self.popup_shortcuts[action].recorder.keySequence().toString())
-        if self.parent() is not None:
+        if self.is_active_edit():
             self.parent().reload_popup_shortcuts()
             self.parent().update_anki()
         self.notify_scan_settings()

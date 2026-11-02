@@ -310,7 +310,7 @@ class SettingsNavigation:
     def confirm_restore(self, scope, reset, page):
         from PyQt6.QtWidgets import QMessageBox
         message = (f"Restore defaults for {scope}?\n\n"
-                   "Feature and shortcut enablement, connections, credentials and saved data will be kept.")
+                   "Feature and shortcut enablement, resource choices, connections and saved data will be kept.")
         if QMessageBox.question(self, "Restore defaults", message,
                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:

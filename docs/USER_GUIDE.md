@@ -11,7 +11,7 @@ Wordcel runs in the system tray. Right-click its icon to open **Search**,
 
 After the first language choice, Wordcel offers the resources needed for that
 profile. You can skip downloads and install them later from the relevant
-settings page; setup then returns to usable Search without opening a tutorial.
+settings page. Setup then opens Search.
 
 ### macOS permissions
 
@@ -82,16 +82,16 @@ contains several ZIPs, extract the outer archive first. Select a dictionary and
 choose **Remove** to remove it from every profile. Use the resource controls on
 the relevant page to install missing dictionaries, OCR or translation models.
 
-**Startup > Preload OCR** prepares the active engine in the background by default.
+**General > Startup > Preload OCR** prepares the active engine in the background by default.
 Turn it off to load models on the first scan. Loaded models stay in memory until
 Wordcel exits; dictionary-only mode skips preloading.
 
 ## Lookup history
 
 Open **History** from the tray. Optional buttons for Search and OCR popups are
-in **Settings > History**; a popup shortcut is in **Shortcuts > Popup**.
+in **General > History**; a popup shortcut is in **Shortcuts > Popup**.
 Recording is off until enabled; its
-default scope is pinned and manual/text lookups. **Settings > History** also
+default scope is pinned and manual/text lookups. **General > History** also
 offers hover recording after a display duration (initially 0.5 seconds), retention
 and **Clear history**. Retention defaults to forever. Turning recording off keeps
 existing encounters available and preserves your recording choices.

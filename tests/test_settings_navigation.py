@@ -153,3 +153,20 @@ class SettingsNavigationTests(unittest.TestCase):
         dialog.anki._connection_changed()
         self.assertEqual(load_settings(self.settings, "ja").endpoint, original)
         self.assertIn("local AnkiConnect", dialog.anki.status.text())
+
+    def test_inactive_profile_popup_shortcuts_do_not_refresh_active_runtime(self):
+        from wordcel.gui.quick_lookup import QuickLookupWindow
+        window = QuickLookupWindow(self.root / "library", settings=self.settings)
+        self.addCleanup(window.deleteLater)
+        self.addCleanup(window.shutdown)
+        other = create_profile(self.settings, "ja", "Other", duplicate="ja")
+        dialog = SetupDialog(self.root / "library", self.settings, Mock(), window)
+        self.addCleanup(dialog.deleteLater)
+        self.addCleanup(dialog.audio_sources.shutdown)
+        dialog.rebuild_profiles(other)
+        with patch.object(window, "reload_popup_shortcuts") as reload_keys, \
+                patch.object(window, "update_anki") as update_anki:
+            dialog.save_popup_shortcuts()
+        reload_keys.assert_not_called()
+        update_anki.assert_not_called()
+        self.assertEqual(window.active_profile, "ja")
