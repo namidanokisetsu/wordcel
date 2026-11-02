@@ -7,7 +7,7 @@ import math
 import sys
 
 from PyQt6.QtCore import QEvent, QPointF, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QCursor, QFont, QImage, QKeyEvent, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat
+from PyQt6.QtGui import QCursor, QImage, QKeyEvent, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel,
     QKeySequenceEdit, QLineEdit, QMenu, QSizePolicy, QSplitter, QStackedWidget, QTextEdit, QToolButton, QToolTip, QVBoxLayout, QWidget,
@@ -18,13 +18,11 @@ from wordcel.dictionary.search import SearchResult
 from wordcel.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, expanded_geometry, frame_stylesheet, popup_position, surface_colors
 from wordcel.gui.action_icons import action_button, action_icon
 from wordcel.gui.ruby import RubyBrowser
-from wordcel.gui.gloss_content import _GlossConverter, normalize_definitions
 from wordcel.gui.language_names import LANGUAGE_NAMES, language_name
-from wordcel.gui.lookup_render import (_compact_context, _dictionary_section_key, _metadata, _source_name,
-                                       render_result)
+from wordcel.gui.lookup_render import (_compact_context, _dictionary_section_key, render_result)
 from wordcel.gui.lookup_worker import LookupWorker
-from wordcel.gui.profile_preferences import audio_autoplay_mode, default_text_shortcut, shortcut_preset
-from wordcel.language.profiles import configured_profiles, default_partner, visible_profiles
+from wordcel.gui.profile_preferences import audio_autoplay_mode, default_text_shortcut
+from wordcel.language.profiles import default_partner
 from wordcel.config.profiles import (profile_ids, profile_language, profile_name, languages as profile_languages,
                                      dictionary_preferences)
 from wordcel.utils.timing import mark

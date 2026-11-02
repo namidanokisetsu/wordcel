@@ -5,17 +5,17 @@ import threading
 
 from PyQt6.QtCore import QSignalBlocker, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QListWidget,
-    QInputDialog, QLineEdit, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSpinBox, QTabWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QListWidget,
+    QInputDialog, QLineEdit, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
 )
 
-from wordcel.dictionary.library import Library, default_library_path, language_code, save_preferences
-from wordcel.dictionary.translation import TranslationSettings, load_settings, load_profile_settings, save_profile_settings
+from wordcel.dictionary.library import Library, default_library_path
+from wordcel.dictionary.translation import TranslationSettings, load_profile_settings, save_profile_settings
 from wordcel.gui.language_names import LANGUAGE_NAMES, language_name
 from wordcel.gui.profile_preferences import default_text_shortcut, shortcut_preset, audio_autoplay_mode
 from wordcel.gui.shortcut_edit import LOOKUP_PRESETS, ShortcutEdit
 from wordcel.gui.settings_section import SettingsSection, StatusLabel, align_form_columns
-from wordcel.language.profiles import configured_profiles, default_partner, visible_profiles
+from wordcel.language.profiles import default_partner
 from wordcel.config.profiles import (profile_ids, profile_language, profile_name, create_profile, delete_profile,
                                      dictionary_preferences, languages as profile_languages)
 
@@ -1275,7 +1275,10 @@ class SetupDialog(SettingsNavigation, QDialog):
         if not custom:
             from wordcel.translation_catalog import fit_message
             caps = self.translation_capabilities
-            self.translation_fit.setText(fit_message(self.translation_mode.currentData(), caps.memory if caps else None))
+            backend = self.translation_backend.currentData()
+            offload = bool(caps and caps.cuda and backend in {"automatic", "cuda"})
+            self.translation_fit.setText(fit_message(self.translation_mode.currentData(), caps.memory if caps else None,
+                                                       caps.gpu_memory if caps else None, offload))
             if sys.platform == "win32":
                 for backend in ("cuda", "vulkan"):
                     item = self.translation_backend.model().item(self.translation_backend.findData(backend))

@@ -12,7 +12,6 @@ import tempfile
 import threading
 from time import monotonic, time_ns
 import unicodedata
-import zipfile
 from functools import lru_cache
 from wordcel.utils.timing import mark
 
