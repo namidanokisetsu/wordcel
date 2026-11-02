@@ -2,10 +2,12 @@
 from urllib.parse import quote, unquote
 from itertools import count
 from functools import lru_cache
+from html import escape
 
-from PyQt6.QtCore import QMimeData, QObject, QPointF, QSizeF, Qt, QUrl
+from PyQt6.QtCore import QEvent, QMimeData, QObject, QPointF, QSizeF, Qt, QUrl
 from PyQt6.QtGui import (QColor, QFont, QFontMetricsF, QTextCharFormat, QTextCursor,
                          QTextDocument, QTextFormat, QTextObjectInterface)
+from PyQt6.QtWidgets import QToolTip
 
 from wordcel.config.config import config
 from wordcel.dictionary.pitch import PITCH_DATA, PITCH_OBJECT, PITCH_PREFIX
@@ -97,6 +99,26 @@ class RubyBrowser(DictionaryBrowser):
         self._pitch_object = None
         self._pressed_kanji = ""
         self.document().documentLayout().registerHandler(RUBY, self._ruby_object)
+
+    def viewportEvent(self, event):
+        if event.type() == QEvent.Type.ToolTip:
+            point = QPointF(event.pos().x() + self.horizontalScrollBar().value(),
+                            event.pos().y() + self.verticalScrollBar().value())
+            position = self.document().documentLayout().hitTest(point, Qt.HitTestAccuracy.ExactHit)
+            tooltip = ""
+            if position >= 0:
+                cursor = QTextCursor(self.document())
+                cursor.setPosition(position)
+                cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
+                fmt = cursor.charFormat()
+                if not fmt.isAnchor():
+                    tooltip = fmt.toolTip()
+            if tooltip:
+                QToolTip.showText(event.globalPos(), "<p>" + escape(tooltip).replace("\n", "<br>") + "</p>", self.viewport())
+            else:
+                QToolTip.hideText()
+            return True
+        return super().viewportEvent(event)
 
     def setHtml(self, html):
         super().setHtml(html)

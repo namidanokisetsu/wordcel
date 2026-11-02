@@ -15,7 +15,7 @@ import zipfile
 from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, QSettings, QSize, Qt, QUrl
 from PyQt6.QtGui import QKeyEvent, QMouseEvent, QTextCursor, QTextFormat
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMessageBox, QToolButton
 
 from wordcel.config.profiles import create_profile, dictionary_preferences, profile_ids, profile_language
 from wordcel.dictionary.library import Entry, Library
@@ -3528,7 +3528,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertNotIn("Strokes", self.window.browser.toPlainText())
         self.assertIn("Fourth sense", self.window.browser.toPlainText())
 
-    def test_kanji_click_merges_meanings_and_more_reveals_reference_fields(self):
+    def test_kanji_click_merges_meanings_without_reference_fields(self):
         kanji = (KanjiEntry("猫", source="Kanji A", meanings=("cat",), stats=(("strokes", 11),)),
                  KanjiEntry("猫", source="Kanji B", meanings=("feline",), stats=(("grade", 8),)),
                  KanjiEntry("犬", source="Kanji A", meanings=("dog",), stats=(("strokes", 4),)))
@@ -3542,10 +3542,6 @@ class QuickLookupTests(unittest.TestCase):
         self.assertNotIn("Kanji B", text)
         self.assertNotIn("Strokes", text)
         self.assertNotIn("Grade", text)
-        self.window.kanji_more.click()
-        text = self.window.kanji_browser.toPlainText()
-        for value in ("Grade", "Kanji A", "Kanji B", "Strokes 11"):
-            self.assertIn(value, text)
         self.assertNotIn("Strokes 4", text)
         self.window._display(SearchResult("犬", "ja", "en", (entry("犬"),)))
         self.assertTrue(self.window.kanji_panel.isHidden())
@@ -3640,7 +3636,8 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(browser.verticalScrollBar().value(), scroll)
         self.assertEqual(browser.textCursor().selectedText(), selection)
 
-    def test_kanji_more_preserves_summary_selection_and_dictionary_document(self):
+    def test_kanji_source_tooltips_and_render_preserve_selection(self):
+        from PyQt6.QtGui import QHelpEvent
         kanji = (KanjiEntry("猫", "One", meanings=("cat",),
                            stats=(("strokes", "11"), ("halpern", "123"))),
                  KanjiEntry("犬", "Two", meanings=("dog",)))
@@ -3649,23 +3646,26 @@ class QuickLookupTests(unittest.TestCase):
         self.app.processEvents()
         browser = self.window.kanji_browser
         browser.setTextCursor(browser.document().find("cat"))
+        self.assertNotIn("More", [button.text() for button in self.window.kanji_panel.findChildren(QToolButton)])
         geometry = self.window.geometry()
         revision = self.window.browser.document().revision()
+        cursor = browser.document().find("cat")
+        cursor.setPosition(cursor.selectionStart())
+        point = browser.cursorRect(cursor).center() + QPoint(2, 0)
+        event = QHelpEvent(QEvent.Type.ToolTip, point, browser.viewport().mapToGlobal(point))
+        with patch("wordcel.gui.ruby.QToolTip.showText") as show:
+            QApplication.sendEvent(browser.viewport(), event)
+            self.assertEqual(show.call_args.args[1], "<p>One</p>")
         for _ in range(2):
-            self.window.kanji_more.click()
-            self.app.processEvents()
-            self.assertIn("halpern", browser.toPlainText())
-            self.assertEqual(browser.textCursor().selectedText(), "cat")
-            self.window.kanji_more.click()
+            self.window._render_kanji_panel()
             self.app.processEvents()
             self.assertNotIn("halpern", browser.toPlainText())
+            self.assertNotIn("Strokes", browser.toPlainText())
             self.assertEqual(browser.textCursor().selectedText(), "cat")
             self.assertEqual(self.window.geometry(), geometry)
             self.assertEqual(self.window.browser.document().revision(), revision)
-        self.window.kanji_more.click()
         self.window._link(QUrl("kanji:犬"))
-        self.assertTrue(self.window.kanji_more.isHidden())
-        self.assertFalse(self.window.kanji_more.isChecked())
+        self.assertIn("dog", browser.toPlainText())
         self.assertNotIn("halpern", browser.toPlainText())
 
     def test_kanji_pane_fits_short_pinned_results(self):

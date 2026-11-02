@@ -36,13 +36,10 @@ def _entry_html(entry, reading_color, *, full=False, show_source=False):
         parts.append(f'<p style="margin:0 0 1px"><small>{_text(entry.source)}</small></p>')
     if entry.meanings:
         parts.append(f'<p style="margin:0 0 1px">{_joined(entry.meanings, None if full else 3)}</p>')
-    reading_parts = []
     for label, readings in (("音", entry.onyomi), ("訓", entry.kunyomi)):
         if readings:
-            reading_parts.append(f'<small>{label}</small> '
-                                 f'<span style="color:{reading_color}">{_joined(readings, None if full else 4)}</span>')
-    if reading_parts:
-        parts.append('<p style="margin:0">' + ' &nbsp; '.join(reading_parts) + '</p>')
+            parts.append(f'<p style="margin:0"><small>{label}</small> '
+                         f'<span style="color:{reading_color}">{_joined(readings, None if full else 4)}</span></p>')
     if not full:
         return "".join(parts)
     stats = [f'{_text(name)} {_text(value)}' for name, value in _stats_rows(entry.stats)
@@ -120,23 +117,7 @@ def _attributed(value, sources):
     return f'<span title="{_text(" · ".join(sources))}">{_text(value)}</span>'
 
 
-def render_kanji_extra(entries):
-    """Keep reference fields available under their original source."""
-    parts = []
-    for entry in entries:
-        stats = [(name, value) for name, value in _stats_rows(entry.stats)
-                 if value is not None and str(value)]
-        if not stats and not entry.tags:
-            continue
-        parts.append(f'<p><small><b>{_text(entry.source or "Dictionary")}</b></small></p>')
-        for name, value in stats:
-            parts.append(f'<p style="margin:0"><small>{_text(name)}</small> {_text(value)}</p>')
-        if entry.tags:
-            parts.append(f'<p style="margin:0"><small>Tags</small> {_joined(entry.tags)}</p>')
-    return "".join(parts)
-
-
-def render_kanji_details(entries, scheme="kanji", *, more=False):
+def render_kanji_details(entries, scheme="kanji"):
     if not entries:
         return ""
     from wordcel.config.config import config
@@ -150,19 +131,14 @@ def render_kanji_details(entries, scheme="kanji", *, more=False):
     parts = ['<table width="100%" cellspacing="0" cellpadding="1"><tr><td valign="top">',
              f'<a name="kanji-detail-{anchor}"></a><span style="{glyph_style}">'
              f'{_character_link(character, accent, True, scheme)}</span></td><td valign="top">']
-    reading_parts = []
     for label, field in (("Meanings", "meanings"), ("音", "onyomi"), ("訓", "kunyomi")):
         values = _shared_values(entries, field)
         if values:
             color = reading_color if field != "meanings" else _text(config.color_foreground)
             text = " · ".join(_attributed(value, sources) for value, sources in values)
-            if field == "meanings":
-                parts.append(f'<p style="margin:2px 0"><small>{label}</small><br>'
-                             f'<span style="color:{color}">{text}</span></p>')
-            else:
-                reading_parts.append(f'<small>{label}</small> <span style="color:{color}">{text}</span>')
-    if reading_parts:
-        parts.append('<p style="margin:2px 0">' + ' &nbsp; '.join(reading_parts) + '</p>')
+            separator = '<br>' if field == "meanings" else ' '
+            parts.append(f'<p style="margin:2px 0"><small>{label}</small>{separator}'
+                         f'<span style="color:{color}">{text}</span></p>')
     parts.append('</td></tr>')
     parts.append('</table>')
     for field in ("components", "examples"):
@@ -174,8 +150,6 @@ def render_kanji_details(entries, scheme="kanji", *, more=False):
             item = replace(entries[0], source=" · ".join(sources), meanings=(), onyomi=(), kunyomi=(),
                            stats=(), tags=(), **fields)
             parts.append(_entry_html(item, reading_color, full=True, show_source=len(entries) > 1))
-    if more:
-        parts.append(render_kanji_extra(entries))
     return "".join(parts)
 
 
@@ -221,5 +195,5 @@ def render_kanji(entries, expanded=False, *, compact_only=False, expanded_charac
     for character, group in groups:
         if character not in detailed:
             continue
-        parts.append(render_kanji_details(group, more=True))
+        parts.append(render_kanji_details(group))
     return "".join(parts)
