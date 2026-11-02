@@ -45,6 +45,19 @@ class FirstRunTests(unittest.TestCase):
         self.wizard = LanguageSuggestion(self.window)
         self.addCleanup(self.window.deleteLater)
 
+    def test_dictionary_workflow_leaves_expensive_enhancements_unselected(self):
+        self.wizard.workflow.setCurrentIndex(self.wizard.workflow.findData("dictionary"))
+        self.assertTrue(self.wizard.selected_tasks())
+        self.assertEqual({task.kind for task in self.wizard.selected_tasks()}, {"dictionary"})
+        self.assertFalse(any(check.isChecked() for task, check in self.wizard.choices
+                             if task.kind in {"fonts", "morphology", "translation", "ocr"}))
+
+    def test_unknown_memory_does_not_recommend_a_model_download(self):
+        from wordcel.translation_hardware import Capabilities
+        self.wizard.prepared_resources(Capabilities(), set())
+        self.assertIsNone(self.wizard.translation.currentData())
+        self.assertFalse(any(check.isChecked() for task, check in self.wizard.choices if task.kind == "translation"))
+
     def test_only_fresh_installations_offer_the_initial_language(self):
         self.assertTrue(needs_setup(self.settings))
         self.settings.setValue("profile", "ja")
@@ -255,7 +268,7 @@ class FirstRunTests(unittest.TestCase):
         self.assertTrue(self.settings.value("profiles/ja/setup_completed", False, bool))
 
     def test_dictionary_is_optional_and_translation_uses_selected_size(self):
-        self.assertTrue(all(check.isChecked() == (task.kind != "translation") for task, check in self.wizard.choices))
+        self.assertTrue(all(check.isChecked() == (task.kind in {"dictionary", "ocr"}) for task, check in self.wizard.choices))
         next(check for task, check in self.wizard.choices if task.kind == "translation").setChecked(True)
         for task, check in self.wizard.choices:
             check.setChecked(task.kind == "translation")
@@ -327,7 +340,7 @@ class FirstRunTests(unittest.TestCase):
         self.assertEqual(self.wizard.selected_tasks(), [translation])
         self.assertEqual(self.wizard.install.text(), "Retry")
         self.assertLess(self.wizard.bar.value(), self.wizard.bar.maximum())
-        self.assertTrue(all(not check.isEnabled() for task, check in self.wizard.choices if task.kind != "translation"))
+        self.assertTrue(all(not check.isEnabled() for task, check in self.wizard.choices if task in [item for item, _ in completed]))
         self.wizard.operation = Mock(cancelled=threading.Event())
         self.wizard.download_finished([(translation, "")], [])
         self.assertFalse(self.wizard.selected_tasks())

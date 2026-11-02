@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import threading
 
-from PyQt6.QtCore import QObject, QSignalBlocker, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, QSignalBlocker, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QListWidget,
     QInputDialog, QLineEdit, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSpinBox, QTabWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
@@ -33,12 +33,13 @@ class SetupOperation(QObject):
     refresh = pyqtSignal()
 
     def __init__(self, paths, directory, language=None, profile=None, recommended=None, remove=None, morphology=None, ocr=None, fonts=False,
-                 asset=None, remove_language=None, update=None, bundle=None, engine=None):
+                 asset=None, remove_language=None, update=None, bundle=None, engine=None, backend="automatic"):
         super().__init__()
         self.paths = paths
         self.directory = directory
         self.language = language
         self.profile = profile
+        self.backend = backend
         self.recommended = recommended
         self.remove = remove
         self.morphology = morphology
@@ -187,7 +188,7 @@ class SetupOperation(QObject):
             try:
                 from wordcel.scripts.translation_server import install_model
                 options = dict(runtime_only=True) if self.profile == "runtime" else dict(profile=self.profile)
-                install_model(progress=lambda value: self._emit(self.progress, value), cancelled=self.cancelled, **options)
+                install_model(backend=self.backend, progress=lambda value: self._emit(self.progress, value), cancelled=self.cancelled, **options)
                 self._emit(self.finished, "Model installed. Translate when ready.", True)
             except InterruptedError:
                 self._emit(self.finished, "Download cancelled.", False)
@@ -333,11 +334,26 @@ class SetupDialog(SettingsNavigation, QDialog):
         for label, control in (("From", self.translation_source), ("To", self.translation_target)):
             advanced_form.addRow(label, control)
         self.translation_mode = QComboBox()
-        self.translation_mode.addItem("Quality (8 GB)", "quality")
-        self.translation_mode.addItem("Lightweight (1.9 GB)", "lightweight")
+        from wordcel.translation_catalog import MODELS, model_label
+        for identity in ("quality", "lightweight"):
+            self.translation_mode.addItem(model_label(identity), identity)
         self.translation_mode.addItem("Custom local server", "custom")
+        self.translation_mode.addItem(model_label("compact"), "compact")
         self.translation_mode.setToolTip("Sizes are downloads. Running a model needs additional memory.")
         translation_form.addRow("Model", self.translation_mode)
+        self.translation_form = translation_form
+        self.translation_backend = QComboBox()
+        for label, value in (("Automatic", "automatic"), ("CPU", "cpu"), ("Vulkan", "vulkan"), ("CUDA", "cuda")):
+            self.translation_backend.addItem(label, value)
+        translation_form.addRow("Runtime", self.translation_backend)
+        self.translation_fit = QLabel()
+        self.translation_fit.setWordWrap(True)
+        translation_form.addRow(self.translation_fit)
+        self.translation_capabilities, self.translation_verified = None, set()
+        from wordcel.gui.resources import ResourcePreparation
+        self.translation_preparation = ResourcePreparation(self)
+        self.translation_preparation.finished.connect(self.prepared_translation)
+        self.translation_preparation.thread.start()
         self.auto_translate_miss = QCheckBox("Translate when no definition is found")
         self.auto_translate_sentences = QCheckBox("Auto-translate sentences")
         self.auto_translate_miss.setToolTip("Translate submitted text when lookup finds no definition")
@@ -379,11 +395,13 @@ class SetupDialog(SettingsNavigation, QDialog):
             translation_error = str(error)
         self.translation_mode.setCurrentIndex(self.translation_mode.findData(
             translation_settings.profile if translation_settings.provider == "server" else "custom"))
+        self.translation_backend.setCurrentIndex(self.translation_backend.findData(translation_settings.backend))
         self.translation_endpoint.setText(translation_settings.endpoint)
         self.translation_model.setText(translation_settings.model)
         self.translation_stream.setChecked(translation_settings.stream)
         self.translation_chunk_size.setValue(translation_settings.chunk_size)
         self.translation_warm.setChecked(translation_settings.keep_warm)
+        self.translation_backend.currentIndexChanged.connect(self.update_translation_controls)
         self.translation_mode.currentIndexChanged.connect(self.update_translation_controls)
         self.update_translation_controls()
 
@@ -647,6 +665,7 @@ class SetupDialog(SettingsNavigation, QDialog):
             control.currentIndexChanged.connect(lambda _: self.autosave(self.save_translation))
         for control in (self.translation_endpoint, self.translation_model):
             control.editingFinished.connect(lambda: self.autosave(self.save_translation))
+        self.translation_backend.currentIndexChanged.connect(lambda _: self.autosave(self.save_translation))
         self.translation_stream.toggled.connect(lambda _: self.autosave(self.save_translation))
         self.translation_chunk_size.valueChanged.connect(lambda _: self.autosave(self.save_translation))
         self.translation_warm.toggled.connect(lambda _: self.autosave(lambda: self.save_translation(cancel=False)))
@@ -1289,6 +1308,8 @@ class SetupDialog(SettingsNavigation, QDialog):
             self.status.setText(str(error))
         with QSignalBlocker(self.translation_mode):
             self.translation_mode.setCurrentIndex(self.translation_mode.findData(translation.profile if translation.provider == "server" else "custom"))
+        with QSignalBlocker(self.translation_backend):
+            self.translation_backend.setCurrentIndex(self.translation_backend.findData(translation.backend))
         self.update_translation_controls(load=True)
         self.translation_endpoint.setText(translation.endpoint)
         self.translation_model.setText(translation.model)
@@ -1414,8 +1435,28 @@ class SetupDialog(SettingsNavigation, QDialog):
                 language = self.language.currentText().strip().lower() or None
         self.begin_operation(paths, language=language)
 
+    @pyqtSlot(object, object)
+    def prepared_translation(self, capabilities, verified):
+        from PyQt6 import sip
+        if sip.isdeleted(self.translation_mode):
+            return
+        self.translation_capabilities, self.translation_verified = capabilities, verified
+        self.update_translation_controls()
+
     def update_translation_controls(self, *_args, load=False):
         custom = self.translation_mode.currentData() == "custom"
+        self.translation_form.setRowVisible(self.translation_backend, not custom and sys.platform == "win32")
+        self.translation_form.setRowVisible(self.translation_fit, not custom)
+        if not custom:
+            from wordcel.translation_catalog import fit_message
+            caps = self.translation_capabilities
+            self.translation_fit.setText(fit_message(self.translation_mode.currentData(), caps.memory if caps else None))
+            if sys.platform == "win32":
+                for backend in ("cuda", "vulkan"):
+                    item = self.translation_backend.model().item(self.translation_backend.findData(backend))
+                    available = caps is not None and getattr(caps, backend)
+                    item.setEnabled(available)
+                    item.setToolTip("Checking hardware…" if caps is None else "" if available else getattr(caps, backend + "_reason"))
         self.update_translation_languages(load=load)
         self.translation_advanced_form.setRowVisible(self.translation_endpoint, custom)
         self.translation_advanced_form.setRowVisible(self.translation_model, custom)
@@ -1473,7 +1514,8 @@ class SetupDialog(SettingsNavigation, QDialog):
                 profile=mode if mode != "custom" else "quality",
                 endpoint=self.translation_endpoint.text(), model=self.translation_model.text(),
                 auto_start=True, stream=self.translation_stream.isChecked(),
-                keep_warm=self.translation_warm.isChecked(), chunk_size=self.translation_chunk_size.value()))
+                keep_warm=self.translation_warm.isChecked(), chunk_size=self.translation_chunk_size.value(),
+                backend=self.translation_backend.currentData()))
             self.settings.setValue(f"profiles/{code}/target", self.translation_partner.currentData())
             for key, control in (("source", self.translation_source), ("target", self.translation_target)):
                 self.settings.setValue(f"profiles/{code}/translation_{key}", control.currentData())
@@ -1518,7 +1560,8 @@ class SetupDialog(SettingsNavigation, QDialog):
     def begin_operation(self, paths, language=None, profile=None, recommended=None, remove=None, morphology=None, ocr=None, fonts=False,
                         asset=None, remove_language=None, update=None, bundle=None, engine=None):
         operation = SetupOperation(paths, self.directory, language, profile, recommended, remove, morphology, ocr, fonts,
-                                   asset, remove_language, update, bundle, engine)
+                                   asset, remove_language, update, bundle, engine,
+                                   backend=self.translation_backend.currentData())
         if self.operation_busy(operation.resource):
             operation.deleteLater()
             return

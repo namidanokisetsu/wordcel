@@ -213,7 +213,7 @@ class ResourceTests(unittest.TestCase):
             for code in ("ja", "tr"):
                 save_profile_settings(settings, code, TranslationSettings(profile="quality"))
             with patch("wordcel.gui.resources.ocr_ready", return_value=True), \
-                    patch("wordcel.gui.resources.translation_ready", side_effect=lambda name: name == "lightweight"):
+                    patch("wordcel.gui.resources.translation_ready", side_effect=lambda name, backend="automatic": name == "lightweight"):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
                     resources = dialog.resources
@@ -414,3 +414,21 @@ class ResourceTests(unittest.TestCase):
                 finally:
                     dialog.deleteLater(); parent.deleteLater()
                     self.app.processEvents()
+
+
+class TransferEstimateTests(unittest.TestCase):
+    def test_selected_backend_and_verified_cache_determine_download_cost(self):
+        from wordcel.gui.resources import translation_transfer_size
+        from wordcel.scripts.translation_server import MODELS, RUNTIMES, RUNTIME_SIZES
+        from wordcel.translation_hardware import Capabilities
+        with tempfile.TemporaryDirectory() as directory, \
+                patch("wordcel.scripts.translation_server._platform_key", return_value="win-x64"):
+            model = MODELS["compact"]
+            cpu_name = RUNTIMES["win-x64-cpu"][0][0]
+            self.assertIsNone(translation_transfer_size("compact", directory=directory))
+            self.assertEqual(translation_transfer_size("compact", capabilities=Capabilities(), directory=directory),
+                             model["size"] + RUNTIME_SIZES[cpu_name])
+            self.assertEqual(translation_transfer_size("compact", capabilities=Capabilities(), verified={cpu_name}, directory=directory),
+                             model["size"])
+            self.assertEqual(translation_transfer_size("compact", capabilities=Capabilities(),
+                             verified={cpu_name, model["file"]}, directory=directory), 0)

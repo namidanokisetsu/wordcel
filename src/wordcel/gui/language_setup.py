@@ -12,6 +12,7 @@ class SetupTask:
     kind: str
     label: str
     value: object
+    backend: str = "automatic"
 
 
 def language_plan(language, translation="lightweight", platform=None):
@@ -56,8 +57,8 @@ def install_task(task, directory, progress, cancelled):
         return install(progress, cancelled)
     from wordcel.scripts.translation_server import install_model
     from wordcel.gui.resources import translation_ready
-    if not translation_ready(task.value):
-        install_model(profile=task.value, progress=progress, cancelled=cancelled)
+    if not translation_ready(task.value, task.backend):
+        install_model(profile=task.value, backend=task.backend, progress=progress, cancelled=cancelled)
     return ""
 
 

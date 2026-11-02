@@ -2,8 +2,10 @@
 import json
 from functools import lru_cache
 from pathlib import Path
+import threading
+from wordcel.scripts import translation_server as _translation_server
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QObject, Qt, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMenu, QPushButton, QVBoxLayout, QWidget
 
 
@@ -49,14 +51,14 @@ def ocr_ready(provider, component_directory=""):
     return False
 
 
-def translation_ready(profile):
+def translation_ready(profile, backend="automatic"):
     from wordcel.dictionary.translation import model_installed
-    return model_installed(profile)
+    return model_installed(profile) if backend == "automatic" else model_installed(profile, backend)
 
 
 @lru_cache(maxsize=8)
-def managed_translation_available(model):
-    return translation_ready(model)
+def managed_translation_available(model, backend="automatic"):
+    return translation_ready(model) if backend == "automatic" else translation_ready(model, backend)
 
 
 def profile_translation_available(settings, identity):
@@ -76,7 +78,7 @@ def profile_translation_available(settings, identity):
             return False
         if options.provider == "custom":
             return bool(local_endpoint(options.endpoint) and options.model.strip())
-        return managed_translation_available(options.profile)
+        return managed_translation_available(options.profile) if options.backend == "automatic" else managed_translation_available(options.profile, options.backend)
     except (ValueError, TypeError):
         return False
 
@@ -119,7 +121,8 @@ class ResourcesPanel(QWidget):
         self.translation_section = QWidget(self)
         layout = QVBoxLayout(self.translation_section)
         layout.setContentsMargins(0, 0, 0, 0)
-        for name in ("lightweight", "quality"):
+        from wordcel.translation_catalog import MODELS
+        for name in MODELS:
             widget = QWidget()
             row = QHBoxLayout(widget)
             row.setContentsMargins(0, 0, 0, 0)
@@ -204,9 +207,12 @@ class ResourcesPanel(QWidget):
         supported = (owner.translation_mode.currentData() != "custom"
                      and translation_supported(source) and translation_supported(target))
         for name in self.downloads:
-            ready = supported and translation_ready(name)
+            ready = supported and translation_ready(name, owner.translation_backend.currentData())
             selected = owner.translation_mode.currentData() == name
             self.model_rows[name].setVisible(supported and selected and not ready)
+            cost = translation_transfer_size(name, owner.translation_backend.currentData(), owner.translation_capabilities,
+                                             owner.translation_verified)
+            self.downloads[name].setText("Download model" + (f" ({cost / 1e6:.0f} MB)" if cost is not None else ""))
             self.downloads[name].setVisible(supported and not ready)
             self.downloads[name].setEnabled(supported and not ready and not owner.operation_busy("translation"))
         self.translation_section.setVisible(any(not row.isHidden() for row in self.model_rows.values()))
@@ -220,3 +226,88 @@ class ResourcesPanel(QWidget):
         ready = profile_translation_available(owner.settings, owner.profile.currentData())
         owner.appearance.set_translation_available(ready)
         owner.translation_shortcut.setToolTip("" if ready else "Set up Translation to use this shortcut")
+
+
+_preparation_lock = threading.Lock()
+_prepared_capabilities = None
+_verified_downloads = {}
+
+
+class ResourcePreparation(QObject):
+    """One worker prepares driver capability and verified cache costs."""
+    finished = pyqtSignal(object, object)
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        import threading
+        self.thread = threading.Thread(target=self.run, daemon=True, name="resource-capabilities")
+
+    def run(self):
+        from wordcel.translation_hardware import detect_capabilities
+        RUNTIMES, _sha256, translation_path = _translation_server.RUNTIMES, _translation_server._sha256, _translation_server.translation_path
+        global _prepared_capabilities
+        with _preparation_lock:
+            if _prepared_capabilities is None:
+                _prepared_capabilities = detect_capabilities()
+            capabilities, verified = _prepared_capabilities, set()
+            root = translation_path()
+            artifacts = [(root / "downloads" / name, name, digest)
+                         for name, digest in set(asset for assets in RUNTIMES.values() for asset in assets)]
+            artifacts.extend((root / "downloads/huggingface" / model["repo"] / model["revision"] / model["file"],
+                              model["file"], model["sha256"]) for model in _translation_server.MODELS.values())
+            for path, name, digest in artifacts:
+                try:
+                    stat = path.stat()
+                    signature = stat.st_size, stat.st_mtime_ns, digest
+                    cached = _verified_downloads.get(path)
+                    if cached is None or cached[0] != signature:
+                        cached = signature, _sha256(path) == digest
+                        _verified_downloads[path] = cached
+                    if cached[1]:
+                        verified.add(name)
+                except OSError:
+                    pass
+        try:
+            self.finished.emit(capabilities, verified)
+        except RuntimeError:
+            pass
+
+
+def translation_transfer_size(profile, backend="automatic", capabilities=None, verified=(), directory=None):
+    """None denotes an unknown runtime cost, never an estimated completion time."""
+    MODELS, RUNTIMES = _translation_server.MODELS, _translation_server.RUNTIMES
+    RUNTIME_SIZES, RELEASE = _translation_server.RUNTIME_SIZES, _translation_server.RELEASE
+    _platform_key = _translation_server._platform_key
+    installation, translation_path = _translation_server.installation, _translation_server.translation_path
+    model, root = MODELS[profile], translation_path(directory)
+    installed = installation(root)
+    entry = installed.get("models", {}).get(profile, {})
+    target = root / "models" / model["file"]
+    size = 0 if model["file"] in verified or (entry.get("size") == model["size"] and target.is_file() and target.stat().st_size == model["size"]) else model["size"]
+    try:
+        platform_key = _platform_key()
+        if platform_key.startswith("win-"):
+            if capabilities is None:
+                return None
+            backend = capabilities.select(backend)
+            key = platform_key + "-" + backend
+        else:
+            backend, key = "native", platform_key
+        runtime = root / f"runtime-{RELEASE}-{key}"
+        if backend == "cuda" and (root / f"runtime-{RELEASE}-{platform_key}").is_dir():
+            runtime = root / f"runtime-{RELEASE}-{platform_key}"
+        if any(runtime.rglob("llama-server.exe")) or any(runtime.rglob("llama-server")):
+            return size
+        for name, digest in RUNTIMES[key]:
+            if name not in verified:
+                if name not in RUNTIME_SIZES:
+                    return None
+                size += RUNTIME_SIZES[name]
+        return size
+    except (RuntimeError, KeyError):
+        return None
+
+
+def transfer_label(known, unknown=False):
+    return (f"Download: {known / 1e6:.1f} MB" + (" + unknown" if unknown else "")) if known else \
+        ("Download size unknown" if unknown else "No download needed")

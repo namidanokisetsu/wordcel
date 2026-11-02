@@ -1,5 +1,5 @@
 """One-time resource suggestions for a newly added language profile."""
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFormLayout, QHBoxLayout,
                             QLabel, QPushButton, QProgressBar, QVBoxLayout, QWidget)
 
@@ -85,8 +85,11 @@ class LanguageSuggestion(QDialog):
         self.setWindowTitle(language_name(self.language))
         self.resize(480, 300)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Install recommended essentials"))
-        layout.addWidget(QLabel("Dictionary and screen recognition"))
+        self.workflow = QComboBox()
+        self.workflow.addItem("Dictionary lookup", "dictionary")
+        self.workflow.addItem("Dictionary and screen recognition", "ocr")
+        self.workflow.setCurrentIndex(1)
+        layout.addWidget(self.workflow)
         self.customize = QCheckBox("Customize")
         layout.addWidget(self.customize)
         self.details = QWidget()
@@ -102,7 +105,7 @@ class LanguageSuggestion(QDialog):
         resource_rows = {}
         for task in language_plan(self.language):
             check = QCheckBox(task.label)
-            check.setChecked(task.kind != "translation")
+            check.setChecked(task.kind in {"dictionary", "ocr"})
             if task.kind in {"ocr", "translation"}:
                 row = QHBoxLayout()
                 row.addWidget(check)
@@ -112,17 +115,21 @@ class LanguageSuggestion(QDialog):
                 detail_layout.addWidget(check)
             self.choices.append((task, check))
         self.translation = QComboBox(self)
-        self.translation.addItem("Lightweight (1.9 GB)", "lightweight")
-        self.translation.addItem("Quality (8 GB)", "quality")
+        from wordcel.translation_catalog import model_label
+        for identity in ("lightweight", "quality", "compact"):
+            self.translation.addItem(model_label(identity), identity)
         self.translation.addItem("No translation download", None)
         self.translation.setToolTip("Downloaded models are shared by all languages")
         from wordcel.gui.resources import translation_ready
         from wordcel.dictionary.translation import load_profile_settings
         try:
-            preferred = load_profile_settings(window.settings, self.profile).profile
+            options = load_profile_settings(window.settings, self.profile)
+            preferred = options.profile
+            self.translation_backend = options.backend
         except ValueError:
             preferred = "lightweight"
-        installed = [name for name in ("lightweight", "quality") if translation_ready(name)]
+            self.translation_backend = "automatic"
+        installed = [name for name in ("lightweight", "quality", "compact") if translation_ready(name)]
         selected = preferred if preferred in installed else next(iter(installed), "lightweight")
         if window.settings.contains(f"profiles/{self.profile}/translation"):
             selected = preferred
@@ -155,11 +162,25 @@ class LanguageSuggestion(QDialog):
         else:
             self.ocr.hide()
         self.ocr.currentIndexChanged.connect(self.refresh_choices)
+        self.workflow.currentIndexChanged.connect(self.select_workflow)
         for task, check in self.choices:
             if task.kind == "translation":
                 check.toggled.connect(self.translation.setEnabled)
             elif task.kind == "ocr":
                 check.toggled.connect(self.ocr.setEnabled)
+        self.transfer = QLabel()
+        self.transfer.setWordWrap(True)
+        layout.addWidget(self.transfer)
+        self.translation_fit = QLabel()
+        self.translation_fit.setWordWrap(True)
+        detail_layout.addWidget(self.translation_fit)
+        self.capabilities, self.verified = None, set()
+        from wordcel.gui.resources import ResourcePreparation
+        self.preparation = ResourcePreparation(self)
+        self.preparation.finished.connect(self.prepared_resources)
+        self.preparation.thread.start()
+        for task, check in self.choices:
+            check.toggled.connect(self.refresh_choices)
         self.bar = QProgressBar()
         self.bar.hide()
         layout.addWidget(self.bar)
@@ -180,9 +201,31 @@ class LanguageSuggestion(QDialog):
         self.refresh_choices()
         self.adjustSize()
 
+    def select_workflow(self):
+        for task, check in self.choices:
+            if task.kind == "ocr":
+                check.setChecked(self.workflow.currentData() == "ocr")
+        self.refresh_choices()
+
+    @pyqtSlot(object, object)
+    def prepared_resources(self, capabilities, verified):
+        from PyQt6 import sip
+        if sip.isdeleted(self.translation):
+            return
+        self.capabilities, self.verified = capabilities, verified
+        from wordcel.translation_catalog import recommend_model
+        if not self.window.settings.contains(f"profiles/{self.profile}/translation") \
+                and not any(task.kind == "translation" and check.isChecked() for task, check in self.choices):
+            from wordcel.gui.resources import translation_ready
+            if not any(translation_ready(name) for name in ("lightweight", "quality", "compact")):
+                identity = recommend_model(capabilities.memory)
+                self.translation.setCurrentIndex(self.translation.findData(identity))
+        self.refresh_choices()
+
     def selected_tasks(self):
         from dataclasses import replace
-        tasks = [replace(task, value=self.translation.currentData() if task.kind == "translation" else self.ocr.currentData())
+        tasks = [replace(task, value=self.translation.currentData() if task.kind == "translation" else self.ocr.currentData(),
+                         backend=self.translation_backend if task.kind == "translation" else "automatic")
                  if task.kind in {"translation", "ocr"} else task
                  for task, check in self.choices if check.isChecked()]
         return [task for task in tasks if task.value is not None and not self.task_ready(task)]
@@ -192,7 +235,7 @@ class LanguageSuggestion(QDialog):
             return True
         if task.kind == "translation":
             from wordcel.gui.resources import translation_ready
-            return task.value is not None and translation_ready(task.value)
+            return task.value is not None and translation_ready(task.value, task.backend)
         if task.kind == "ocr":
             from wordcel.gui.resources import ocr_ready
             return task.value is not None and ocr_ready(task.value, self.window.settings.value("screenai_directory", ""))
@@ -210,7 +253,8 @@ class LanguageSuggestion(QDialog):
         from dataclasses import replace
         installed_labels = [meta["title"] for meta in self.installed_packs]
         for task, check in self.choices:
-            selected = replace(task, value=self.translation.currentData() if task.kind == "translation" else self.ocr.currentData()) \
+            selected = replace(task, value=self.translation.currentData() if task.kind == "translation" else self.ocr.currentData(),
+                               backend=self.translation_backend if task.kind == "translation" else "automatic") \
                 if task.kind in {"translation", "ocr"} else task
             installed = self.task_ready(selected)
             check.setText(task.label + (" ✓ Installed" if installed else ""))
@@ -218,6 +262,23 @@ class LanguageSuggestion(QDialog):
             if installed and (task.kind != "dictionary" or task in self.completed_tasks):
                 installed_labels.append(task.label)
         self.installed_summary.setText("Installed: " + ", ".join(installed_labels) if installed_labels else "No resources installed")
+        from wordcel.gui.resources import translation_transfer_size, transfer_label
+        from wordcel.translation_catalog import fit_message
+        known, unknown = 0, False
+        for task in self.selected_tasks():
+            if task.kind == "translation":
+                cost = translation_transfer_size(task.value, self.translation_backend, capabilities=self.capabilities, verified=self.verified)
+                if cost is None:
+                    unknown = True
+                else:
+                    known += cost
+            elif task.kind == "ocr" and task.value in {"vision", "windows"}:
+                pass
+            else:
+                unknown = True
+        self.transfer.setText(transfer_label(known, unknown))
+        identity = self.translation.currentData()
+        self.translation_fit.setText(fit_message(identity, self.capabilities.memory if self.capabilities else None) if identity else "")
 
     def use_translation(self, profile):
         from dataclasses import replace
@@ -249,6 +310,7 @@ class LanguageSuggestion(QDialog):
         self.bar.setValue(0)
         self.bar.show()
         self.install.setEnabled(False)
+        self.workflow.setEnabled(False)
         self.translation.setEnabled(False)
         self.ocr.setEnabled(False)
         for task, check in self.choices:
@@ -282,6 +344,7 @@ class LanguageSuggestion(QDialog):
         self.completed_tasks.extend(task for task, _ in completed if task not in self.completed_tasks)
         self.bar.setValue(len(completed))
         self.install.setEnabled(True)
+        self.workflow.setEnabled(True)
         self.install.setText("Retry" if errors else "Install")
         self.refresh_choices()
         self.translation.setEnabled(any(task.kind == "translation" and check.isChecked()
