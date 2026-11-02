@@ -126,7 +126,8 @@ class InstallerTests(unittest.TestCase):
         server._write_installation(self.root, dict(models=models))
         with patch.object(server, "_platform_key", return_value="win-x64"), \
                 patch.object(server, "_download", side_effect=AssertionError("unexpected model download")):
-            result = server.install_model(directory=self.root, runtime_only=True)
+            from wordcel.translation_hardware import Capabilities
+            result = server.install_model(directory=self.root, runtime_only=True, backend="cuda", capabilities=Capabilities(cuda=True))
         self.assertEqual(result["models"], models)
         self.assertEqual(result["executable"], runtime.name + "/llama-server.exe")
 
@@ -229,7 +230,7 @@ class ManagedServerTests(unittest.TestCase):
     def test_missing_model_does_not_download_or_spawn(self):
         (self.root / "quality.gguf").unlink()
         with patch.object(server, "urlopen", side_effect=AssertionError("network")), \
-                patch.object(server.subprocess, "Popen") as spawn, self.assertRaisesRegex(RuntimeError, "Hy-MT2 7B.*Translation"):
+                patch.object(server.subprocess, "Popen") as spawn, self.assertRaisesRegex(RuntimeError, "Hy-MT2-7B.*Translation"):
             server.ensure_server(directory=self.root)
         spawn.assert_not_called()
 
@@ -343,3 +344,76 @@ class ManagedServerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BackendTests(unittest.TestCase):
+    def test_worker_detection_never_treats_vendor_names_as_capabilities(self):
+        from wordcel.translation_hardware import Capabilities, detect_capabilities
+        for name, cuda, vulkan, selected in (("CPU", None, False, "cpu"), ("AMD", None, True, "vulkan"),
+                                             ("Intel", None, True, "vulkan"), ("NVIDIA", 8 * 1024**3, True, "cuda"),
+                                             ("uncertain NVIDIA", None, False, "cpu")):
+            with self.subTest(name=name), patch("wordcel.translation_hardware.sys.platform", "win32"), \
+                    patch("wordcel.translation_hardware.system_memory", return_value=None), \
+                    patch("wordcel.translation_hardware._cuda", return_value=cuda), \
+                    patch("wordcel.translation_hardware._vulkan", return_value=vulkan):
+                self.assertEqual(detect_capabilities().select(), selected)
+        with self.assertRaisesRegex(RuntimeError, "Choose CPU"):
+            Capabilities().select("cuda")
+
+    def test_only_selected_runtime_downloads_and_model_is_reused(self):
+        from wordcel.translation_hardware import Capabilities
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            model = root / "models/model.gguf"
+            model.parent.mkdir()
+            model.write_bytes(b"model")
+            manifest = {"models": {"quality": {"path": "models/model.gguf", "size": 5}}}
+            server._write_installation(root, manifest)
+            calls = []
+            def download(url, destination, digest, *args):
+                calls.append(Path(destination).name)
+                with zipfile.ZipFile(destination, "w") as archive:
+                    archive.writestr("llama-server.exe", b"server")
+                return destination
+            assets = {"win-x64": (), "win-x64-cpu": (("cpu.zip", "digest"),),
+                      "win-x64-vulkan": (("vulkan.zip", "digest"),)}
+            (root / "downloads").mkdir()
+            with patch.object(server, "_platform_key", return_value="win-x64"), \
+                    patch.object(server, "RUNTIMES", assets), patch.object(server, "_download", side_effect=download):
+                cpu = server.install_model(directory=root, runtime_only=True, capabilities=Capabilities())
+                self.assertEqual(calls, ["cpu.zip"])
+                self.assertEqual(cpu["backend"], "cpu")
+                vulkan = server.install_model(directory=root, backend="vulkan", runtime_only=True,
+                                              capabilities=Capabilities(vulkan=True))
+            self.assertEqual(calls, ["cpu.zip", "vulkan.zip"])
+            self.assertEqual(vulkan["models"], manifest["models"])
+            self.assertNotEqual(server._installed_paths("quality", root, "cpu")[0],
+                                server._installed_paths("quality", root, "vulkan")[0])
+            self.assertEqual(model.read_bytes(), b"model")
+            command = server.server_command(*server._installed_paths("quality", root, "cpu"), backend="cpu")
+            self.assertEqual(command[command.index("-ngl") + 1], "0")
+
+    def test_backend_switch_restarts_owned_process_for_the_same_model(self):
+        from wordcel.translation_hardware import Capabilities
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            model = root / "model.gguf"
+            model.write_bytes(b"model")
+            runtimes = {}
+            for backend in ("cpu", "vulkan"):
+                executable = root / backend / "llama-server.exe"
+                executable.parent.mkdir()
+                executable.write_bytes(b"runtime")
+                runtimes[backend] = {"executable": executable.relative_to(root).as_posix()}
+            server._write_installation(root, {"models": {"quality": {"path": "model.gguf", "size": 5}}, "runtimes": runtimes})
+            first, second = Mock(), Mock()
+            first.poll.return_value = second.poll.return_value = None
+            try:
+                with patch.object(server, "_ready", side_effect=[False, True, False, True]), \
+                        patch.object(server.subprocess, "Popen", side_effect=[first, second]), \
+                        patch("wordcel.translation_hardware.detect_capabilities", side_effect=AssertionError("inference probe")):
+                    server.ensure_server(directory=root, backend="cpu")
+                    server.ensure_server(directory=root, backend="vulkan")
+                first.terminate.assert_called_once()
+            finally:
+                server.shutdown_server()

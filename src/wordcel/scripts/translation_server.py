@@ -39,14 +39,21 @@ RUNTIMES = {
     "mac-arm64": (("llama-b11146-bin-macos-arm64.tar.gz", "1ad3f9eff80edb9dbef4259ad564d1720612ef7eea48fa4afed0e54f5f3d5711"),),
     "mac-x64": (("llama-b11146-bin-macos-x64.tar.gz", "305f0e3a17d2c01eb205cd0a62128357f1ec3b55329cb084d94e5ec0115d7a3b"),),
 }
-MODELS = {
-    "quality": dict(repo="Hy-MT2-7B-GGUF", revision="ab8472660ac61fac25f1af43fac2599d52a8a775",
-                    file="HY-MT2-7B-Q8_0.gguf", size=7981928896,
-                    sha256="58b3ad55dd6f6fa08c695cddc34fb5f8f708a844f78ae10508071914b0ed67c0"),
-    "lightweight": dict(repo="Hy-MT2-1.8B-GGUF", revision="a0c709d9fac510f2c807aa3af52872340dc37a4a",
-                        file="Hy-MT2-1.8B-Q8_0.gguf", size=1908528192,
-                        sha256="5c3fe0b1408a5ceb0143184ef247b11b579c525f4b02b060e6c851bb76fef1a4"),
+RUNTIMES.update({
+    "win-x64-cuda": RUNTIMES["win-x64"],
+    "win-x64-cpu": (("llama-b11146-bin-win-cpu-x64.zip", "14cf1303ca9ac3abd94816850532f9f9a69ac66fbaca3776fc6f9061c2fac1d1"),),
+    "win-x64-vulkan": (("llama-b11146-bin-win-vulkan-x64.zip", "55a378aa095b466979d85075234f66d7655c7a7483222af0c006c0e55b4d7bd6"),),
+})
+RUNTIME_SIZES = {
+    "llama-b11146-bin-win-cpu-x64.zip": 18560055,
+    "llama-b11146-bin-win-vulkan-x64.zip": 32127004,
+    "llama-b11146-bin-win-cuda-13.4-x64.zip": 149758833,
+    "cudart-llama-bin-win-cuda-13.4-x64.zip": 423535356,
+    "llama-b11146-bin-macos-arm64.tar.gz": 11189714,
+    "llama-b11146-bin-macos-x64.tar.gz": 11237237,
 }
+from wordcel.translation_catalog import MODELS
+
 _lock = threading.RLock()
 _running_warm = False
 _install_lock = threading.Lock()
@@ -54,6 +61,7 @@ _stop_requested = threading.Event()
 _closed = threading.Event()
 _process = None
 _running_model = None
+_running_executable = None
 
 
 def translation_path(directory=None):
@@ -90,7 +98,10 @@ def _sha256(path, cancelled=None):
 
 
 def _download(url, destination, digest, progress=None, cancelled=None, local=None, size=None):
-    """Publish only a verified complete file; cancellation leaves no partial model."""
+    """Verify bootstrap files; remote archives retain resumable partial transfers."""
+    if not (local and Path(local).is_file()):
+        from wordcel.optional_runtimes import download_verified
+        return download_verified(url, destination, digest, progress, cancelled, size, opener=urlopen)
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     _cancelled(cancelled)
@@ -256,22 +267,31 @@ def _write_installation(root, registry):
         Path(temporary).unlink(missing_ok=True)
 
 
-def install_model(profile="quality", directory=None, progress=None, cancelled=None, downloads=None, *, runtime_only=False):
+def install_model(profile="quality", directory=None, progress=None, cancelled=None, downloads=None, *, runtime_only=False, backend="automatic", capabilities=None):
     """Explicit setup only. Optional bootstrap files are copied and hash-checked."""
     if profile not in MODELS:
-        raise ValueError("Choose quality or lightweight translation.")
+        raise ValueError("Choose a translation model in Settings.")
     root, platform_key = translation_path(directory), _platform_key()
+    if platform_key.startswith("win-"):
+        from wordcel.translation_hardware import detect_capabilities
+        backend = (capabilities or detect_capabilities()).select(backend)
+    else:
+        backend = "native"
+    runtime_key = platform_key + "-" + backend if backend != "native" else platform_key
     root.mkdir(parents=True, exist_ok=True)
     with _install_lock:
         registry = installation(root)
-        runtime_path = root / f"runtime-{RELEASE}-{platform_key}"
+        runtime_path = root / f"runtime-{RELEASE}-{runtime_key}"
+        legacy = root / f"runtime-{RELEASE}-{platform_key}"
+        if backend == "cuda" and legacy.is_dir():
+            runtime_path = legacy
         executable_name = "llama-server.exe" if platform_key.startswith("win-") else "llama-server"
         if not runtime_path.is_dir():
             temporary = Path(tempfile.mkdtemp(prefix=".runtime-", dir=root)).resolve()
             try:
-                for name, digest in RUNTIMES[platform_key]:
+                for name, digest in RUNTIMES.get(runtime_key, RUNTIMES[platform_key]):
                     archive = _download(_RELEASE_URL + name, root / "downloads" / name, digest,
-                                        progress, cancelled, Path(downloads) / name if downloads else None)
+                                        progress, cancelled, Path(downloads) / name if downloads else None, RUNTIME_SIZES.get(name))
                     _extract_archive(archive, temporary, cancelled)
                 executables = list(temporary.rglob(executable_name))
                 if len(executables) != 1:
@@ -289,8 +309,13 @@ def install_model(profile="quality", directory=None, progress=None, cancelled=No
         executables = list(runtime_path.rglob(executable_name))
         if len(executables) != 1:
             raise RuntimeError("Translation runtime is incomplete. Reinstall its runtime folder.")
-        registry.update(release=RELEASE, platform=platform_key,
-                        executable=executables[0].relative_to(root).as_posix())
+        runtime = dict(release=RELEASE, platform=platform_key, backend=backend,
+                       executable=executables[0].relative_to(root).as_posix())
+        registry.update(runtime)
+        if not isinstance(registry.get("runtimes"), dict):
+            registry["runtimes"] = {}
+        registry["runtimes"][backend] = runtime
+        (runtime_path / "runtime.json").write_text(json.dumps(runtime), encoding="utf-8")
         if runtime_only:
             _write_installation(root, registry)
             return registry
@@ -327,15 +352,24 @@ def _ready():
         return False
 
 
-def _installed_paths(profile, directory):
+def _installed_paths(profile, directory, backend="automatic"):
     root, registry = translation_path(directory), installation(directory)
-    name = "Hy-MT2 1.8B" if profile == "lightweight" else "Hy-MT2 7B"
+    name = MODELS.get(profile, {}).get("name", profile)
+    runtime = registry
+    if registry.get("platform", "").startswith("mac-"):
+        backend = "automatic"
+    if backend != "automatic":
+        runtimes = registry.get("runtimes", {})
+        runtime = runtimes.get(backend, {}) if isinstance(runtimes, dict) else {}
+        if not runtime:
+            legacy_backend = registry.get("backend", "cuda" if registry.get("platform", "").startswith("win-") else "native")
+            runtime = registry if backend == legacy_backend else {}
     try:
         models = registry.get("models", {})
         model = models.get(profile, {}) if isinstance(models, dict) else {}
         # Older Windows installs used native separators. Normalize only local
         # manifest fields; archive member names remain strictly validated.
-        executable = _archive_target(root, registry["executable"].replace("\\", "/"))
+        executable = _archive_target(root, runtime["executable"].replace("\\", "/"))
         model_path = _archive_target(root, model["path"].replace("\\", "/"))
     except (KeyError, TypeError, ValueError) as error:
         raise RuntimeError(f"Download {name} in Settings → Translation.") from error
@@ -344,16 +378,16 @@ def _installed_paths(profile, directory):
     return executable, model_path
 
 
-def server_command(executable, model, keep_warm=False):
+def server_command(executable, model, keep_warm=False, backend="automatic"):
     return [str(executable), "--model", str(model), "--alias", "hy-mt2", "--host", "127.0.0.1",
-            "--port", "8766", "-ngl", "99", "--ctx-size", "8192", "--parallel", "1",
+            "--port", "8766", "-ngl", "0" if backend == "cpu" else "99", "--ctx-size", "8192", "--parallel", "1",
             "--sleep-idle-seconds", "-1" if keep_warm else "60", "--cache-ram", "0", "--no-context-shift", "--jinja",
             "--no-webui", "--no-agent", "--log-disable"]
 
 
 def _terminate_owned():
-    global _process, _running_model
-    process, _process, _running_model = _process, None, None
+    global _process, _running_model, _running_executable
+    process, _process, _running_model, _running_executable = _process, None, None, None
     if process is not None and process.poll() is None:
         process.terminate()
         try:
@@ -387,29 +421,28 @@ def request_lock(cancelled=None):
 
 
 def ensure_server(endpoint=DEFAULT_ENDPOINT, profile="quality", timeout=120, directory=None, cancelled=None, keep_warm=False,
-                  request_id=0):
+                  request_id=0, backend="automatic"):
     """Start an installed model. This function has no download or setup path."""
-    global _process, _running_model, _running_warm
+    global _process, _running_model, _running_warm, _running_executable
     parsed = urlsplit(endpoint.rstrip("/"))
     if (parsed.scheme, parsed.hostname, parsed.port, parsed.path) != ("http", "127.0.0.1", 8766, "/v1") \
             or parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise ValueError("Managed translation uses http://127.0.0.1:8766/v1 only.")
     if profile not in MODELS:
-        raise ValueError("Choose quality or lightweight translation.")
-    executable, model = _installed_paths(profile, directory)
+        raise ValueError("Choose a translation model in Settings.")
+    executable, model = _installed_paths(profile, directory, backend)
+    selected_backend = installation(directory).get("backend", "automatic") if backend == "automatic" else backend
     with request_lock(cancelled):
         if cancelled is not None and cancelled.is_set():
             raise RuntimeError("Translation startup cancelled.")
         if _closed.is_set():
             raise RuntimeError("Translation server is shutting down.")
         _stop_requested.clear()
-        if _process is not None and (_process.poll() is not None or _running_model != model or _running_warm != keep_warm):
+        if _process is not None and (_process.poll() is not None or _running_model != model or _running_warm != keep_warm or _running_executable != executable):
             _terminate_owned()
         if _ready():
             if _process is None:
-                props = _local_json("/props")
-                if Path(props.get("model_path", "")).resolve() != model:
-                    raise RuntimeError("Port 8766 is used by another model. Stop that server or choose Custom in Settings.")
+                raise RuntimeError("Port 8766 is used by another model or runtime. Stop that server or choose Custom in Settings.")
             if timing_logger.isEnabledFor(10):
                 try:
                     mark("model_wake" if _local_json("/props").get("is_sleeping") else "model_warm", request_id)
@@ -424,8 +457,9 @@ def ensure_server(endpoint=DEFAULT_ENDPOINT, profile="quality", timeout=120, dir
                            env={key: value for key, value in os.environ.items() if not key.startswith("LLAMA_")})
             if sys.platform == "win32":
                 options["creationflags"] = subprocess.CREATE_NO_WINDOW
-            _process = subprocess.Popen(server_command(executable, model, keep_warm), **options)
+            _process = subprocess.Popen(server_command(executable, model, keep_warm, selected_backend), **options)
             _running_model = model
+            _running_executable = executable
             _running_warm = keep_warm
         deadline = time.monotonic() + timeout
         try:
@@ -433,7 +467,7 @@ def ensure_server(endpoint=DEFAULT_ENDPOINT, profile="quality", timeout=120, dir
                 if _stop_requested.wait(0.1) or cancelled is not None and cancelled.is_set():
                     raise RuntimeError("Translation startup cancelled.")
                 if _process.poll() is not None:
-                    raise RuntimeError("Local translation could not start. Check GPU drivers and available memory, or select Lightweight.")
+                    raise RuntimeError("Local translation could not start. Choose CPU in Settings if GPU startup fails, or select a smaller model.")
                 if _ready():
                     return
             raise RuntimeError("Local translation took too long to start. Try Lightweight in Settings.")
@@ -450,6 +484,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Install or run local Hy-MT2 translation")
     parser.add_argument("--install", choices=tuple(MODELS), nargs="?", const="quality")
     parser.add_argument("--serve", action="store_true")
+    parser.add_argument("--backend", choices=("automatic", "cpu", "vulkan", "cuda"), default="automatic")
     parser.add_argument("--profile", choices=tuple(MODELS), default="quality")
     parser.add_argument("--directory", type=Path)
     parser.add_argument("--downloads", type=Path, help="Reuse already-downloaded official files")
@@ -457,10 +492,10 @@ def main(argv=None):
     if not args.install and not args.serve:
         parser.error("Choose --install or --serve")
     if args.install:
-        install_model(args.install, args.directory, progress=print, downloads=args.downloads)
+        install_model(args.install, args.directory, progress=print, downloads=args.downloads, backend=args.backend)
     if args.serve:
         try:
-            ensure_server(profile=args.install or args.profile, directory=args.directory)
+            ensure_server(profile=args.install or args.profile, directory=args.directory, backend=args.backend)
             while _process is not None and _process.poll() is None:
                 time.sleep(0.5)
         except KeyboardInterrupt:

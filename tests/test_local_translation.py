@@ -173,7 +173,7 @@ class TranslationTests(unittest.TestCase):
             manager.ensure_server.assert_not_called()
             self.translator.translate("猫", "ja", "en")
         manager.ensure_server.assert_called_once_with(endpoint=DEFAULT_ENDPOINT, profile="lightweight",
-                                                      timeout=120, directory=self.directory, cancelled=self.translator._cancelled,
+                                                      timeout=120, backend="automatic", directory=self.directory, cancelled=self.translator._cancelled,
                                                       keep_warm=False, request_id=0)
         manager.install_model.assert_not_called()
         self.assertEqual(self.translator.last_model, "Hy-MT2-1.8B Q8_0")
@@ -397,7 +397,7 @@ class TranslationSetupTests(unittest.TestCase):
         main_thread = threading.get_ident()
         called_threads = []
 
-        def install(*, profile, progress, cancelled):
+        def install(*, profile, progress, cancelled, backend):
             called_threads.append(threading.get_ident())
             self.assertEqual(profile, "quality")
             progress("Downloading selected model")

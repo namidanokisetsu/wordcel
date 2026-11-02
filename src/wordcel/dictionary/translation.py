@@ -18,7 +18,8 @@ from wordcel.utils.timing import mark
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:8766/v1"
 DEFAULT_MODEL = "hy-mt2"
-MODEL_NAMES = {"quality": "Hy-MT2-7B Q8_0", "lightweight": "Hy-MT2-1.8B Q8_0"}
+from wordcel.translation_catalog import MODELS
+MODEL_NAMES = {key: model["name"] for key, model in MODELS.items()}
 LANGUAGE_NAMES = {
     "en": "English", "ja": "Japanese", "tr": "Turkish", "zh": "Chinese", "cmn": "Chinese",
     "zh-hant": "Traditional Chinese", "zh-tw": "Traditional Chinese",
@@ -86,10 +87,13 @@ class TranslationSettings:
     stream: bool = True
     keep_warm: bool = False
     chunk_size: int = 2000
+    backend: str = "automatic"
 
     def validated(self):
         if self.provider not in ("server", "custom") or self.profile not in tuple(MODEL_NAMES):
             raise ValueError("Choose a translation model in Settings.")
+        if self.backend not in {"automatic", "cpu", "vulkan", "cuda"}:
+            raise ValueError("Choose a translation backend in Settings.")
         if not all(isinstance(value, bool) for value in (self.auto_start, self.stream, self.keep_warm)):
             raise ValueError("Invalid local server startup setting.")
         if type(self.chunk_size) is not int or not 256 <= self.chunk_size <= 2000:
@@ -103,7 +107,7 @@ class TranslationSettings:
             if any(ord(char) < 32 for char in self.model):
                 raise ValueError("Invalid local server model name.")
             model = self.model.strip()
-        return TranslationSettings(self.provider, self.profile, endpoint, model, self.auto_start, self.stream, self.keep_warm, self.chunk_size)
+        return TranslationSettings(self.provider, self.profile, endpoint, model, self.auto_start, self.stream, self.keep_warm, self.chunk_size, self.backend)
 
 
 def load_settings(directory=None):
@@ -141,10 +145,10 @@ def save_settings(settings, directory=None):
     return settings
 
 
-def model_installed(profile):
+def model_installed(profile, backend="automatic"):
     try:
         from wordcel.scripts.translation_server import _installed_paths
-        _installed_paths(profile, None)
+        _installed_paths(profile, None, backend)
         return True
     except (ImportError, OSError, RuntimeError, ValueError):
         return False
@@ -294,7 +298,7 @@ class LocalTranslator:
             if on_state:
                 on_state("Starting " + MODEL_NAMES[settings.profile])
             from wordcel.scripts.translation_server import ensure_server
-            ensure_server(endpoint=DEFAULT_ENDPOINT, profile=settings.profile, timeout=120,
+            ensure_server(endpoint=DEFAULT_ENDPOINT, profile=settings.profile, timeout=120, backend=settings.backend,
                           directory=self.directory, cancelled=self._cancelled, keep_warm=settings.keep_warm,
                           request_id=request_id)
             mark("model_ready", request_id)

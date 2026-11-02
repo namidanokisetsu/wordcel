@@ -101,11 +101,14 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
     for name, model in MODELS.items():
         path = data / "translation/models" / model["file"]
         state = None if not path.exists() else "Installed" if path.stat().st_size == model["size"] else "Incomplete"
-        add("translation:" + name, "Hy-MT2 1.8B" if name == "lightweight" else "Hy-MT2 7B",
+        add("translation:" + name, model.get("name", name),
             kind="translation", value=name, paths=(path,), status=state)
     runtimes = set((data / "translation").glob("runtime-*"))
     try:
-        runtimes.add(data / "translation" / f"runtime-{RELEASE}-{_platform_key()}")
+        platform_key = _platform_key()
+        for backend in (("cpu", "vulkan", "cuda") if platform_key.startswith("win-") else ("native",)):
+            suffix = platform_key + "-" + backend if backend != "native" else platform_key
+            runtimes.add(data / "translation" / f"runtime-{RELEASE}-{suffix}")
     except RuntimeError:
         pass
     for runtime in sorted(runtimes):
@@ -211,7 +214,16 @@ def resource_usage(settings, asset):
         elif asset.kind in {"translation", "runtime"}:
             try:
                 options = load_profile_settings(settings, identity)
-                selected = options.provider == "server" and (asset.kind == "runtime" or options.profile == asset.value)
+                selected = options.provider == "server" and options.profile == asset.value
+                if options.provider == "server" and asset.kind == "runtime" and asset.paths:
+                    from wordcel.scripts.translation_server import installation
+                    root = asset.paths[0].parent
+                    registry = installation(root)
+                    runtime = registry if options.backend == "automatic" else registry.get("runtimes", {}).get(options.backend, {})
+                    if not runtime and options.backend == "cuda" and registry.get("platform", "").startswith("win-") and "backend" not in registry:
+                        runtime = registry
+                    executable = str(runtime.get("executable", "")).replace("\\", "/")
+                    selected = executable.split("/", 1)[0] == asset.paths[0].name
             except ValueError:
                 pass
         elif asset.kind == "ocr":
