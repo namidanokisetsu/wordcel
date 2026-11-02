@@ -83,21 +83,12 @@ def replace_dictionary(archive, directory, identity, progress=None, cancelled=No
 
 
 def install_update(update, directory, progress, cancelled):
-    from wordcel.utils.progress import content_length, download_progress
+    from wordcel.utils.dictionary_download import download_archive
     progress("Downloading " + update.title)
     with tempfile.TemporaryDirectory(prefix="wordcel-update-") as folder:
         archive = Path(folder) / "dictionary.zip"
-        request = Request(publisher_url(update.url), headers={"User-Agent": USER_AGENT})
-        with urlopen(request, timeout=30) as response, archive.open("wb") as output:
-            size, received = content_length(response), 0
-            while chunk := response.read(1024 * 1024):
-                if cancelled.is_set():
-                    raise InterruptedError("Update cancelled.")
-                received += len(chunk)
-                if received > 2 * 1024**3:
-                    raise ValueError("Dictionary download exceeds 2 GB.")
-                output.write(chunk)
-                progress(download_progress(update.title, received, size))
+        download_archive(publisher_url(update.url), archive, update.title, progress, cancelled, urlopen,
+                         cancel_message="Update cancelled.")
         from .archive import DictionaryArchive
         with DictionaryArchive(archive) as bundle:
             index = json.loads(bundle.read("index.json"))
