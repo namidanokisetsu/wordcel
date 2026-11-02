@@ -46,7 +46,9 @@ def install_screenai(progress, cancelled):
                 digest.update(chunk)
                 progress(download_progress("Screen AI", total, size))
         extracted = stage / "component"
+        progress("Extracting Screen AI…")
         extract_component(archive, extracted)
+        progress("Checking Screen AI…")
         if not find_in_directory(extracted):
             raise ValueError("The download does not contain a compatible OCR component.")
         if cancelled.is_set():

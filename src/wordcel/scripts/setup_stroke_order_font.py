@@ -63,9 +63,11 @@ def install(progress=None, cancelled=None, directory=None):
                     raise ValueError("Stroke-order font download is too large.")
                 stream.write(chunk)
                 progress(download_progress("Stroke-order font", total, size))
+        progress("Verifying stroke-order font…")
         if file_hash(archive) != ARCHIVE_SHA256:
             raise ValueError("Stroke-order font verification failed.")
         payload = stage / "installed"
+        progress("Installing stroke-order font…")
         extract_font(archive, payload)
         if cancelled.is_set():
             raise InterruptedError("Download cancelled.")

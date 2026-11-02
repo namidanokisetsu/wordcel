@@ -160,7 +160,8 @@ class OptionalRuntimeTests(unittest.TestCase):
                 "ETag": '"fixture-v1"'})
 
         def stop_after_first_chunk(text):
-            cancelled.set()
+            if getattr(text, "received", 0):
+                cancelled.set()
 
         with patch.object(engines, "urlopen", side_effect=transfer):
             with self.assertRaises(InterruptedError):

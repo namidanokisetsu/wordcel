@@ -2,7 +2,6 @@
 from dataclasses import dataclass
 from contextlib import closing
 import threading
-from time import monotonic
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -63,7 +62,7 @@ def install_task(task, directory, progress, cancelled):
 
 
 class LanguageSetup(QObject):
-    progress = pyqtSignal(str)
+    progress = pyqtSignal(object)
     stage = pyqtSignal(int, str)
     finished = pyqtSignal(object, object)
 
@@ -74,18 +73,18 @@ class LanguageSetup(QObject):
         self.jobs = jobs
         self.cancelled = threading.Event()
         self.thread = threading.Thread(target=self.run, daemon=True, name="language-setup")
+        from wordcel.gui.setup_progress import ProgressRelay
+        self.relay = ProgressRelay(self)
+        self.relay.updated.connect(self._progress)
+        self.finished.connect(self.relay.stop)
+        self.relay.timer.start()
+
+    def _progress(self, text):
+        self.progress.emit(text)
+        self.jobs.progress(self, text)
 
     def run(self):
         completed, errors = [], []
-        last_update = 0
-
-        def progress(text):
-            nonlocal last_update
-            now = monotonic()
-            if now - last_update >= 0.1 or text.endswith((" 0%", " 100%")):
-                last_update = now
-                self.progress.emit(text)
-                self.jobs.progress(self, text)
 
         for index, task in enumerate(self.tasks):
             if self.cancelled.is_set():
@@ -95,8 +94,9 @@ class LanguageSetup(QObject):
             if not self.jobs.claim((task_key(task),), self, self.cancelled, task.label):
                 errors.append(f"{task.label}: already downloading")
                 continue
+            self.relay.post(task.label)
             try:
-                value = install_task(task, self.directory, progress, self.cancelled)
+                value = install_task(task, self.directory, self.relay.post, self.cancelled)
                 completed.append((task, value))
             except InterruptedError:
                 break

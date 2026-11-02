@@ -39,11 +39,14 @@ class ResourceJobs(QObject):
         return True
 
     def progress(self, owner, text):
+        changed = False
         with self._lock:
-            for key, (job, cancelled, _) in self._jobs.items():
-                if job is owner:
+            for key, (job, cancelled, prior) in self._jobs.items():
+                if job is owner and (text != prior or getattr(text, "received", None) != getattr(prior, "received", None)):
                     self._jobs[key] = job, cancelled, text
-        self.changed.emit()
+                    changed = True
+        if changed:
+            self.changed.emit()
 
     def finish(self, owner):
         with self._lock:

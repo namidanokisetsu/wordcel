@@ -1,5 +1,6 @@
 import io
 import json
+import pickle
 from pathlib import Path
 from queue import Queue
 import re
@@ -12,7 +13,7 @@ import zipfile
 from wordcel.dictionary.catalog import install_recommended, recommendations
 from wordcel.dictionary.import_job import _worker
 from wordcel.dictionary.library import import_yomitan
-from wordcel.utils.progress import content_length, download_progress
+from wordcel.utils.progress import content_length, download_progress, TransferRate
 
 
 TERM = ["word", "", "", "", 0, ["meaning"], 0, ""]
@@ -114,3 +115,80 @@ class SetupProgressTests(unittest.TestCase):
         self.assertEqual(content_length(io.BytesIO()), 0)
         self.assertEqual(download_progress("Dictionary", 2 * 1024**2, 0), "Downloading Dictionary · 2 MB")
         self.assertEqual(download_progress("Dictionary", 20, 10), "Downloading Dictionary · 100%")
+
+    def test_download_bytes_survive_dictionary_process_queue_serialization(self):
+        value = pickle.loads(pickle.dumps(download_progress("Words", 500, 1000)))
+        self.assertEqual(value, "Downloading Words · 50%")
+        self.assertEqual((value.label, value.received, value.size), ("Words", 500, 1000))
+
+    def test_transfer_rate_excludes_resumed_bytes_and_resets_for_new_files(self):
+        rate = TransferRate()
+        rate.add(download_progress("Model", 8000, 10000), 0)
+        self.assertIsNone(rate.speed(0))
+        rate.add(download_progress("Model", 9000, 10000), 2)
+        self.assertEqual(rate.speed(2), 500)
+        self.assertIsNone(rate.speed(7))
+        rate.add(download_progress("Model", 100, 10000), 8)
+        self.assertIsNone(rate.speed(8))
+        rate.add(download_progress("Other", 300, 10000), 9)
+        self.assertIsNone(rate.speed(9))
+
+
+class SetupProgressUITests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from PyQt6.QtWidgets import QApplication
+        cls.app = QApplication.instance() or QApplication([])
+
+    def test_worker_burst_coalesces_and_delivers_latest_bytes_on_gui_thread(self):
+        from wordcel.gui.setup_progress import ProgressRelay
+        from PyQt6.QtCore import QObject
+        parent = QObject()
+        relay = ProgressRelay(parent)
+        self.addCleanup(parent.deleteLater)
+        received = []
+        relay.updated.connect(lambda value: received.append((threading.get_ident(), value)))
+        def emit():
+            for index in range(10000):
+                relay.post(download_progress("Model", index, 10000))
+        worker = threading.Thread(target=emit)
+        worker.start()
+        worker.join()
+        self.assertFalse(received)
+        relay.stop()
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0][0], threading.get_ident())
+        self.assertEqual(received[0][1].received, 9999)
+
+    def test_download_eta_is_specific_to_transfer_and_clears_for_verification(self):
+        from wordcel.gui.setup_progress import SetupProgress
+        view = SetupProgress()
+        self.addCleanup(view.deleteLater)
+        with patch("wordcel.gui.setup_progress.monotonic", return_value=0):
+            view.setText(download_progress("Model", 8000, 10000))
+        with patch("wordcel.gui.setup_progress.monotonic", return_value=2):
+            view.setText(download_progress("Model", 9000, 10000))
+            self.assertIn("500 B/s", view.detail.text())
+            self.assertIn("left to download", view.detail.text())
+            self.assertEqual(view.bar.value(), 90)
+            self.assertIn("downloaded", view.bar.format())
+            view.setText("Verifying model…")
+            self.assertEqual(view.bar.maximum(), 0)
+            self.assertNotIn("left", view.detail.text())
+            view.setText("Ready.")
+            self.assertFalse(view.timer.isActive())
+            self.assertTrue(view.bar.isHidden())
+
+    def test_unknown_size_and_stalled_transfer_never_invent_percent_or_eta(self):
+        from wordcel.gui.setup_progress import SetupProgress
+        view = SetupProgress()
+        self.addCleanup(view.deleteLater)
+        with patch("wordcel.gui.setup_progress.monotonic", return_value=0):
+            view.setText(download_progress("OCR", 1024, 0))
+            self.assertEqual(view.bar.maximum(), 0)
+            self.assertIn("1.0 KB", view.detail.text())
+            self.assertNotIn("left", view.detail.text())
+        with patch("wordcel.gui.setup_progress.monotonic", return_value=6):
+            view.refresh_detail()
+            self.assertIn("Waiting for data", view.detail.text())
+            self.assertNotIn("/s", view.detail.text())

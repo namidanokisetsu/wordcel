@@ -23,6 +23,21 @@ class ResourceJobTests(unittest.TestCase):
         self.assertTrue(jobs.claim(("ocr:paddle",), object(), stop, "OCR"))
         self.assertFalse(jobs.claim(("all",), object(), stop, "export"))
 
+    def test_identical_progress_is_ignored_but_new_bytes_at_same_percent_are_retained(self):
+        from wordcel.utils.progress import download_progress
+        jobs, owner = ResourceJobs(), object()
+        jobs.claim(("translation:compact",), owner, threading.Event(), "Preparing…")
+        changed = []
+        jobs.changed.connect(lambda: changed.append(True))
+        jobs.progress(owner, download_progress("Model", 1, 1000))
+        jobs.progress(owner, download_progress("Model", 1, 1000))
+        jobs.progress(owner, download_progress("Model", 2, 1000))
+        self.assertEqual(len(changed), 2)
+        self.assertEqual(jobs.snapshot()["translation:compact"][2].received, 2)
+        jobs.finish(owner)
+        jobs.progress(owner, "Late progress")
+        self.assertEqual(len(changed), 3)
+
     def test_immutable_update_batches_keep_their_identity(self):
         updates = tuple(DictionaryUpdate(str(i), "Words", "en", "a", "b") for i in range(2))
         request = SetupRequest.from_options(update=updates)

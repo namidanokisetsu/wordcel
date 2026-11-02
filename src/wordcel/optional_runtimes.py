@@ -319,6 +319,8 @@ def download_verified(url, destination, digest, progress=None, cancelled=None, s
             # A 416 at the end of a resource can mean the retained partial is
             # complete. Verify it before publishing; otherwise discard it.
             if size is None or offset == size:
+                if progress:
+                    progress(f"Verifying {label}…")
                 return _publish_download(temporary, metadata_path, destination, digest, size, cancelled)
             _discard_download(temporary, metadata_path)
             metadata, offset = None, 0
@@ -381,6 +383,8 @@ def download_verified(url, destination, digest, progress=None, cancelled=None, s
         _write_download_metadata(metadata_path, stored)
         try:
             with response, temporary.open(mode) as output:
+                if progress:
+                    progress(download_progress(label, received, total or 0))
                 while chunk := response.read(1024 * 1024):
                     _cancel(cancelled)
                     output.write(chunk)
@@ -399,6 +403,8 @@ def download_verified(url, destination, digest, progress=None, cancelled=None, s
         received = temporary.stat().st_size
         if size is not None and received < size:
             raise ValueError(f"Download incomplete: {destination.name} ({received:,} bytes received; {size:,} expected).")
+        if progress:
+            progress(f"Verifying {label}…")
         return _publish_download(temporary, metadata_path, destination, digest, size, cancelled)
     raise ValueError(f"Unable to resume download: {destination.name}")
 

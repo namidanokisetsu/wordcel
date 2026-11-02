@@ -120,7 +120,7 @@ class SetupRequest:
 
 
 class SetupOperation(QObject):
-    progress = pyqtSignal(str)
+    progress = pyqtSignal(object)
     finished = pyqtSignal(str, bool)
     refresh = pyqtSignal()
 
@@ -135,16 +135,26 @@ class SetupOperation(QObject):
         self.thread = threading.Thread(target=self._run, name="dictionary-setup", daemon=True)
         from wordcel.gui.resource_jobs import jobs
         self.jobs = jobs
+        from wordcel.gui.setup_progress import ProgressRelay
+        self.relay = ProgressRelay(self)
+        self.relay.updated.connect(self._progress)
+        self.finished.connect(self.relay.stop)
 
     def start(self):
         if not self.jobs.claim(self.job_keys, self, self.cancelled, "Preparing download…"):
             self.finished.emit("Resource already downloading.", False)
             return
+        self.relay.timer.start()
         self.thread.start()
+
+    def _progress(self, text):
+        self.jobs.progress(self, text)
+        self.progress.emit(text)
 
     def _emit(self, signal, *args):
         if signal == self.progress:
-            self.jobs.progress(self, args[0])
+            self.relay.post(args[0])
+            return
         elif signal == self.finished:
             self.jobs.finish(self)
         try:

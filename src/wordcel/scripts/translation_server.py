@@ -101,7 +101,7 @@ def _download(url, destination, digest, progress=None, cancelled=None, local=Non
     """Verify bootstrap files; remote archives retain resumable partial transfers."""
     if not (local and Path(local).is_file()):
         from wordcel.optional_runtimes import download_verified
-        return download_verified(url, destination, digest, progress, cancelled, size, opener=urlopen)
+        return download_verified(url, destination, digest, progress, cancelled, size, label=display, opener=urlopen)
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     _cancelled(cancelled)
@@ -153,6 +153,7 @@ def _download_model(model, root, progress=None, cancelled=None, downloads=None, 
     configure_model_cache()
     from huggingface_hub import hf_hub_download
     from tqdm.auto import tqdm
+    from wordcel.utils.progress import download_progress
 
     class DownloadProgress(tqdm):
         def display(self, *args, **kwargs):
@@ -162,8 +163,7 @@ def _download_model(model, root, progress=None, cancelled=None, downloads=None, 
             _cancelled(cancelled)
             updated = super().update(amount)
             if progress and updated:
-                percent = min(100, int(self.n * 100 / self.total)) if self.total else 0
-                progress(f'{display_name}: {percent}%')
+                progress(download_progress(display_name, self.n, self.total))
             return updated
 
     # Hub keeps resumable .incomplete files and transfer metadata in this cache.
@@ -320,6 +320,8 @@ def install_model(profile="quality", directory=None, progress=None, cancelled=No
                 for name, digest in RUNTIMES[runtime_key]:
                     archive = _download(_RELEASE_URL + name, root / "downloads" / name, digest,
                                         progress, cancelled, Path(downloads) / name if downloads else None, RUNTIME_SIZES.get(name))
+                    if progress:
+                        progress(f"Installing {backend} runtime…")
                     _extract_archive(archive, temporary, cancelled)
                 executables = list(temporary.rglob(executable_name))
                 if len(executables) != 1:
