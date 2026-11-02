@@ -249,10 +249,13 @@ def main(argv=None):
         # Keep the native menu-bar menu compact. OCR actions are inserted only
         # after the provider is available below; profile selection is useful
         # only when more than one profile exists.
-        translate_action.setVisible(False)
-        history_action.setVisible(False)
-        profiles.menuAction().setVisible(window.source.count() > 1)
-        window.mode_changed.connect(lambda *_: profiles.menuAction().setVisible(window.source.count() > 1))
+        def sync_optional_actions(*_):
+            translate_action.setVisible(window.translation_available())
+            history_action.setVisible(window.lookup_history.enabled())
+            profiles.menuAction().setVisible(window.source.count() > 1)
+        sync_optional_actions()
+        window.mode_changed.connect(sync_optional_actions)
+        window.lookup_history.preferences_changed.connect(sync_optional_actions)
     tray.setContextMenu(menu)
     activation_reasons = (QSystemTrayIcon.ActivationReason.Trigger,
                           QSystemTrayIcon.ActivationReason.DoubleClick) if sys.platform == "darwin" else (
