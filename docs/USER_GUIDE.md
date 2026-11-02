@@ -73,6 +73,9 @@ distributed under its [data licence](https://www.wadoku.de/wiki/display/WAD/Wado
 to load it on the first scan. The model stays in memory until Wordcel exits.
 Dictionary-only mode skips preloading.
 
+Enable **App settings > Startup > Start at login** on macOS to open Wordcel at your
+next login. On Windows, use **Start with Windows**.
+
 ## Lookup history
 
 Enable recording in **App settings > History**, then open **History** from the tray.

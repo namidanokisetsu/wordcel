@@ -306,12 +306,12 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.selection_lookup = QCheckBox("Look up selection inside results")
         shortcut_layout.addRow(self.selection_lookup)
         self.selection_lookup.toggled.connect(lambda _: self.autosave(self.save_selection_policy))
-        if sys.platform == "win32":
+        if sys.platform in {"win32", "darwin"}:
             from wordcel.utils.startup import is_startup_enabled
-            self.start_with_windows = QCheckBox("Start with Windows")
-            self.start_with_windows.setChecked(is_startup_enabled())
-            self.start_with_windows.toggled.connect(self.save_startup)
-            app_layout.addRow(self.start_with_windows)
+            self.start_at_login = QCheckBox("Start at login" if sys.platform == "darwin" else "Start with Windows")
+            self.start_at_login.setChecked(is_startup_enabled())
+            self.start_at_login.toggled.connect(self.save_startup)
+            app_layout.addRow(self.start_at_login)
 
         scanning = QWidget()
         scan_layout = QFormLayout(scanning)
@@ -640,11 +640,11 @@ class SetupDialog(SettingsNavigation, QDialog):
         try:
             set_startup_enabled(enabled)
         except OSError:
-            with QSignalBlocker(self.start_with_windows):
-                self.start_with_windows.setChecked(not enabled)
-            self.status.setText("Could not change Windows startup.")
+            with QSignalBlocker(self.start_at_login):
+                self.start_at_login.setChecked(not enabled)
+            self.status.setText("Could not change startup settings.")
             return
-        self.settings.setValue("start_with_windows", bool(enabled))
+        self.settings.setValue("start_at_login" if sys.platform == "darwin" else "start_with_windows", bool(enabled))
 
     def show_audio(self):
         self.tabs.setCurrentWidget(self.audio_tab)

@@ -52,6 +52,9 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   Settings follow the system light/dark preference with shared palettes; popup
   themes remain profile-specific. Tray, permissions, focus and shortcuts retain
   native integration. Font registration happens once at startup, without downloads.
+  Startup registration uses the per-user Windows Run key or a macOS LaunchAgent.
+  macOS opens the current app bundle in the background at login; source registration
+  preserves the virtual environment's Python path. Disabling removes the entry.
   Fonts and OFL licences come from [Google Fonts](https://github.com/google/fonts/tree/2fe1e8c6b137fb13041a7cfca6fdcd8a910ea4dc/ofl)
   (`notosans`, `notosansjp`); include them in wheels and desktop bundles.
 - **Lookup:** exact entries and imported forms precede analysis. Preserve source

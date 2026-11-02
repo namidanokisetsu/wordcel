@@ -4588,17 +4588,19 @@ class DictionaryManagerTests(unittest.TestCase):
         self.assertEqual(provider.currentData(), "paddle")
         self.assertTrue(provider.model().item(provider.findData("paddle")).isEnabled())
 
-    def test_startup_preference_is_saved_only_after_registry_success(self):
+    def test_startup_preference_is_saved_only_after_registration_success(self):
         from PyQt6.QtWidgets import QCheckBox
-        self.dialog.settings.remove("start_with_windows")
-        self.dialog.start_with_windows = QCheckBox(self.dialog)
-        with patch("wordcel.utils.startup.set_startup_enabled") as startup:
-            self.dialog.save_startup(False)
-            startup.assert_called_once_with(False)
-        self.assertFalse(self.dialog.settings.value("start_with_windows", True, bool))
-        with patch("wordcel.utils.startup.set_startup_enabled", side_effect=OSError("blocked")):
-            self.dialog.save_startup(True)
-        self.assertFalse(self.dialog.settings.value("start_with_windows", True, bool))
+        self.dialog.start_at_login = QCheckBox(self.dialog)
+        for platform, key in (("win32", "start_with_windows"), ("darwin", "start_at_login")):
+            with self.subTest(platform=platform), patch("sys.platform", platform):
+                self.dialog.settings.remove(key)
+                with patch("wordcel.utils.startup.set_startup_enabled") as startup:
+                    self.dialog.save_startup(False)
+                    startup.assert_called_once_with(False)
+                self.assertFalse(self.dialog.settings.value(key, True, bool))
+                with patch("wordcel.utils.startup.set_startup_enabled", side_effect=OSError("blocked")):
+                    self.dialog.save_startup(True)
+                self.assertFalse(self.dialog.settings.value(key, True, bool))
 
     def test_frozen_scan_setting_saves_independently_per_profile(self):
         self.dialog.sync_profile("ja")
