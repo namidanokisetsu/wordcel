@@ -1,7 +1,7 @@
 # Using Wordcel
 
-If you encounter a problem, check the [FAQ](#faq) first. If it doesn't help,
-[report a bug](https://github.com/namidanokisetsu/wordcel/issues/new).
+Check the [FAQ](#faq) for quick fixes. Bug reports, suggestions and feature requests
+are always welcome: [open an issue](https://github.com/namidanokisetsu/wordcel/issues/new).
 
 ## Get started
 
@@ -120,40 +120,34 @@ open until saves finish. Turn on **Anki tray notifications** to see save results
 
 ## FAQ
 
-### OCR doesn't work when holding Shift
+### OCR or Shift lookup doesn't work
 
-In your profile's **Lookup** settings, check that the selected OCR model is
-installed and ready. Download any missing resources. In **Shortcuts**, check that
-**Screen lookup key** is set to **Shift**, or use the key you configured. If another
-app or shortcut uses the same key, change one of them and try again.
+- **Lookup > OCR model:** check that the selected model is installed and ready.
+- **Shortcuts > Screen lookup key:** check for **Shift** or use your configured key.
+- **Conflicts:** change the key if another app or shortcut uses it.
 
 ### Wordcel won't open on macOS
 
-Drag Wordcel from the downloaded DMG to **Applications** and open it there.
-If macOS cannot verify the developer or check the app for malicious software,
-open **System Settings > Privacy & Security**, click **Open Anyway**, then
-**Open**.
-See [Apple's instructions](https://support.apple.com/en-us/102445).
+Move Wordcel from the DMG to **Applications**. If macOS blocks it, use
+**System Settings > Privacy & Security > Open Anyway**, then **Open**.
+[Apple's instructions](https://support.apple.com/en-us/102445).
 
 ### Scanning or shortcuts don't work on macOS
 
-Grant the permissions Wordcel requests, or enable them in
-**System Settings > Privacy & Security**:
+In **System Settings > Privacy & Security**, enable:
 
-- **Screen & System Audio Recording** (or **Screen Recording**): screen capture.
-- **Input Monitoring**: scan keys, mouse buttons and global shortcuts.
-- **Accessibility**: pinning results and copying selected text.
+- **Screen Recording** (or **Screen & System Audio Recording**) for capture.
+- **Input Monitoring** for scan keys, mouse buttons and shortcuts.
+- **Accessibility** for pinning and copying selected text.
 
-Quit Wordcel from its menu-bar icon and reopen it. If it still fails:
+Quit and reopen Wordcel after changes. If it still fails, quit and toggle the
+affected permission off and on. If needed, use **− / +** to remove and re-add
+**Applications > Wordcel.app** where available, then enable it and reopen.
 
-1. Quit Wordcel, turn the affected permission off and on, then reopen it.
-2. If that fails, quit again. Where **−** and **+** buttons are available, remove
-   Wordcel and add **Applications > Wordcel.app** again. Enable it and reopen.
+Source runs need permissions for the launching terminal or app. Manual Search needs none.
 
-For source runs, grant permissions to the launching terminal or app instead.
-Manual Search works without these permissions.
+### Bugs, suggestions or feature requests
 
-### Report a bug
-
-[Open an issue](https://github.com/namidanokisetsu/wordcel/issues/new) and describe
-what went wrong; screenshots help. Sign in to GitHub; no template required.
+[Open an issue](https://github.com/namidanokisetsu/wordcel/issues/new) at any time.
+For bugs, include what happened and how to reproduce it; screenshots help.
+For suggestions, describe what you'd like to do. No template required.
