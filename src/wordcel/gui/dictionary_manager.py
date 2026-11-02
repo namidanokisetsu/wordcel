@@ -11,7 +11,8 @@ from PyQt6.QtWidgets import (
 
 from wordcel.dictionary.library import Library, default_library_path, language_code, save_preferences
 from wordcel.dictionary.translation import TranslationSettings, load_settings, load_profile_settings, save_profile_settings
-from wordcel.gui.quick_lookup import LANGUAGE_NAMES, language_name, default_text_shortcut, shortcut_preset, audio_autoplay_mode
+from wordcel.gui.language_names import LANGUAGE_NAMES, language_name
+from wordcel.gui.profile_preferences import default_text_shortcut, shortcut_preset, audio_autoplay_mode
 from wordcel.gui.shortcut_edit import LOOKUP_PRESETS, ShortcutEdit
 from wordcel.gui.settings_section import SettingsSection, StatusLabel, align_form_columns
 from wordcel.language.profiles import configured_profiles, default_partner, visible_profiles

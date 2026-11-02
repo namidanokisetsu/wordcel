@@ -22,7 +22,7 @@ from wordcel.dictionary.library import Entry, Library
 from wordcel.dictionary.kanji import KanjiEntry
 from wordcel.dictionary.metadata import Frequency
 from wordcel.dictionary.search import SearchResult
-from wordcel.gui.dictionary_manager import SetupDialog, SetupOperation
+from wordcel.gui.dictionary_manager import SetupDialog, SetupOperation, SetupRequest
 from wordcel.gui.quick_lookup import LookupWorker, QuickLookupWindow, render_result
 
 

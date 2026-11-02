@@ -451,7 +451,7 @@ class HistoryWindow(QDialog):
         if revision != self.revision:
             return
         rows, total, languages = response
-        from wordcel.gui.quick_lookup import language_name
+        from wordcel.gui.language_names import language_name
         current = self.language.currentData()
         if tuple(self.language.itemData(i) for i in range(1, self.language.count())) != languages:
             with QSignalBlocker(self.language):

@@ -20,7 +20,7 @@ def profile_language(settings, identity):
 
 
 def profile_name(settings, identity):
-    from wordcel.gui.quick_lookup import language_name
+    from wordcel.gui.language_names import language_name
     return settings.value(f"profiles/{identity}/name", "") or language_name(profile_language(settings, identity))
 
 

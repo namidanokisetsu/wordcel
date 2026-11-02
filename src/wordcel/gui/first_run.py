@@ -28,7 +28,7 @@ def complete_first_setup(settings):
 class FirstLanguage(QDialog):
     def __init__(self, settings, imported=()):
         super().__init__()
-        from wordcel.gui.quick_lookup import language_name
+        from wordcel.gui.language_names import language_name
         from wordcel.gui.language_chooser import LanguageComboBox
         from wordcel.language.profiles import configured_profiles
         from wordcel.language.support import profile_languages
@@ -80,7 +80,7 @@ class LanguageSuggestion(QDialog):
             self.installed_packs = tuple(meta for _, meta, _ in library.packs if meta["language"] == self.language)
         finally:
             library.close()
-        from wordcel.gui.quick_lookup import language_name
+        from wordcel.gui.language_names import language_name
         from wordcel.gui.language_setup import language_plan
         self.setWindowTitle(language_name(self.language))
         self.resize(480, 300)

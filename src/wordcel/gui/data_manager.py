@@ -196,7 +196,7 @@ class DataPanel(QWidget):
             self._update(assets)
 
     def _update(self, assets):
-        from wordcel.gui.quick_lookup import language_name
+        from wordcel.gui.language_names import language_name
         scroll = self.owner.data_tab.verticalScrollBar()
         position = scroll.value()
         self.assets = assets
