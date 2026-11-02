@@ -271,7 +271,7 @@ def main(argv=None):
                 tray.setContextMenu(None)
             else:
                 tray_adapter = None
-        except (AttributeError, ImportError, RuntimeError, TypeError):
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError):
             tray_adapter = None
     tray.setContextMenu(None if tray_adapter else menu)
     if tray_adapter is None:

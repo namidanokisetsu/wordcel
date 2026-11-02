@@ -20,6 +20,7 @@ class MacTrayAdapter(QObject):
         self.on_search = on_search
         self._monitor = None
         self._nsevent = None
+        self._button_down = None
         self._left_down = None
         self._right_down = None
 
@@ -50,7 +51,8 @@ class MacTrayAdapter(QObject):
 
     @staticmethod
     def _is_status_window(event):
-        native_window = getattr(event, "window", lambda: None)()
+        window = getattr(event, "window", None)
+        native_window = window() if callable(window) else window
         if native_window is None:
             return True
         class_name = getattr(native_window, "className", lambda: "")()
