@@ -189,14 +189,16 @@ class InstallerTests(unittest.TestCase):
         self.assertFalse(list(installed.glob(".runtime-*")))
         self.assertNotIn("\\", registry["executable"])
         self.assertNotIn("\\", registry["models"]["quality"]["path"])
-        self.assertEqual(server._installed_paths("quality", installed),
-                         (installed / registry["executable"], installed / registry["models"]["quality"]["path"]))
+        with patch.object(server, "MODELS", models):
+            self.assertEqual(server._installed_paths("quality", installed),
+                             (installed / registry["executable"], installed / registry["models"]["quality"]["path"]))
         # Existing manifests produced on Windows remain usable without copying
         # or rehashing an eight-gigabyte model during application startup.
         registry["executable"] = str(PureWindowsPath(registry["executable"]))
         registry["models"]["quality"]["path"] = str(PureWindowsPath(registry["models"]["quality"]["path"]))
         server._write_installation(installed, registry)
-        executable, installed_model = server._installed_paths("quality", installed)
+        with patch.object(server, "MODELS", models):
+            executable, installed_model = server._installed_paths("quality", installed)
         self.assertTrue(executable.is_file())
         self.assertEqual(installed_model.read_bytes(), b"model")
 
@@ -208,11 +210,17 @@ class ManagedServerTests(unittest.TestCase):
         self.root = Path(self.temp.name).resolve()
         self.executable = self.root / "llama-server.exe"
         self.executable.write_bytes(b"server")
+        fixture_hash = hashlib.sha256(b"model").hexdigest()
+        self.enterContext(patch.object(server, "MODELS", {
+            "quality": dict(name="Hy-MT2-7B Q8_0", file="quality.gguf", size=5, sha256=fixture_hash),
+            "lightweight": dict(name="Hy-MT2 1.8B", file="lightweight.gguf", size=5, sha256=fixture_hash),
+        }))
         models = {}
         for profile in ("quality", "lightweight"):
-            path = self.root / f"{profile}.gguf"
+            path = self.root / "models" / f"{profile}.gguf"
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b"model")
-            models[profile] = dict(path=path.name, size=5)
+            models[profile] = dict(path=f"models/{path.name}", size=5, sha256=fixture_hash)
         (self.root / "installation.json").write_text(json.dumps(dict(executable=self.executable.name, models=models)))
         self.process = Mock()
         self.process.poll.return_value = None
@@ -228,11 +236,23 @@ class ManagedServerTests(unittest.TestCase):
                 server.ensure_server(endpoint, directory=self.root)
 
     def test_missing_model_does_not_download_or_spawn(self):
-        (self.root / "quality.gguf").unlink()
+        (self.root / "models/quality.gguf").unlink()
         with patch.object(server, "urlopen", side_effect=AssertionError("network")), \
                 patch.object(server.subprocess, "Popen") as spawn, self.assertRaisesRegex(RuntimeError, "Hy-MT2-7B.*Translation"):
             server.ensure_server(directory=self.root)
         spawn.assert_not_called()
+
+    def test_installed_paths_checks_catalog_metadata_without_rehashing_payload(self):
+        with patch.object(server, "_sha256", side_effect=AssertionError("inference must not hash model")) as digest:
+            executable, model = server._installed_paths("quality", self.root)
+        self.assertTrue(executable.is_file())
+        self.assertEqual(model, self.root / "models/quality.gguf")
+        digest.assert_not_called()
+        registry = server.installation(self.root)
+        registry["models"]["quality"]["sha256"] = "0" * 64
+        server._write_installation(self.root, registry)
+        with self.assertRaisesRegex(RuntimeError, "Hy-MT2-7B.*Translation"):
+            server._installed_paths("quality", self.root)
 
     def test_start_once_with_idle_unload_and_hidden_windows_process(self):
         with patch.object(server, "_ready", side_effect=[False, True, True]), \
@@ -282,7 +302,7 @@ class ManagedServerTests(unittest.TestCase):
             server.ensure_server(profile="lightweight", directory=self.root)
         self.process.terminate.assert_called_once()
         self.assertEqual(spawn.call_count, 2)
-        self.assertIn(str(self.root / "lightweight.gguf"), spawn.call_args.args[0])
+        self.assertIn(str(self.root / "models/lightweight.gguf"), spawn.call_args.args[0])
 
     def test_shutdown_escalates_only_if_owned_process_ignores_termination(self):
         server._process = self.process
@@ -347,6 +367,12 @@ if __name__ == "__main__":
 
 
 class BackendTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.object(server, "MODELS", {
+            "quality": dict(name="Fixture model", file="model.gguf", size=5,
+                            sha256=hashlib.sha256(b"model").hexdigest()),
+        }))
+
     def test_worker_detection_never_treats_vendor_names_as_capabilities(self):
         from wordcel.translation_hardware import Capabilities, detect_capabilities
         for name, cuda, vulkan, selected in (("CPU", None, False, "cpu"), ("AMD", None, True, "vulkan"),
@@ -367,7 +393,8 @@ class BackendTests(unittest.TestCase):
             model = root / "models/model.gguf"
             model.parent.mkdir()
             model.write_bytes(b"model")
-            manifest = {"models": {"quality": {"path": "models/model.gguf", "size": 5}}}
+            manifest = {"models": {"quality": {"path": "models/model.gguf", "size": 5,
+                                                   "sha256": hashlib.sha256(b"model").hexdigest()}}}
             server._write_installation(root, manifest)
             calls = []
             def download(url, destination, digest, *args):
@@ -397,7 +424,8 @@ class BackendTests(unittest.TestCase):
         from wordcel.translation_hardware import Capabilities
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
-            model = root / "model.gguf"
+            model = root / "models/model.gguf"
+            model.parent.mkdir()
             model.write_bytes(b"model")
             runtimes = {}
             for backend in ("cpu", "vulkan"):
@@ -405,7 +433,9 @@ class BackendTests(unittest.TestCase):
                 executable.parent.mkdir()
                 executable.write_bytes(b"runtime")
                 runtimes[backend] = {"executable": executable.relative_to(root).as_posix()}
-            server._write_installation(root, {"models": {"quality": {"path": "model.gguf", "size": 5}}, "runtimes": runtimes})
+            server._write_installation(root, {"models": {"quality": {"path": "models/model.gguf", "size": 5,
+                                                                          "sha256": hashlib.sha256(b"model").hexdigest()}},
+                                             "runtimes": runtimes})
             first, second = Mock(), Mock()
             first.poll.return_value = second.poll.return_value = None
             try:
@@ -417,3 +447,33 @@ class BackendTests(unittest.TestCase):
                 first.terminate.assert_called_once()
             finally:
                 server.shutdown_server()
+
+    def test_automatic_paths_follow_saved_backend_then_cpu_then_legacy_runtime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            model = root / "models/model.gguf"
+            model.parent.mkdir()
+            model.write_bytes(b"model")
+            runtimes = {}
+            for backend in ("cpu", "vulkan"):
+                executable = root / ("runtime-" + backend) / "llama-server.exe"
+                executable.parent.mkdir()
+                executable.write_bytes(b"runtime")
+                runtimes[backend] = {"executable": executable.relative_to(root).as_posix()}
+            registry = {"platform": "win-x64", "automatic_backend": "vulkan", "runtimes": runtimes,
+                        "models": {"quality": {"path": "models/model.gguf", "size": 5,
+                                                   "sha256": hashlib.sha256(b"model").hexdigest()}}}
+            server._write_installation(root, registry)
+            self.assertEqual(server._installed_paths("quality", root)[0],
+                             root / "runtime-vulkan/llama-server.exe")
+            registry["automatic_backend"] = "cuda"
+            server._write_installation(root, registry)
+            self.assertEqual(server._installed_paths("quality", root)[0],
+                             root / "runtime-cpu/llama-server.exe")
+            legacy = root / "llama-server.exe"
+            legacy.write_bytes(b"legacy")
+            server._write_installation(root, {
+                "platform": "win-x64", "backend": "cuda", "executable": legacy.name,
+                "models": registry["models"],
+            })
+            self.assertEqual(server._installed_paths("quality", root)[0], legacy)

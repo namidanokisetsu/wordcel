@@ -313,9 +313,13 @@ def install_model(profile="quality", directory=None, progress=None, cancelled=No
             raise RuntimeError("Translation runtime is incomplete. Reinstall its runtime folder.")
         runtime = dict(release=RELEASE, platform=platform_key, backend=backend,
                        executable=executables[0].relative_to(root).as_posix())
-        registry.update(runtime)
         if not isinstance(registry.get("runtimes"), dict):
             registry["runtimes"] = {}
+        if registry.get("executable"):
+            previous_backend = registry.get("backend", "cuda" if registry.get("platform", "").startswith("win-") else "native")
+            previous = {key: registry[key] for key in ("release", "platform", "executable") if key in registry}
+            registry["runtimes"].setdefault(previous_backend, dict(previous, backend=previous_backend))
+        registry.update(runtime, automatic_backend=automatic_backend)
         registry["runtimes"][backend] = runtime
         (runtime_path / "runtime.json").write_text(json.dumps(runtime), encoding="utf-8")
         if runtime_only:

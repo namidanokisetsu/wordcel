@@ -112,6 +112,8 @@ class TranslationBundleTests(unittest.TestCase):
         self.cancelled = threading.Event()
         self.model = dict(name="Fixture model", repo="fixture", revision="r1", file="model.gguf", size=5,
                           sha256=hashlib.sha256(b"model").hexdigest())
+        self.enterContext(patch("wordcel.scripts.translation_server.MODELS", {"lightweight": self.model}))
+        self.enterContext(patch("wordcel.translation_catalog.MODELS", {"lightweight": self.model}))
 
     def kwargs(self, root):
         return dict(data_root=root / "data", cache_root=root / "cache")
@@ -167,6 +169,14 @@ class TranslationBundleTests(unittest.TestCase):
                 patch("wordcel.translation_catalog.MODELS", {"lightweight": self.model}):
             import_bundle(self.archive, self.destination / "library", lambda text: None, self.cancelled,
                           **self.kwargs(self.destination))
+
+    def rewrite(self, transform):
+        with zipfile.ZipFile(self.archive) as bundle:
+            files = {item.filename: bundle.read(item) for item in bundle.infolist()}
+        transform(files)
+        with zipfile.ZipFile(self.archive, "w") as bundle:
+            for name, data in files.items():
+                bundle.writestr(name, data)
 
     def test_cpu_and_vulkan_runtime_metadata_round_trip_with_shared_model(self):
         for backend in ("cpu", "vulkan"):
@@ -227,6 +237,46 @@ class TranslationBundleTests(unittest.TestCase):
             for archive_name, data in files.items():
                 bundle.writestr(archive_name, data)
         with self.assertRaisesRegex(ValueError, "backend"):
+            self.import_archive()
+        self.assertFalse((self.destination / "data/translation/models/model.gguf").exists())
+        self.assertFalse(list((self.destination / "data/translation").glob("runtime-*")))
+
+    def test_forged_model_metadata_is_rejected_against_catalog(self):
+        self.make_translation()
+        self.export()
+
+        def forge(files):
+            manifest = json.loads(files["manifest.json"])
+            unit = next(unit for unit in manifest["units"]
+                        if unit["path"] == "translation/installation.json")
+            archive_name = f"resources/{manifest['units'].index(unit)}/file"
+            metadata = json.loads(files[archive_name])
+            metadata["models"]["lightweight"]["sha256"] = hashlib.sha256(b"alien").hexdigest()
+            files[archive_name] = json.dumps(metadata).encode()
+            unit["files"][0]["size"] = len(files[archive_name])
+            unit["files"][0]["sha256"] = hashlib.sha256(files[archive_name]).hexdigest()
+            files["manifest.json"] = json.dumps(manifest).encode()
+
+        self.rewrite(forge)
+        with self.assertRaisesRegex(ValueError, "catalog"):
+            self.import_archive()
+        self.assertFalse((self.destination / "data/translation/models/model.gguf").exists())
+
+    def test_same_size_foreign_model_payload_is_rejected_before_publish(self):
+        self.make_translation()
+        self.export()
+
+        def forge(files):
+            manifest = json.loads(files["manifest.json"])
+            unit = next(unit for unit in manifest["units"]
+                        if unit["path"] == "translation/models/model.gguf")
+            archive_name = f"resources/{manifest['units'].index(unit)}/file"
+            files[archive_name] = b"alien"
+            unit["files"][0]["sha256"] = hashlib.sha256(files[archive_name]).hexdigest()
+            files["manifest.json"] = json.dumps(manifest).encode()
+
+        self.rewrite(forge)
+        with self.assertRaisesRegex(ValueError, "checksum"):
             self.import_archive()
         self.assertFalse((self.destination / "data/translation/models/model.gguf").exists())
         self.assertFalse(list((self.destination / "data/translation").glob("runtime-*")))

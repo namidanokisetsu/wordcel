@@ -73,8 +73,9 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   typing, OCR hover, positional lookup and history restoration never trigger it.
   Keep custom translation servers loopback-only.
   `translation_catalog.py` owns model IDs, revisions, hashes, sizes and memory
-  budgets. Existing Q8 selections stay unchanged; Q4 is an explicit option.
-  Fresh setup recommends 1.8B Q8 with 4 GiB available after a 2 GiB system
+  budgets. Existing Q8 selections stay unchanged. Q4 passed a bounded eight-prompt
+  Japanese/Turkish comparison on arm64. Fresh setup recommends Q4 with 3 GiB
+  available after a 2 GiB system
   reserve; unknown memory recommends no download. Budgets include 8K context
   and inference buffers. Driver/device probes run on a setup worker. Windows
   Automatic selects verified CUDA/Vulkan support, otherwise CPU; macOS stays

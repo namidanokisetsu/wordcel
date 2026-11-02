@@ -17,6 +17,25 @@ _TRANSLATION_MANIFEST = "translation/installation.json"
 _TRANSLATION_BACKENDS = frozenset(("automatic", "cpu", "vulkan", "cuda", "native"))
 
 
+def _managed_model_spec(profile, path=None):
+    from wordcel.translation_catalog import MODELS
+    spec = MODELS.get(profile)
+    if not isinstance(spec, dict) or not isinstance(spec.get("file"), str):
+        raise ValueError("Unknown managed translation model.")
+    if path is not None and path != "models/" + spec["file"]:
+        raise ValueError("Translation model path does not match the managed catalog.")
+    return spec
+
+
+def _managed_model_for_path(path):
+    from wordcel.translation_catalog import MODELS
+    matches = [spec for spec in MODELS.values()
+               if isinstance(spec, dict) and path == "models/" + spec.get("file", "")]
+    if len(matches) != 1:
+        raise ValueError("Unknown managed translation model.")
+    return matches[0]
+
+
 def _translation_relative(value, kind):
     if not isinstance(value, str) or len(value) > 512:
         raise ValueError("Invalid translation installation metadata.")
@@ -89,12 +108,15 @@ def _sanitize_translation_manifest(value):
                 if not isinstance(item, dict):
                     raise ValueError("Invalid translation model metadata.")
                 path = _translation_relative(item.get("path"), "model")
+                spec = _managed_model_spec(name, path)
                 digest = item.get("sha256")
                 size = item.get("size")
                 if (not isinstance(digest, str) or len(digest) != 64 or
                         any(char not in "0123456789abcdefABCDEF" for char in digest) or
                         type(size) is not int or size < 0):
                     raise ValueError("Invalid translation model metadata.")
+                if digest.lower() != spec["sha256"] or size != spec["size"]:
+                    raise ValueError("Translation model metadata does not match the managed catalog.")
                 model = dict(path=path, sha256=digest.lower(), size=size)
                 if "url" in item:
                     if not isinstance(item["url"], str) or len(item["url"]) > 2048:
@@ -404,6 +426,13 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                         raise ValueError("Invalid translation installation metadata.") from None
                     incoming_manifest = _sanitize_translation_manifest(raw_manifest)
                     has_manifest_unit = True
+                if root == "data" and relative.startswith("translation/models/"):
+                    model_relative = safe_member(relative).as_posix().removeprefix("translation/")
+                    spec = _managed_model_for_path(model_relative)
+                    if not output_path.is_file() or output_path.stat().st_size != spec["size"]:
+                        raise ValueError("Managed translation model size mismatch.")
+                    if file_hash(output_path) != spec["sha256"]:
+                        raise ValueError("Managed translation model checksum mismatch.")
                 if root == "data" and relative.startswith("engines/"):
                     feature = target.name.split("-", 1)[0]
                     if (not (stage / "site").is_dir() or
