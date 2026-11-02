@@ -17,6 +17,16 @@ on:
         description: Require persistent release signing
         type: boolean
         default: true
+      architecture:
+        description: Architectures to build
+        type: choice
+        options: [all, arm64]
+        default: all
+      arm64_runner:
+        description: Apple silicon runner
+        type: choice
+        options: [macos-15, macos-26]
+        default: macos-15
 
 permissions:
   contents: read
@@ -26,13 +36,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: macos-15
-            arch: arm64
-          - runner: macos-15-intel
-            arch: x86_64
+        arch: ${{ fromJSON(inputs.architecture == 'arm64' && '["arm64"]' || '["arm64", "x86_64"]') }}
 
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.arch == 'arm64' && (inputs.arm64_runner || 'macos-15') || 'macos-15-intel' }}
 
     steps:
       - uses: actions/checkout@v4
