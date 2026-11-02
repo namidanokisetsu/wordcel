@@ -133,7 +133,7 @@ class AnkiSettingsPanel(QWidget):
         self.duplicate_decks.setToolTip("The destination deck is always included")
         self.duplicate_decks.setMenu(QMenu(self.duplicate_decks))
         self.check_all_models = QCheckBox("All note types")
-        self.duplicate_form.addRow("Action", self.duplicate_action)
+        self.duplicate_form.addRow("Duplicates", self.duplicate_action)
         self.duplicate_form.addRow("Check in", self.duplicate_scope)
         self.duplicate_form.addRow("Also check", self.duplicate_decks)
         self.duplicate_form.addRow(self.check_all_models)

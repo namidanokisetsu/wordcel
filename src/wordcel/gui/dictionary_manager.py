@@ -470,6 +470,15 @@ class SetupDialog(SettingsNavigation, QDialog):
         scanning = QWidget()
         scan_layout = QFormLayout(scanning)
         self.scan_layout = scan_layout
+        if sys.platform == "darwin":
+            from wordcel.gui.macos_permissions import PermissionNotice
+            scan_layout.addRow(PermissionNotice((
+                ("screen_recording", "Screen Recording is needed for OCR."),
+                ("accessibility", "Accessibility is needed for scan controls."),
+            ), scanning))
+            shortcut_layout.addRow(PermissionNotice((
+                ("input_monitoring", "Input Monitoring is needed for global shortcuts."),
+            ), shortcuts))
         self.freeze_while_held = QCheckBox("Freeze capture while holding the lookup key")
         self.freeze_while_held.setToolTip("One screenshot per hold. Release to refresh; the video keeps playing.")
         scan_layout.addRow(self.freeze_while_held)

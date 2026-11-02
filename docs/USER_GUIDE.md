@@ -6,8 +6,9 @@
 and choose a language. Setup offers dictionaries and an OCR model to download.
 See [supported languages](LANGUAGES.md) for coverage.
 
-Wordcel runs in the system tray. Right-click its icon to open **Search**,
-**Translate**, **History** or **Settings**.
+Wordcel runs in the system tray. On macOS, click its menu-bar icon or Dock icon
+to open **Search**. Right-click for **Search**, **Settings**, **Quit** and available
+optional actions.
 
 After the first language choice, Wordcel offers the resources needed for that
 profile. You can skip downloads and install them later from the relevant
@@ -22,9 +23,10 @@ In **System Settings > Privacy & Security**, enable Wordcel under:
 - **Input Monitoring**: detect scan keys, mouse buttons and global shortcuts.
 - **Accessibility**: handle scan/pin controls and copy selected text from other apps.
 
-Then choose **Quit** from Wordcel's menu-bar icon and reopen it. Closing the
-search window does not quit Wordcel. If running from source, grant access to
-the launching terminal or app shown in these lists.
+Return to Wordcel after granting access. If access is still unavailable, choose
+**Quit** from the menu-bar icon and reopen it. Closing Search does not quit
+Wordcel. For source runs, grant access to the launching terminal or app shown
+in these lists.
 
 If manual search works but OCR or **Command+Shift+D** does nothing, check these
 permissions first. Manual Search and Settings remain available when access is

@@ -109,6 +109,12 @@ the source remains foreground, consume matching releases after dismissal, and
 leave other input with the source. Popup actions yield to text fields. Unhandled
 `nativeEvent` returns `(False, 0)` directly: PyQt's base call can crash handle creation.
 Non-OCR shortcuts remain independently configurable, preserving OCR-only use.
+macOS routes menu-bar clicks through a narrow Cocoa adapter while Qt owns the
+menu and popup. Native listeners confirm event-tap readiness, retry failed
+startup after permission changes, and yield Escape to menus and dialogs.
+Permission notices recheck when their settings page opens or the app regains
+focus; navigation never requests access. The menu bar uses a dedicated template
+mark, with profile information in its tooltip.
 
 Hover areas restore only on matching display geometry/scale. Explicit dismissal
 pauses hover until the pointer leaves and returns; automatic hiding does not.
