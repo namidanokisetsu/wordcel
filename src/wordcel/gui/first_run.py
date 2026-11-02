@@ -131,7 +131,7 @@ class LanguageSuggestion(QDialog):
             preferred = "lightweight"
             self.translation_backend = "automatic"
         installed = [name for name in ("lightweight", "quality", "compact") if translation_ready(name)]
-        selected = preferred if preferred in installed else next(iter(installed), "lightweight")
+        selected = preferred if preferred in installed else next(iter(installed), "compact")
         if window.settings.contains(f"profiles/{self.profile}/translation"):
             selected = preferred
         self.translation.setCurrentIndex(self.translation.findData(selected))
@@ -220,7 +220,7 @@ class LanguageSuggestion(QDialog):
                 and not any(task.kind == "translation" and check.isChecked() for task, check in self.choices):
             from wordcel.gui.resources import translation_ready
             if not any(translation_ready(name) for name in ("lightweight", "quality", "compact")):
-                identity = recommend_model(capabilities.memory)
+                identity = recommend_model(capabilities.memory, capabilities.gpu_memory, capabilities.cuda)
                 self.translation.setCurrentIndex(self.translation.findData(identity))
         self.refresh_choices()
 
@@ -280,7 +280,10 @@ class LanguageSuggestion(QDialog):
                 unknown = True
         self.transfer.setText(transfer_label(known, unknown))
         identity = self.translation.currentData()
-        self.translation_fit.setText(fit_message(identity, self.capabilities.memory if self.capabilities else None) if identity else "")
+        caps = self.capabilities
+        offload = bool(caps and caps.cuda and self.translation_backend in {"automatic", "cuda"})
+        self.translation_fit.setText(fit_message(identity, caps.memory if caps else None,
+                                               caps.gpu_memory if caps else None, offload) if identity else "")
 
     def use_translation(self, profile):
         from dataclasses import replace

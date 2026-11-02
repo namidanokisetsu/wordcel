@@ -332,7 +332,7 @@ class FirstRunTests(unittest.TestCase):
     def test_partial_setup_retries_only_unfinished_tasks_including_translation(self):
         next(check for task, check in self.wizard.choices if task.kind == "translation").setChecked(True)
         from wordcel.gui.language_setup import SetupTask
-        translation = SetupTask("translation", "Local translation", "lightweight")
+        translation = SetupTask("translation", "Local translation", "compact")
         completed = [(task, "") for task in self.wizard.selected_tasks() if task.kind != "translation"]
         self.wizard.operation = Mock(cancelled=threading.Event())
         self.wizard.bar.setRange(0, len(completed) + 1)
@@ -358,7 +358,7 @@ class FirstRunTests(unittest.TestCase):
         from wordcel.gui.language_setup import language_plan
         japanese = language_plan("ja", platform="win32")
         self.assertEqual([task.kind for task in japanese], ["dictionary"] * 4 + ["ocr", "fonts", "translation"])
-        self.assertEqual(japanese[-1].value, "lightweight")
+        self.assertEqual(japanese[-1].value, "compact")
         with patch("wordcel.ocr.macos_vision.supported_languages", return_value={"tr"}):
             turkish = language_plan("tr", platform="darwin")
         self.assertEqual([task.kind for task in turkish], ["dictionary", "ocr", "translation"])

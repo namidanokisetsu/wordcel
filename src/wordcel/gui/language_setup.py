@@ -15,7 +15,7 @@ class SetupTask:
     backend: str = "automatic"
 
 
-def language_plan(language, translation="lightweight", platform=None):
+def language_plan(language, translation="compact", platform=None):
     from wordcel.dictionary.catalog import recommendations
     from wordcel.language.support import STANZA_LANGUAGES, TRANSLATION_LANGUAGES, default_ocr_provider
     tasks = [SetupTask("dictionary", item.title, item) for item in recommendations(language)]

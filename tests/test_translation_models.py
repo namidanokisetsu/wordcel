@@ -16,8 +16,8 @@ class ModelCatalogTests(unittest.TestCase):
     def test_recommendation_accounts_for_context_and_system_memory(self):
         gib = 1024**3
         self.assertIsNone(recommend_model(None))
-        self.assertIsNone(recommend_model(5 * gib))
-        self.assertEqual(recommend_model(8 * gib), "lightweight")
+        self.assertIsNone(recommend_model(4 * gib))
+        self.assertEqual(recommend_model(8 * gib), "compact")
         self.assertIsNone(recommend_model(8 * gib, 2 * gib, offload=True))
         self.assertIn("unknown", fit_message("compact", None))
         self.assertIn("insufficient", fit_message("quality", 8 * gib))

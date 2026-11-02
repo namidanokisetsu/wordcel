@@ -24,7 +24,7 @@ def model_label(identity):
 def recommend_model(available_memory, gpu_memory=None, offload=False):
     """Reserve 2 GiB for the OS; budgets include weights, 8K context and buffers.
 
-    Q8 remains the tested recommendation. Unknown/insufficient memory recommends
+    Q4 passed the bounded Japanese/Turkish comparison. Unknown/insufficient memory recommends
     no download. GPU memory contributes only with verified full offload.
     """
     if available_memory is None:
@@ -32,7 +32,7 @@ def recommend_model(available_memory, gpu_memory=None, offload=False):
     budget = max(0, available_memory - 2 * 1024**3)
     if offload and gpu_memory is not None:
         budget = min(budget, gpu_memory)
-    return "lightweight" if budget >= MODELS["lightweight"]["memory"] else None
+    return "compact" if budget >= MODELS["compact"]["memory"] else None
 
 
 def fit_message(identity, available_memory, gpu_memory=None, offload=False):
