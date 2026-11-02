@@ -140,7 +140,13 @@ class DataPanel(QWidget):
 
     def refresh_jobs(self):
         from wordcel.gui.resource_jobs import jobs
-        active = jobs.snapshot()
+        active, owners = {}, set()
+        for key, value in jobs.snapshot().items():
+            owner = value[0]
+            if owner not in owners:
+                owners.add(owner)
+                active[key] = value
+        structure_changed = set(active) != set(self.job_rows)
         for key in set(self.job_rows) - active.keys():
             row = self.job_rows.pop(key)
             self.job_layout.removeWidget(row)
@@ -150,8 +156,8 @@ class DataPanel(QWidget):
                 row = QWidget()
                 layout = QHBoxLayout(row)
                 layout.setContentsMargins(0, 0, 0, 0)
-                row.label = QLabel()
-                row.label.setWordWrap(True)
+                from wordcel.gui.setup_progress import SetupProgress
+                row.label = SetupProgress()
                 layout.addWidget(row.label, 1)
                 cancel = QPushButton("Cancel")
                 cancel.clicked.connect(cancelled.set)
@@ -159,7 +165,8 @@ class DataPanel(QWidget):
                 self.job_rows[key] = row
                 self.job_layout.addWidget(row)
             self.job_rows[key].label.setText(title)
-        self.set_busy()
+        if structure_changed:
+            self.set_busy()
 
     def refresh(self):
         if self._task is not None:

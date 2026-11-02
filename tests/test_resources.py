@@ -64,6 +64,37 @@ class ResourceTests(unittest.TestCase):
                 dialog.deleteLater()
                 self.app.processEvents()
 
+    def test_storage_shows_one_progress_row_per_job_without_rebuilding_busy_controls(self):
+        from wordcel.gui.resource_jobs import ResourceJobs
+        from wordcel.utils.progress import download_progress
+        jobs = ResourceJobs()
+        with tempfile.TemporaryDirectory() as directory, patch("wordcel.gui.resource_jobs.jobs", jobs):
+            settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
+            settings.setValue("profiles/ja/target", "en")
+            dialog = SetupDialog(directory, settings, Mock())
+            owner, cancelled = object(), threading.Event()
+            try:
+                with patch.object(dialog.data, "set_busy") as busy:
+                    jobs.claim(("translation:compact",), owner, cancelled, "Preparing download…")
+                    self.assertEqual(len(dialog.data.job_rows), 1)
+                    row = next(iter(dialog.data.job_rows.values()))
+                    self.assertEqual(busy.call_count, 1)
+                    for amount in range(10):
+                        jobs.progress(owner, download_progress("Model", amount, 1000))
+                    self.assertIs(next(iter(dialog.data.job_rows.values())), row)
+                    self.assertEqual(row.label.bar.value(), 0)
+                    self.assertIn("9 B", row.label.detail.text())
+                    self.assertEqual(busy.call_count, 1)
+                    dialog.reject()
+                    self.assertFalse(cancelled.is_set())
+                    jobs.finish(owner)
+                    self.assertFalse(dialog.data.job_rows)
+                    self.assertEqual(busy.call_count, 2)
+            finally:
+                jobs.finish(owner)
+                dialog.deleteLater()
+                self.app.processEvents()
+
     def test_data_inventory_runs_off_the_gui_thread(self):
         from wordcel.data_assets import DataAsset
         with tempfile.TemporaryDirectory() as directory:

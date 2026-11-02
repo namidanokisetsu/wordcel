@@ -50,6 +50,11 @@ In **Dictionaries**, use **Import ZIPs** to add Yomitan dictionaries. If a ZIP
 contains other ZIPs, extract it first. Removing a dictionary removes it from
 every profile. Download dictionaries here, OCR resources in **Lookup**, and
 translation models in **Translation**.
+
+Downloads continue when you close or minimize setup. Use **Cancel downloads** or
+**Cancel** to stop them. **General > Storage** shows running jobs. Progress shows
+the current step; estimated download time excludes verification and installation.
+
 Japanese recommendations include JMdict, KANJIDIC, Jiten Global and the WaDoku pitch
 dictionary. [Jiten frequency data](https://jiten.moe/frequency-dictionaries) uses
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).

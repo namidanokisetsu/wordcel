@@ -104,6 +104,10 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   WaDoku's data licence, not just the converter's CC0 notice.
   First run leaves fonts, Stanza and translation unchecked. Setup requests
   validate one operation before deriving job identity and worker dispatch.
+  Coalesce worker progress before Qt delivery; lock aliases share one visible job.
+  Item counts describe batches; percentages and rate-based estimates describe only
+  the current transfer. Verification/install stages remain separate and untimed.
+  Closing setup hides it without cancelling; cancellation is explicit.
   Engine wheels and translation archives share verified resumable downloads;
   URL/hash/size metadata and HTTP validators bind partials. Publication follows
   size/SHA256 checks; Hugging Face retains its model downloader. Dictionary

@@ -47,6 +47,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self._imported_languages = ()
         self.setWindowTitle("Wordcel Settings")
         self.setWindowModality(Qt.WindowModality.NonModal)
+        self.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, True)
         self.resize(700, 520)
         layout = QVBoxLayout(self)
         profile_row = QHBoxLayout()
@@ -1442,8 +1443,8 @@ class SetupDialog(SettingsNavigation, QDialog):
         if self.operation_busy(operation.resource):
             operation.deleteLater()
             return
-        label = StatusLabel()
-        label.setWordWrap(True)
+        from wordcel.gui.setup_progress import SetupProgress
+        label = SetupProgress()
         label.setText({"translation": "Downloading translation…", "ocr": "Downloading OCR…",
                        "morphology": "Downloading word-form support…", "fonts": "Downloading font…",
                        "dictionaries": "Updating dictionaries…"}.get(operation.resource, "Removing data…"))

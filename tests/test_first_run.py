@@ -253,6 +253,34 @@ class FirstRunTests(unittest.TestCase):
         self.assertIsNone(offer_resources(self.window, "tr"))
         self.assertFalse(self.settings.contains("setup/pending"))
 
+    def test_hiding_running_setup_keeps_downloads_and_reuses_the_window(self):
+        from PyQt6.QtCore import Qt
+        from wordcel.gui.first_run import offer_resources
+        self.wizard.operation = Mock(cancelled=threading.Event())
+        self.window._resource_suggestions = {"ja": self.wizard}
+        self.wizard.show()
+        self.assertTrue(self.wizard.windowFlags() & Qt.WindowType.WindowMinimizeButtonHint)
+        self.assertEqual(self.wizard.windowModality(), Qt.WindowModality.NonModal)
+        self.wizard.showMinimized()
+        self.app.processEvents()
+        self.assertTrue(self.wizard.isMinimized())
+        self.wizard.reject()
+        self.assertFalse(self.wizard.operation.cancelled.is_set())
+        self.assertFalse(self.wizard.isVisible())
+        self.assertIs(offer_resources(self.window, "ja", force=True), self.wizard)
+        self.wizard.cancel_operation()
+        self.assertTrue(self.wizard.operation.cancelled.is_set())
+        self.assertFalse(self.wizard.cancel_downloads.isEnabled())
+        self.wizard.operation = None
+
+    def test_task_counter_describes_items_without_claiming_an_overall_percentage(self):
+        from PyQt6.QtWidgets import QProgressBar
+        self.wizard._task_total = 5
+        self.wizard.download_stage(1, "Local translation")
+        self.assertEqual(self.wizard.task_count.text(), "Item 2 of 5")
+        self.assertEqual(self.wizard.findChildren(QProgressBar), [self.wizard.progress_view.bar])
+        self.assertEqual(self.wizard.progress_view.bar.maximum(), 0)
+
     def test_unchecking_everything_closes_without_downloads(self):
         for task, check in self.wizard.choices:
             check.setChecked(False)
@@ -335,11 +363,11 @@ class FirstRunTests(unittest.TestCase):
         translation = SetupTask("translation", "Local translation", "compact")
         completed = [(task, "") for task in self.wizard.selected_tasks() if task.kind != "translation"]
         self.wizard.operation = Mock(cancelled=threading.Event())
-        self.wizard.bar.setRange(0, len(completed) + 1)
+        self.wizard._task_total = len(completed) + 1
         self.wizard.download_finished(completed, ["Local translation: fixture failure"])
         self.assertEqual(self.wizard.selected_tasks(), [translation])
         self.assertEqual(self.wizard.install.text(), "Retry")
-        self.assertLess(self.wizard.bar.value(), self.wizard.bar.maximum())
+        self.assertEqual(self.wizard.task_count.text(), f"{len(completed)} of {len(completed) + 1} installed")
         self.assertTrue(all(not check.isEnabled() for task, check in self.wizard.choices if task in [item for item, _ in completed]))
         self.wizard.operation = Mock(cancelled=threading.Event())
         self.wizard.download_finished([(translation, "")], [])

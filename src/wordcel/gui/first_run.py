@@ -1,7 +1,7 @@
 """One-time resource suggestions for a newly added language profile."""
 from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFormLayout, QHBoxLayout,
-                            QLabel, QPushButton, QProgressBar, QVBoxLayout, QWidget)
+                            QLabel, QPushButton, QVBoxLayout, QWidget)
 
 
 def needs_setup(settings):
@@ -73,6 +73,9 @@ class LanguageSuggestion(QDialog):
         self.profile = language or getattr(window, "active_profile", window.preferred_foreign)
         self.language = profile_language(window.settings, self.profile)
         self.operation = None
+        self._quit_cancel = None
+        self.setWindowModality(Qt.WindowModality.NonModal)
+        self.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, True)
         self.completed_tasks = []
         from wordcel.dictionary.library import Library
         library = Library(window.directory)
@@ -190,15 +193,20 @@ class LanguageSuggestion(QDialog):
         self.preparation.thread.start()
         for task, check in self.choices:
             check.toggled.connect(self.refresh_choices)
-        self.bar = QProgressBar()
-        self.bar.hide()
-        layout.addWidget(self.bar)
-        self.status = QLabel()
-        self.status.setTextFormat(Qt.TextFormat.PlainText)
-        self.status.setWordWrap(True)
-        layout.addWidget(self.status)
+        self.task_count = QLabel()
+        self.task_count.hide()
+        self._task_total = 0
+        layout.addWidget(self.task_count)
+        from wordcel.gui.setup_progress import SetupProgress
+        self.progress_view = SetupProgress()
+        self.status = self.progress_view.label
+        layout.addWidget(self.progress_view)
         buttons = QHBoxLayout()
         buttons.addStretch()
+        self.cancel_downloads = QPushButton("Cancel downloads")
+        self.cancel_downloads.hide()
+        self.cancel_downloads.clicked.connect(self.cancel_operation)
+        buttons.addWidget(self.cancel_downloads)
         self.later = QPushButton("Later")
         self.later.clicked.connect(self.reject)
         buttons.addWidget(self.later)
@@ -318,24 +326,35 @@ class LanguageSuggestion(QDialog):
             self.finish_setup()
             return
         self.operation = LanguageSetup(tasks, self.window.directory or default_library_path())
-        self.bar.setRange(0, len(tasks))
-        self.bar.setValue(0)
-        self.bar.show()
+        from PyQt6.QtWidgets import QApplication
+        self._quit_cancel = self.operation.cancelled.set
+        QApplication.instance().aboutToQuit.connect(self._quit_cancel)
+        self._task_total = len(tasks)
+        self.task_count.setText(f"0 of {len(tasks)} installed")
+        self.task_count.show()
         self.install.setEnabled(False)
         self.workflow.setEnabled(False)
         self.translation.setEnabled(False)
         self.ocr.setEnabled(False)
         for task, check in self.choices:
             check.setEnabled(False)
-        self.later.setText("Stop downloads")
+        self.later.setText("Hide")
+        self.cancel_downloads.show()
+        self.cancel_downloads.setEnabled(True)
         self.operation.stage.connect(self.download_stage)
-        self.operation.progress.connect(self.status.setText)
+        self.operation.progress.connect(self.progress_view.setText)
         self.operation.finished.connect(self.download_finished)
         self.operation.thread.start()
 
     def download_stage(self, index, label):
-        self.bar.setValue(index)
-        self.status.setText(label)
+        self.task_count.setText(f"Item {index + 1} of {self._task_total}")
+        self.progress_view.begin(label)
+
+    def cancel_operation(self):
+        if self.operation is not None:
+            self.operation.cancelled.set()
+            self.cancel_downloads.setEnabled(False)
+            self.progress_view.setText("Stopping after the current step…")
 
     def download_finished(self, completed, errors):
         code = self.profile
@@ -352,9 +371,14 @@ class LanguageSuggestion(QDialog):
             self.window._setup.reload(preserve=True)
             self.window._setup.resources.refresh()
         cancelled = self.operation.cancelled.is_set()
+        from PyQt6.QtWidgets import QApplication
+        if self._quit_cancel is not None:
+            QApplication.instance().aboutToQuit.disconnect(self._quit_cancel)
+            self._quit_cancel = None
+        self.operation.deleteLater()
         self.operation = None
         self.completed_tasks.extend(task for task, _ in completed if task not in self.completed_tasks)
-        self.bar.setValue(len(completed))
+        self.task_count.setText(f"{len(completed)} of {self._task_total} installed")
         self.install.setEnabled(True)
         self.workflow.setEnabled(True)
         self.install.setText("Retry" if errors else "Install")
@@ -366,18 +390,14 @@ class LanguageSuggestion(QDialog):
             self.window._render_identity = None
             self.window.reload_appearance()
         self.later.setText("Later")
-        self.status.setText("\n".join(errors) if errors else "Installed items were kept." if cancelled else "Ready.")
+        self.cancel_downloads.hide()
+        self.progress_view.setText("\n".join(errors) if errors else "Installed items were kept." if cancelled else "Ready.")
         if not errors and not cancelled:
             self.finish_setup()
 
     def finish_setup(self):
         self.window.settings.setValue(f"profiles/{self.profile}/setup_completed", True)
         super().accept()
-
-    def reject(self):
-        if self.operation is not None:
-            self.operation.cancelled.set()
-        super().reject()
 
 
 def offer_resources(window, code, *, force=False):
@@ -387,9 +407,12 @@ def offer_resources(window, code, *, force=False):
     suggestions = getattr(window, "_resource_suggestions", None)
     if suggestions is None:
         window._resource_suggestions = suggestions = {}
-    if code in suggestions and suggestions[code].isVisible():
-        suggestions[code].raise_()
-        return suggestions[code]
+    if code in suggestions:
+        current = suggestions[code]
+        if current.isVisible() or current.operation is not None:
+            current.showNormal()
+            current.raise_()
+            return current
     suggestion = LanguageSuggestion(window, code)
     suggestions[code] = suggestion
     suggestion.show()
