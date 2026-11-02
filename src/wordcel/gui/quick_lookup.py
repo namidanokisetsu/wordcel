@@ -1,12 +1,13 @@
 """Compact, shared dictionary surface with a latest-request background worker."""
 from collections import OrderedDict
+from contextlib import contextmanager
 from dataclasses import replace
 from html import escape
 import re
 import math
 import sys
 
-from PyQt6.QtCore import QEvent, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QEvent, QPoint, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QCursor, QImage, QKeyEvent, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel,
@@ -43,6 +44,7 @@ class LocalDictionaryBrowser(RubyBrowser):
         self.section_scroll = SectionScroller(self)
 
     def setHtml(self, html):
+        self._resize_anchor = None
         document = self.document()
         updates = self.updatesEnabled()
         # An ancestor may already suppress painting; do not disable this child explicitly.
@@ -96,6 +98,43 @@ class LocalDictionaryBrowser(RubyBrowser):
         super().wheelEvent(event)
         event.accept()
 
+    def reading_anchor(self):
+        scroller = getattr(self, "section_scroll", None)
+        if scroller is None or scroller.preview or not self.verticalScrollBar().value():
+            return None
+        # Reuse the character across reflows so line wrapping cannot accumulate drift.
+        if getattr(self, "_resize_anchor", None) is not None:
+            return self._resize_anchor
+        top = scroller.header.geometry().bottom() + 1 if scroller.header.isVisible() else 0
+        cursor = self.cursorForPosition(QPoint(0, top))
+        return cursor, self.cursorRect(cursor).top()
+
+    @contextmanager
+    def preserve_reading_position(self):
+        anchor = self.reading_anchor()
+        previous = getattr(self, "_reflowing", False)
+        self._reflowing = True
+        try:
+            yield
+        finally:
+            try:
+                self.section_scroll._refresh_header()
+                if anchor is not None:
+                    cursor, top = anchor
+                    bar = self.verticalScrollBar()
+                    bar.setValue(bar.value() + self.cursorRect(cursor).top() - top)
+                self._resize_anchor = anchor
+            finally:
+                self._reflowing = previous
+
+    def resizeEvent(self, event):
+        if getattr(self, "section_scroll", None) is None:
+            super().resizeEvent(event)
+            return
+        with self.preserve_reading_position():
+            super().resizeEvent(event)
+            self.section_scroll._lines = None
+
     def keyPressEvent(self, event):
         if not self.section_scroll.enabled and event.modifiers() == Qt.KeyboardModifier.NoModifier:
             bar = self.verticalScrollBar()
@@ -111,6 +150,8 @@ class LocalDictionaryBrowser(RubyBrowser):
         super().keyPressEvent(event)
 
     def scrollContentsBy(self, dx, dy):
+        if not getattr(self, "_reflowing", False):
+            self._resize_anchor = None
         scroller = getattr(self, "section_scroll", None)
         viewport = self.viewport()
         redraw = bool(scroller and scroller.enabled and not scroller.preview and viewport.updatesEnabled())
@@ -607,7 +648,13 @@ class QuickLookupWindow(QDialog):
 
     def reload_appearance(self, render=True):
         from wordcel.gui.profile_appearance import load_appearance
+        font_keys = ("font_family", "font_size_header", "font_size_definitions", "font_size_sentence", "furigana_scale")
+        previous_font = tuple(getattr(config, key) for key in font_keys)
         load_appearance(self.settings, self.active_profile)
+        position = None
+        if render and self._result is not None and previous_font != tuple(getattr(config, key) for key in font_keys):
+            from wordcel.gui.section_scroll import ReadingPosition
+            position = ReadingPosition(self.browser)
         self.browser.section_scroll.set_enabled(self.settings.value(f"profiles/{self.active_profile}/snap_scrolling", True, bool))
         self.apply_style()
         if hasattr(self, "_popup_shortcuts"):
@@ -616,7 +663,7 @@ class QuickLookupWindow(QDialog):
             before = tuple(button.isHidden() for button in self._popup_actions.values())
             self._place_actions()
             changed = before != tuple(button.isHidden() for button in self._popup_actions.values())
-            self._render(static=changed, preserve_scroll=changed)
+            self._render(static=changed, preserve_scroll=changed, position=position)
 
     def compact_preview(self):
         return self.settings.value(f"profiles/{self.active_profile}/compact_preview", True, type=bool)
@@ -1308,7 +1355,7 @@ class QuickLookupWindow(QDialog):
         self._place_actions()
         self.sentence_audio_button.setEnabled(bool(result.text))
 
-    def _render(self, static=False, *, preserve_scroll=False):
+    def _render(self, static=False, *, preserve_scroll=False, position=None):
         self._sync_headword_actions()
         self._render_kanji_panel()
         if self._translation_view:
@@ -1346,9 +1393,11 @@ class QuickLookupWindow(QDialog):
                 expanded = {entry.source for entry in self._result.entries}
             self._place_actions()
             show_source, source_text = self._peek, None
+            source_identity = None
             if self._peek and self.is_pinned:
                 show_source = self.settings.value(f"profiles/{self.active_profile}/pinned_sentence", False, bool)
                 source_text = self._result_context or (self._result.text if self._result.translation else "")
+                source_identity = source_text
                 if show_source and source_text:
                     width = (self.browser.viewport().width() - 2 * self.browser.document().documentMargin()
                              - self._action_clearance())
@@ -1360,18 +1409,20 @@ class QuickLookupWindow(QDialog):
                         tuple(sorted(self._details_expanded)),
                         self._peek, self.is_pinned, compact, tuple(preview_options.values()),
                         tuple(getattr(config, key) for key in DEFAULTS), self.devicePixelRatioF(),
-                        self.audio_actions.sizeHint().width(), show_source, source_text if show_source else None,
+                        self.audio_actions.sizeHint().width(), show_source, source_identity if show_source else None,
                         self.settings.value(f"profiles/{self.active_profile}/headword_furigana", False, bool),
                         self.settings.value(f"profiles/{self.active_profile}/definition_furigana", True, bool),
                         self.settings.value(f"profiles/{self.active_profile}/combine_frequencies", True, bool),
                         tuple(sorted(self._collapsed)), separate_headwords, self._headword_clearance())
             if identity == self._render_identity:
+                if show_source and source_text:
+                    self._resize_source(source_text)
                 mark("render_reused", self.revision)
                 return
             from wordcel.gui.section_scroll import ReadingPosition
             result_key = (self._result.text, self._result.source, self._result.target)
-            position = (ReadingPosition(self.browser)
-                        if getattr(self, "_rendered_result_key", None) == result_key else None)
+            if position is None and getattr(self, "_rendered_result_key", None) == result_key:
+                position = ReadingPosition(self.browser)
             mark("html_begin", self.revision)
             dictionary_result = (replace(self._result, translation="")
                                  if self._result.entries or self._automatic_translation else self._result)
@@ -1424,6 +1475,7 @@ class QuickLookupWindow(QDialog):
             self._action_heading = action_heading
             self._headword_blocks = headword_blocks
             self._render_identity = identity
+            self._rendered_source_text = source_text
             self._rendered_result_key = result_key
             self._document_revision = self.revision
             mark("document_ready", self.revision)
@@ -1438,6 +1490,28 @@ class QuickLookupWindow(QDialog):
                 self._fit_identity = (self._render_identity, self.browser.viewport().width())
             else:
                 self.fit_timer.start(0)
+
+    def _resize_source(self, text):
+        if text == self._rendered_source_text:
+            return
+        browser = self.browser
+        document = browser.document()
+        cursor = QTextCursor(document.begin())
+        cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
+        fmt = cursor.charFormat()
+        cursor.setPosition(0)
+        cursor.setPosition(document.begin().length() - 1, QTextCursor.MoveMode.KeepAnchor)
+        with browser.preserve_reading_position():
+            with QSignalBlocker(document), QSignalBlocker(browser.verticalScrollBar()):
+                document.setLayoutEnabled(False)
+                try:
+                    # A line separator keeps both source lines in their existing block.
+                    cursor.insertText(text.replace("\n", "\u2028"), fmt)
+                finally:
+                    document.setLayoutEnabled(True)
+            self._rendered_source_text = text
+            browser.section_scroll._document_changed()
+        self._position_actions()
 
     def _fit_preview(self):
         if not self._peek and not self._manual_at_cursor:
@@ -2417,8 +2491,9 @@ class QuickLookupWindow(QDialog):
             self._paint_revision = self._document_revision
             mark("paint", self._document_revision)
         if event.type() == QEvent.Type.Resize and hasattr(self, "browser") and watched is self.browser.viewport():
-            self._place_actions()
+            self._position_actions()
             if (self._peek and self.is_pinned and hasattr(self, "render_timer")
+                    and self.settings.value(f"profiles/{self.active_profile}/pinned_sentence", False, bool)
                     and not getattr(self, "_pin_transition", False)):
                 self.render_timer.start(0)
         if (event.type() == QEvent.Type.ToolTip

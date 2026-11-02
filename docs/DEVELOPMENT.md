@@ -55,7 +55,9 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   profile and resource revision. OCR preloading uses installed resources only and
   yields to scans. Shortcut changes must not block the UI.
 - **Popup:** pinning freezes results. Preserve document, selection, scroll and
-  geometry during disclosure and translation. Derive layout from content bounds;
+  geometry during disclosure and translation. Keep visible text anchored during
+  resizing and text scaling; resize source excerpts without rebuilding definitions.
+  Derive layout from content bounds;
   batch updates instead of rebuilding unchanged content. Autoplay runs on new
   results or the explicit pin preference, never restoration or rendering.
   Separate ranks from multiple frequency dictionaries occupy a new line;

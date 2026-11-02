@@ -9,6 +9,75 @@ from PyQt6.QtTest import QTest
 
 class PendingTests(QuickLookupTests):
     # Reuse the small fake engine and lifetime helpers without re-running its suite.
+    def test_popup_resize_keeps_reading_position_without_rebuilding_definitions(self):
+        from PyQt6.QtCore import QSize
+        for sentence in (False, True):
+            for snap in (False, True):
+                with self.subTest(sentence=sentence, snap=snap), patch.object(
+                        self.window, "isActiveWindow", return_value=True):
+                    self.window.hide()
+                    self.settings.setValue("profiles/ja/pinned_sentence", sentence)
+                    self.settings.setValue("profiles/ja/snap_scrolling", snap)
+                    self.window.reload_appearance()
+                    self.window._reading_size_custom = True
+                    self.window._normal_size = QSize(550, 420)
+                    self.window.show_entries((entry(definitions=tuple(
+                        f"Meaning {i}: " + "long descriptive phrase " * 10 for i in range(40))),),
+                        "猫", peek=True)
+                    self.window.set_context("猫 <&> 😀 " + "長い文の中に猫がいる。 " * 40)
+                    self.window.pin.setChecked(True)
+                    self.app.processEvents()
+                    browser = self.window.browser
+                    browser.setTextCursor(browser.document().find("Meaning 15"))
+                    selected = browser.selected_text()
+                    bar = browser.verticalScrollBar()
+                    bar.setValue(bar.maximum() // 3)
+                    header = browser.section_scroll.header
+                    anchor = browser.cursorForPosition(QPoint(
+                        0, header.geometry().bottom() + 1 if header.isVisible() else 0))
+                    old_y = browser.cursorRect(anchor).top()
+                    source_length = len(browser.document().begin().text())
+                    with patch.object(browser, "setHtml", wraps=browser.setHtml) as render:
+                        for width, height in ((340, 420), (450, 350), (550, 420)):
+                            self.window.resize(width, height)
+                            self.app.processEvents()
+                            self.wait_until(lambda: not self.window.render_timer.isActive())
+                            self.assertEqual(self.window.size(), QSize(width, height))
+                            self.assertLessEqual(abs(browser.cursorRect(anchor).top() - old_y), 1)
+                            self.assertEqual(browser.selected_text(), selected)
+                            if sentence and width == 340:
+                                self.assertLess(len(browser.document().begin().text()), source_length)
+                                self.assertTrue(browser.toPlainText().startswith("猫 <&> 😀"))
+                                source = browser.document().find("猫 <&>")
+                                self.assertEqual(source.charFormat().anchorHref(), "sentence:translate")
+                        render.assert_not_called()
+
+    def test_text_scale_keeps_reading_position_and_selection(self):
+        from PyQt6.QtCore import QSize
+        from PyQt6.QtGui import QTextCursor
+        self.window._reading_size_custom = True
+        self.window._normal_size = QSize(550, 420)
+        with patch.object(self.window, "isActiveWindow", return_value=True):
+            self.window.show_entries((entry(definitions=tuple(
+                f"Meaning {i}: " + "long descriptive phrase " * 10 for i in range(40))),),
+                "猫", peek=True)
+            self.window.pin.setChecked(True)
+            self.app.processEvents()
+            browser = self.window.browser
+            browser.setTextCursor(browser.document().find("Meaning 30"))
+            bar = browser.verticalScrollBar()
+            bar.setValue(bar.maximum() // 3)
+            anchor = browser.cursorForPosition(QPoint(0, 0)).position()
+            old_y = browser.cursorRect(browser.cursorForPosition(QPoint(0, 0))).top()
+            selected = browser.selected_text()
+            self.settings.setValue("profiles/ja/scale", 150)
+            self.window.reload_appearance()
+            self.app.processEvents()
+            cursor = QTextCursor(browser.document())
+            cursor.setPosition(anchor)
+            self.assertLessEqual(abs(browser.cursorRect(cursor).top() - old_y), 1)
+            self.assertEqual(browser.selected_text(), selected)
+
     def test_preview_pin_finishes_layout_before_returning(self):
         from PyQt6.QtCore import QSize
         for custom in (False, True):
@@ -138,6 +207,7 @@ class PendingTests(QuickLookupTests):
             QTest.mousePress(self.window.browser.viewport(), Qt.MouseButton.RightButton, pos=QPoint(15, 15))
             self.assertFalse(self.window.is_pinned)
             render.assert_not_called()
+        QTest.mouseRelease(self.window.browser.viewport(), Qt.MouseButton.RightButton, pos=QPoint(15, 15))
         self.window.open_search()
         self.assertTrue(self.window.isSizeGripEnabled())
 

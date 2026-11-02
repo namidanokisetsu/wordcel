@@ -353,6 +353,33 @@ class SectionScrollTests(unittest.TestCase):
                 self.wheel(angle=0, pixel=20, phase=Qt.ScrollPhase.ScrollUpdate)
                 self.assertLess(self.bar.value(), boundary)
 
+    def test_resizing_preserves_visible_text_and_selection(self):
+        self.browser.setHtml('<h2><a name="scroll-headword-0"></a>猫</h2>' + ''.join(
+            f'<p>Meaning {i}: ' + 'long descriptive phrase ' * 10 + '</p>' for i in range(40)))
+        for snap in (False, True):
+            with self.subTest(snap=snap):
+                self.scroller.set_enabled(snap)
+                self.browser.resize(550, 300)
+                self.app.processEvents()
+                self.browser.setTextCursor(self.browser.document().find("Meaning 15"))
+                self.bar.setValue(self.bar.maximum() // 3)
+                header = self.scroller.header
+                point = QPoint(0, header.geometry().bottom() + 1 if header.isVisible() else 0)
+                anchor = self.browser.cursorForPosition(point)
+                selected = self.browser.selected_text()
+                old_y = self.browser.cursorRect(anchor).top()
+                for width in (340, 450, 550):
+                    self.browser.resize(width, 300)
+                    self.app.processEvents()
+                    self.assertLessEqual(abs(self.browser.cursorRect(anchor).top() - old_y), 1)
+                    self.assertEqual(self.browser.selected_text(), selected)
+                self.bar.setValue(self.bar.value() + 100)
+                anchor = self.browser.cursorForPosition(point)
+                old_y = self.browser.cursorRect(anchor).top()
+                self.browser.resize(340, 300)
+                self.app.processEvents()
+                self.assertLessEqual(abs(self.browser.cursorRect(anchor).top() - old_y), 1)
+
     def test_mouse_wheel_scrolls_immediately_without_intermediate_animation(self):
         self.render(lines=20)
         self.scroller.set_enabled(True)
