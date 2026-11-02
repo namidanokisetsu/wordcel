@@ -21,13 +21,13 @@ def _translation_relative(value, kind):
     if not isinstance(value, str) or len(value) > 512:
         raise ValueError("Invalid translation installation metadata.")
     try:
-        path = safe_member(value)
+        path = safe_member(value.replace("\\", "/"))
     except (TypeError, ValueError):
         raise ValueError("Invalid translation installation metadata.") from None
     if kind == "executable":
-        if len(path.parts) < 3 or path.parts[0] != "translation" or not path.parts[1].startswith("runtime-"):
+        if len(path.parts) < 2 or not path.parts[0].startswith("runtime-"):
             raise ValueError("Invalid translation runtime path.")
-    elif path.parts[:2] != ("translation", "models") or len(path.parts) != 3 or not path.parts[2].endswith(".gguf"):
+    elif len(path.parts) != 2 or path.parts[0] != "models" or not path.parts[1].endswith(".gguf"):
         raise ValueError("Invalid translation model path.")
     return path.as_posix()
 
@@ -167,7 +167,7 @@ def _reconstruct_translation_manifest(data_root):
         if metadata_path.is_file():
             metadata = _read_translation_manifest(metadata_path)
             metadata = _translation_runtime(metadata, metadata.get("backend"))
-            executable = data_root / metadata["executable"]
+            executable = translation / metadata["executable"]
             if not executable.is_file():
                 raise ValueError("Translation runtime metadata points to a missing executable.")
             backend = metadata.get("backend")
@@ -192,7 +192,7 @@ def _reconstruct_translation_manifest(data_root):
         if len(executables) != 1:
             continue
         metadata = dict(release=release, platform=platform_name, backend=backend,
-                        executable=executables[0].relative_to(data_root).as_posix())
+                        executable=executables[0].relative_to(translation).as_posix())
         runtimes[backend] = metadata
         result.setdefault("release", release)
         result.setdefault("platform", platform_name)
@@ -200,10 +200,7 @@ def _reconstruct_translation_manifest(data_root):
         result.setdefault("executable", metadata["executable"])
     if runtimes:
         result["runtimes"] = runtimes
-    try:
-        from wordcel.translation_catalog import MODELS
-    except ImportError:
-        MODELS = {}
+    from wordcel.translation_catalog import MODELS
     models = {}
     for profile, model in MODELS.items():
         path = translation / "models" / model["file"]
@@ -211,7 +208,7 @@ def _reconstruct_translation_manifest(data_root):
             continue
         if file_hash(path) != model["sha256"]:
             continue
-        models[profile] = dict(path=path.relative_to(data_root).as_posix(), sha256=model["sha256"], size=model["size"],
+        models[profile] = dict(path=path.relative_to(translation).as_posix(), sha256=model["sha256"], size=model["size"],
                                url=f'https://huggingface.co/tencent/{model["repo"]}/resolve/{model["revision"]}/{model["file"]}')
     if models:
         result["models"] = models

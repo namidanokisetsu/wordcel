@@ -125,7 +125,7 @@ class TranslationBundleTests(unittest.TestCase):
         executable.parent.mkdir(parents=True, exist_ok=True)
         executable.write_bytes(b"server-" + backend.encode())
         metadata = dict(release="b11146", platform=platform_name, backend=backend,
-                        executable=executable.relative_to(data).as_posix())
+                        executable=executable.relative_to(data / "translation").as_posix())
         if not legacy:
             (runtime / "runtime.json").write_text(json.dumps(metadata), encoding="utf-8")
         return runtime, metadata
@@ -147,7 +147,7 @@ class TranslationBundleTests(unittest.TestCase):
         model_path.write_bytes(b"model")
         manifest = dict(release="b11146", platform="win-x64", backend=backend,
                         executable=selected_metadata["executable"],
-                        models={"lightweight": dict(path="translation/models/model.gguf",
+                        models={"lightweight": dict(path="models/model.gguf",
                                                       sha256=self.model["sha256"], size=5,
                                                       url="https://example.test/model.gguf")})
         if runtimes:
@@ -180,8 +180,12 @@ class TranslationBundleTests(unittest.TestCase):
                 installed = json.loads((self.destination / "data/translation/installation.json").read_text())
                 self.assertEqual(installed["backend"], backend)
                 self.assertEqual(installed["runtimes"][backend]["backend"], backend)
-                self.assertEqual(installed["models"]["lightweight"]["path"], "translation/models/model.gguf")
+                self.assertEqual(installed["models"]["lightweight"]["path"], "models/model.gguf")
                 self.assertEqual((self.destination / "data/translation/models/model.gguf").read_bytes(), b"model")
+                from wordcel.scripts.translation_server import _installed_paths
+                executable, model_path = _installed_paths("lightweight", self.destination / "data/translation", backend)
+                self.assertTrue(executable.is_file())
+                self.assertEqual(model_path.read_bytes(), b"model")
 
     def test_legacy_cuda_bundle_reconstructs_metadata_when_old_export_omitted_it(self):
         self.make_translation(backend="cuda", legacy=True)
@@ -202,6 +206,8 @@ class TranslationBundleTests(unittest.TestCase):
         self.assertEqual(installed["backend"], "cuda")
         self.assertEqual(installed["runtimes"]["cuda"]["backend"], "cuda")
         self.assertEqual(installed["models"]["lightweight"]["size"], 5)
+        from wordcel.scripts.translation_server import _installed_paths
+        self.assertTrue(_installed_paths("lightweight", self.destination / "data/translation", "cuda")[0].is_file())
 
     def test_invalid_backend_metadata_rolls_back_runtime_and_model(self):
         self.make_translation(backend="cpu")
