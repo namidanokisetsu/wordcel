@@ -2,9 +2,9 @@
 from base64 import b64encode
 from functools import lru_cache
 from PyQt6.QtCore import QByteArray, QRectF, QSize, Qt
-from PyQt6.QtGui import QIcon, QIconEngine, QPainter, QPixmap
+from PyQt6.QtGui import QIcon, QIconEngine, QPainter, QPalette, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
-from PyQt6.QtWidgets import QToolButton
+from PyQt6.QtWidgets import QApplication, QToolButton
 
 POPUP_ACTIONS = (("anki", "Add to Anki"), ("audio_sentence", "Sentence audio"),
                  ("audio", "Word audio"), ("translate", "Translate"),
@@ -12,16 +12,26 @@ POPUP_ACTIONS = (("anki", "Add to Anki"), ("audio_sentence", "Sentence audio"),
 
 
 @lru_cache(maxsize=128)
-def disclosure_html(opened, color, size):
+def _disclosure_svg(opened, color):
     # Both orientations occupy the same square, independent of font glyph widths.
     path = "m2 4 4 5 4-5z" if opened else "m4 2 5 4-5 4z"
-    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12">'
-           f'<path fill="{color}" d="{path}"/></svg>')
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12">'
+            f'<path fill="{color}" d="{path}"/></svg>')
+
+
+@lru_cache(maxsize=128)
+def disclosure_html(opened, color, size):
+    svg = _disclosure_svg(opened, color)
     data = b64encode(svg.encode()).decode()
     return f'<img src="data:image/svg+xml;base64,{data}" width="{size}" height="{size}">'
 
 
 _SHAPES = {
+    "add": '<path d="M4 12h16M12 4v16"/>',
+    "remove": '<path d="M4 12h16"/>',
+    "up": '<path d="m5 12 7-7 7 7M12 5v15"/>',
+    "down": '<path d="m5 12 7 7 7-7M12 19V4"/>',
+    "more": '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
     "swap": '<path d="M3 8h17m-4-4 4 4-4 4M21 16H4m4-4-4 4 4 4"/>',
     "anki": '<circle cx="12" cy="12" r="10"/><path d="M7 12h10M12 7v10"/>',
     "anki_saved": '<circle cx="12" cy="12" r="10"/><path d="m7 12 3 3 7-7"/>',
@@ -54,27 +64,38 @@ def _shape(name):
             f'translate({-center.x()} {-center.y()})" stroke-width="{1.6 / scale}">{shape}</g>')
 
 
+@lru_cache(maxsize=128)
+def _renderer(name, color):
+    if name in ("disclosure_open", "disclosure_closed"):
+        svg = _disclosure_svg(name == "disclosure_open", color)
+    else:
+        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">'
+           f'<g fill="none" stroke="{color}" stroke-width="1.6" stroke-linecap="round" '
+           f'stroke-linejoin="round">{_shape(name)}</g></svg>')
+    return QSvgRenderer(QByteArray(svg.encode()))
+
+
 class ActionIconEngine(QIconEngine):
     def __init__(self, name, color):
         super().__init__()
         self.name, self.color = name, color
-        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">'
-           f'<g fill="none" stroke="{color}" stroke-width="1.6" stroke-linecap="round" '
-           f'stroke-linejoin="round">{_shape(name)}</g></svg>')
-        self.renderer = QSvgRenderer(QByteArray(svg.encode()))
+
+    def renderer(self):
+        color = self.color or QApplication.palette().color(QPalette.ColorRole.ButtonText).name()
+        return _renderer(self.name, color)
 
     def clone(self):
         return ActionIconEngine(self.name, self.color)
 
     def isNull(self):
-        return not self.renderer.isValid()
+        return not self.renderer().isValid()
 
     def paint(self, painter, rect, mode, state):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         if mode == QIcon.Mode.Disabled:
             painter.setOpacity(painter.opacity() * .45)
-        self.renderer.render(painter, QRectF(rect))
+        self.renderer().render(painter, QRectF(rect))
         painter.restore()
 
     def pixmap(self, size, mode, state):
@@ -90,11 +111,11 @@ class ActionIconEngine(QIconEngine):
         return pixmap
 
 
-def action_icon(name, color):
+def action_icon(name, color=None):
     return QIcon(ActionIconEngine(name, color))
 
 
-def action_button(name, description, color):
+def action_button(name, description, color=None):
     button = QToolButton()
     button.setCursor(Qt.CursorShape.PointingHandCursor)
     button.setProperty("action_name", name)

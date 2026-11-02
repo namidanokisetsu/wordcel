@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 from wordcel.audio.sources import SOURCE_LABELS, default_sources, is_local, source_key, source_label, source_type
 from wordcel.audio.worker import AudioRequest, AudioWorker
+from wordcel.gui.action_icons import action_button
 
 
 class AudioSources(QWidget):
@@ -30,16 +31,12 @@ class AudioSources(QWidget):
         self.items.setToolTip("Sources are tried from top to bottom")
         layout.addWidget(self.items)
         arrows = QVBoxLayout()
-        for label, delta in (("↑", -1), ("↓", 1)):
-            button = QToolButton()
-            button.setText(label)
-            button.setToolTip("Move source up" if delta < 0 else "Move source down")
+        for icon, delta in (("up", -1), ("down", 1)):
+            button = action_button(icon, "Move source up" if delta < 0 else "Move source down")
             button.clicked.connect(lambda _, step=delta: self.move(step))
             arrows.addWidget(button)
         arrows.addStretch()
-        self.add_button = QToolButton()
-        self.add_button.setText("+")
-        self.add_button.setToolTip("Add source")
+        self.add_button = action_button("add", "Add source")
         self.add_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(self.add_button)
         for kind, label in SOURCE_LABELS.items():
@@ -49,10 +46,8 @@ class AudioSources(QWidget):
         menu.addAction("Import Yomitan…", self.import_sources)
         self.add_button.setMenu(menu)
         arrows.addWidget(self.add_button)
-        for label, tip, callback in (("…", "Edit source", self.configure), ("−", "Remove source", self.remove)):
-            button = QToolButton()
-            button.setText(label)
-            button.setToolTip(tip)
+        for icon, tip, callback in (("more", "Edit source", self.configure), ("remove", "Remove source", self.remove)):
+            button = action_button(icon, tip)
             button.clicked.connect(callback)
             arrows.addWidget(button)
         layout.addLayout(arrows)

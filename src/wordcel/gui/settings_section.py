@@ -1,6 +1,7 @@
 """Static settings groups, with optional disclosure for long inventories."""
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFormLayout, QLabel, QToolButton, QVBoxLayout, QWidget
+from wordcel.gui.action_icons import action_icon
 
 
 def align_form_columns(*forms):
@@ -20,13 +21,13 @@ class SettingsSection(QWidget):
         self.toggle.setText(title)
         self.toggle.setCheckable(True)
         self.toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self.toggle.setIcon(action_icon("disclosure_closed"))
         layout.addWidget(self.toggle)
         layout.addWidget(content)
         content.hide()
         self.toggle.toggled.connect(content.setVisible)
-        self.toggle.toggled.connect(lambda opened: self.toggle.setArrowType(
-            Qt.ArrowType.DownArrow if opened else Qt.ArrowType.RightArrow))
+        self.toggle.toggled.connect(lambda opened: self.toggle.setIcon(action_icon(
+            "disclosure_open" if opened else "disclosure_closed")))
         if not collapsible:
             self.toggle.setChecked(True)
             self.toggle.hide()

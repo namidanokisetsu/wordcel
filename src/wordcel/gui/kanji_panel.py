@@ -1,6 +1,7 @@
 """Compact Qt rich-text kanji cards; expand details without another window."""
 from html import escape
 from dataclasses import replace
+import math
 from urllib.parse import quote
 
 
@@ -141,7 +142,13 @@ def render_kanji_details(entries, scheme="kanji", *, origin="", available_charac
             else:
                 word.append(_text(char))
         parts.append(f'<p style="margin:0;font-size:{config.font_size_header}px">{"".join(word)}</p>')
-    table_style = ' style="margin-top:8px"' if origin else ''
+    table_style = ''
+    if origin:
+        from PyQt6.QtGui import QFontMetricsF
+        from wordcel.gui.typography import document_font
+        font = document_font(config.font_family, config.font_size_definitions, "ja")
+        gap = math.ceil(QFontMetricsF(font).height() / 2)
+        table_style = f' style="margin-top:{gap}px"'
     parts.extend([f'<table width="100%" cellspacing="0" cellpadding="0"{table_style}><tr>'
              '<td valign="top" style="padding-right:12px">',
              f'<a name="kanji-detail-{anchor}"></a><span style="{glyph_style}">'

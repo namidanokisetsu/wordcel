@@ -8,7 +8,7 @@ import math
 import sys
 
 from PyQt6.QtCore import QEvent, QPoint, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QCursor, QImage, QKeyEvent, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat
+from PyQt6.QtGui import QCursor, QFontMetricsF, QImage, QKeyEvent, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel,
     QKeySequenceEdit, QLineEdit, QMenu, QSizePolicy, QSplitter, QStackedWidget, QTextEdit, QToolButton, QToolTip, QVBoxLayout, QWidget,
@@ -73,8 +73,14 @@ class LocalDictionaryBrowser(RubyBrowser):
                 fmt.setFont(font)
             return fmt
 
+        indent = 0
         block = self.document().begin()
         while block.isValid():
+            text_list = block.textList()
+            if text_list is not None:
+                metrics = QFontMetricsF(block.charFormat().font().resolve(self.document().defaultFont()))
+                marker = text_list.itemText(block) or "•"
+                indent = max(indent, math.ceil(metrics.horizontalAdvance(marker + " ")))
             if block.blockFormat().headingLevel():
                 # Qt retains h2's relative enlargement alongside our explicit size.
                 cursor = QTextCursor(block)
@@ -91,6 +97,8 @@ class LocalDictionaryBrowser(RubyBrowser):
                     cursor.setCharFormat(heading_format(fmt))
             block = block.next()
 
+        if indent:
+            self.document().setIndentWidth(indent)
         # Qt can leave trailing blocks unlaid after inline replacements and heading edits.
         self.document().markContentsDirty(0, self.document().characterCount())
 
@@ -362,7 +370,8 @@ class QuickLookupWindow(QDialog):
         self.foreign.setToolTip("Translate in either direction within this pair")
         self.source.setMinimumContentsLength(8)
         self.foreign.setMinimumContentsLength(7)
-        self.target_label = QLabel("↔")
+        self.target_label = QLabel()
+        self.target_label.setAccessibleName("Translation pair")
         self.update_languages(())
         initial_profile = self.settings.value("profile", "")
         self.source.setCurrentIndex(max(0, self.source.findData(initial_profile)))
@@ -424,7 +433,6 @@ class QuickLookupWindow(QDialog):
         self.browser.setOpenLinks(False)
         self.browser.setOpenExternalLinks(False)
         self.browser.setAccessibleName("Dictionary results")
-        self.browser.document().setIndentWidth(10)
         self.link_timer = QTimer(self)
         self.link_timer.setSingleShot(True)
         self.link_timer.timeout.connect(self._activate_link)
@@ -622,6 +630,8 @@ class QuickLookupWindow(QDialog):
         self.title.setContentsMargins(0, max(0, self.title.fontMetrics().leading()), 0, 0)
         self.translation_panel.set_side_by_side(self.settings.value(f"profiles/{self.active_profile}/translation_side_by_side", False, bool))
         self.search.setFont(font)
+        self.target_label.setPixmap(action_icon("swap", config.color_foreground).pixmap(
+            self.translate.iconSize(), self.devicePixelRatioF()))
         for button in self.findChildren(QToolButton):
             name = button.property("action_name")
             if name:

@@ -9,7 +9,7 @@ from wordcel.config.config import config
 from wordcel.gui.ruby import RubyBrowser
 from wordcel.gui.section_scroll import ReadingPosition
 from wordcel.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, surface_colors
-from wordcel.gui.action_icons import action_button
+from wordcel.gui.action_icons import action_button, action_icon
 
 
 class PaneSplitter(QSplitter):
@@ -206,11 +206,14 @@ class TranslationPanel(QWidget):
         self.copy_source.setEnabled(bool(text))
         self.copy_output.setEnabled(bool(translation))
         self.swap.setEnabled(source != "Automatic" and source != target)
-        self.source_label.setText(source + " \u25be")
-        self.target_label.setText(target + " \u25be")
+        self.source_label.setText(source)
+        self.target_label.setText(target)
         colors = surface_colors(config.color_background, config.color_foreground)
         muted = colors["muted"]
         for label in (self.source_label, self.target_label):
+            label.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            label.setIcon(action_icon("disclosure_open", muted))
+            label.setIconSize(self.swap.iconSize())
             label.setStyleSheet(f"QToolButton {{color:{muted};font-size:{max(10, round(config.font_size_sentence * .8))}px;"
                                 f"border:1px solid {colors['border']};border-radius:3px;padding:1px 4px;}}"
                                 f"QToolButton:hover {{background:{colors['hover']};}}")

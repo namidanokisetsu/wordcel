@@ -1898,9 +1898,11 @@ class QuickLookupTests(unittest.TestCase):
             self.assertNotIn("dictionary definition", self.window.translation_browser.toPlainText())
             revision = self.window.revision
             self.window.deliver(revision, SearchResult(sentence, "ja", "en", translation="Full translated sentence."))
-            self.assertEqual("English \u25be", self.window.translation_panel.target_label.text())
+            self.assertEqual("English", self.window.translation_panel.target_label.text())
             self.assertIn("Full translated sentence.", self.window.translation_browser.toPlainText())
-            self.assertEqual("日本語 \u25be", self.window.translation_panel.source_label.text())
+            self.assertEqual("日本語", self.window.translation_panel.source_label.text())
+            self.assertFalse(self.window.translation_panel.source_label.icon().isNull())
+            self.assertFalse(self.window.translation_panel.target_label.icon().isNull())
             self.assertTrue(self.window.translation_panel.copy_output.isEnabled())
             self.window._set_translation_language("target", "tr")
             self.assertEqual(self.window.translation_worker.request.call_args.kwargs["target"], "tr")

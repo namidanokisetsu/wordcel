@@ -2,13 +2,16 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import unittest
+from unittest.mock import patch
 
-from PyQt6.QtGui import QTextFormat
+from PyQt6.QtGui import QFontMetricsF, QTextCursor, QTextFormat
 from PyQt6.QtWidgets import QApplication
 
 from wordcel.dictionary.library import Entry
 from wordcel.dictionary.search import SearchResult
 from wordcel.gui.quick_lookup import LocalDictionaryBrowser, render_result
+from wordcel.gui.typography import document_font
+from wordcel.config.config import config
 
 
 def result(definitions, source="Fixture"):
@@ -35,6 +38,22 @@ class DictionaryPresentationTests(unittest.TestCase):
         self.browser.setHtml(render_result(value, **kwargs))
         self.app.processEvents()
         return self.browser.toPlainText()
+
+    def test_list_markers_fit_at_large_text_sizes_and_multi_digit_counts(self):
+        for size in (14, 28, 48):
+            self.browser.setFont(document_font("Noto Sans JP", size, "ja"))
+            for count in (2, 12, 101):
+                with self.subTest(size=size, count=count), patch.object(config, "font_size_definitions", size):
+                    self.render(result(tuple(f"Meaning {index}" for index in range(count))))
+                    block = self.browser.document().begin()
+                    while block.isValid():
+                        text_list = block.textList()
+                        if text_list is not None:
+                            metrics = QFontMetricsF(block.charFormat().font())
+                            marker_width = metrics.horizontalAdvance(text_list.itemText(block))
+                            left = self.browser.cursorRect(QTextCursor(block)).left()
+                            self.assertGreaterEqual(left - marker_width, self.browser.document().documentMargin())
+                        block = block.next()
 
     def test_bunpro_preview_keeps_meaning_and_expansion_separates_sections(self):
         definition = {"type": "structured-content", "content": [

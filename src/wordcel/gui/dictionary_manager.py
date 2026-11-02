@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 from wordcel.dictionary.library import Library, default_library_path
 from wordcel.dictionary.translation import TranslationSettings, load_profile_settings, save_profile_settings
 from wordcel.gui.language_names import LANGUAGE_NAMES, language_name
+from wordcel.gui.action_icons import action_button
 from wordcel.gui.profile_preferences import default_text_shortcut, shortcut_preset, audio_autoplay_mode
 from wordcel.gui.shortcut_edit import LOOKUP_PRESETS, ShortcutEdit
 from wordcel.gui.settings_section import SettingsSection, StatusLabel, align_form_columns
@@ -115,12 +116,10 @@ class SetupDialog(SettingsNavigation, QDialog):
             self.language.addItem(name, code)
         self.language.setToolTip("Archive language is used when available. Otherwise choose a language or type its code.")
         self.language.hide()
-        self.up = QPushButton("↑")
-        self.up.setToolTip("Higher priority")
+        self.up = action_button("up", "Higher priority")
         self.up.clicked.connect(lambda: self.move_pack(-1))
         actions.addWidget(self.up)
-        self.down = QPushButton("↓")
-        self.down.setToolTip("Lower priority")
+        self.down = action_button("down", "Lower priority")
         self.down.clicked.connect(lambda: self.move_pack(1))
         actions.addWidget(self.down)
         self.remove_pack = QPushButton("Remove")
