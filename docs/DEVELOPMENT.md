@@ -1,12 +1,13 @@
 # Development
 
-See the [user guide](USER_GUIDE.md) for everyday use and
-[AGENTS.md](../AGENTS.md) for repository conventions. The shared desktop app is
-the only desktop entrypoint. Japanese lookup uses the shared app.
+Repository rules: [AGENTS.md](../AGENTS.md). Usage: [user guide](USER_GUIDE.md).
 
 ## Run from source
 
-Use Python 3.12 for the desktop dependencies. On Windows:
+Use Python 3.12. Quit any running Wordcel first: source and installed builds
+share settings/data, and only one instance runs at a time.
+
+Windows:
 
 ```powershell
 py -3.12 -m venv .venv-desktop
@@ -14,263 +15,120 @@ py -3.12 -m venv .venv-desktop
 .\start-wordcel.cmd
 ```
 
-On macOS, create `.venv`, install with `python -m pip install -e .`, and use
-[start-wordcel.command](../start-wordcel.command). Grant screen/input
-permissions to the launching app or terminal. `wordcel`, `wordcel search`
-and `wordcel-search` open the shared popup;
-`python -m wordcel.scripts.quick_lookup --no-ocr` starts dictionary search alone.
-Use Settings for explicit dictionary, OCR and model downloads.
-Source and installed Wordcel use the same settings and data. Quit
-the running tray app first; single-instance forwarding otherwise opens that copy.
+macOS:
 
-## Architecture
+```sh
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -e .
+./start-wordcel.command
+```
 
-Paths are relative to `src/wordcel/`. All languages use the shared desktop app,
-input handling and dictionary renderer. Language-specific analysis stays separate.
+Grant macOS permissions to the launching terminal or app. Download dictionaries
+and models in Settings. `wordcel`, `wordcel search` and `wordcel-search` use the
+same desktop app; `python -m wordcel.scripts.quick_lookup --no-ocr` skips OCR.
 
-| Area | Main modules | Responsibility |
-| --- | --- | --- |
-| Dictionaries | `dictionary/catalog.py`, `dictionary/library.py`, `dictionary/search.py`, `dictionary/updates.py` | Atomic Yomitan imports, indexed lookup, ordering, stable recommendation identities and revision-based cache invalidation. |
-| Languages | `language/profiles.py`, `language/support.py`, `language/*_analyzer.py` | Language availability, source spans, deconjugation and spelling recovery. |
-| Popup | `gui/quick_lookup.py`, `gui/dictionary_browser.py`, `gui/lookup_session.py` | Result state, shared rendering, navigation and disclosure. |
-| History | `history.py`, `gui/lookup_history.py` | Encounter transitions, worker-owned SQLite storage, indexed text search and browsing. |
-| Input and OCR | `gui/desktop_input.py`, `gui/unified_ocr.py`, `ocr/` | Capture, worker-bound recognition, selection and global shortcuts. |
-| Settings and data | `gui/dictionary_manager.py`, `gui/data_manager.py`, `data_assets.py` | Profile preferences, resource inventory and explicit setup/removal jobs. |
-| Translation | `dictionary/translation.py` | Lazy local inference, cancellation and loopback-only custom servers. |
-| Audio | `audio/yomitan.py`, `audio/online.py`, `gui/lookup_audio.py` | Ordered sources, worker downloads, cancellation and bounded caches. |
-| Anki | `anki.py`, `gui/anki.py` | Duplicate queries, note snapshots, media preparation and queued saves. |
+## Code map
 
-### Lookup and language analysis
+Paths below are under `src/wordcel/`. All languages share input and rendering.
 
-Exact entries and imported forms precede fallback analysis. Preserve original
-text offsets, source records and dictionary order. Full matches precede prefix
-scanning; `max_lookup_length` also belongs in cache identity. Unspaced lookup
-starts at the pointed character; combining marks stay attached and scans stop
-at source gaps. Missing definitions may retain analyses without dictionary entries.
+| Area | Modules |
+| --- | --- |
+| Dictionary import, search and updates | `dictionary/` |
+| Language support and analysis | `language/` |
+| Popup and result state | `gui/quick_lookup.py`, `gui/lookup_session.py`, `gui/dictionary_browser.py` |
+| Capture and OCR | `gui/desktop_input.py`, `gui/unified_ocr.py`, `ocr/` |
+| Profiles and resources | `config/profiles.py`, `gui/dictionary_manager.py`, `gui/data_manager.py`, `data_assets.py` |
+| History | `history.py`, `gui/lookup_history.py` |
+| Translation | `dictionary/translation.py` |
+| Audio and Anki | `audio/`, `gui/lookup_audio.py`, `anki.py`, `gui/anki.py` |
 
-Japanese uses bundled deconjugation rules. Headword/reading groups rank by
-frequency, kana preference and deconjugation cost; limits apply to groups.
-Exact compounds may append shorter direct prefixes without changing the longest
-match span. Entries retain their source match length so history can omit those
-shorter fallback groups. Manual search adds whole-query romkan2 candidates while preserving
-English precedence; OCR and exact phrase checks keep their existing behavior.
-Captured unspaced text uses prefix lookup from its first lexical character,
-without sentence classification. The search field retains the full context;
-clicking a character reuses positional lookup and highlights the matched word.
+## Contracts
 
-Turkish uses Zeyrek 0.1.3, accent recovery and precomputed lexicon rankings,
-retaining full morpheme paths. Profile activation prepares a shared analyzer in
-the background; worker parsing is serialized. Turkish never starts Stanza.
-Other languages may use optional Stanza fallback, preserving expanded tokens'
-original spans and testing joined lemmas before individual alternatives.
-Russian and Persian retain spelling recovery. Arabic removes tatweel and ordinary
-vowel marks only after exact lookup fails; distinct letters remain separate.
-NLP imports are lazy, setup is explicit and runtime analysis stays offline.
-Language availability belongs in `language/support.py` and the translation registry.
+- **Lookup:** exact entries and imported forms precede analysis. Preserve source
+  offsets, dictionary order and full records for Anki. Unspaced lookup starts at
+  the pointed character. Japanese uses bundled deconjugation; Turkish uses shared
+  Zeyrek analysis and precomputed rankings, never Stanza. Other languages may use
+  Stanza. Keep NLP imports lazy and runtime analysis offline. LLM output belongs
+  only in translation, never dictionary definitions or ranking.
+- **Workers:** capture, OCR, lookup, downloads, history and Anki preparation stay
+  off the UI thread. Reuse analyzers/providers and reject stale results by request,
+  profile and resource revision. OCR preloading uses installed resources only and
+  yields to scans. Shortcut changes must not block the UI.
+- **Popup:** pinning freezes results. Preserve document, selection, scroll and
+  geometry during disclosure and translation. Derive layout from content bounds;
+  batch updates instead of rebuilding unchanged content. Autoplay runs on new
+  results or the explicit pin preference, never restoration or rendering.
+- **Input:** Windows OCR keeps source-app focus; manual search accepts focus.
+  Unhandled `nativeEvent` must return `(False, 0)` directly because the PyQt base
+  call can crash. macOS uses a narrow Cocoa tray adapter; listeners confirm
+  readiness and retry after permission changes. Navigation must not request
+  permissions. Keep text shortcuts independently disableable. Passage capture
+  uses frozen per-display images and a separate OCR mailbox; profile/provider
+  changes discard pending clipboard results.
+- **Translation:** edits invalidate pending work; dismissal cancels it. Respect
+  IME composition, the passage-size setting and the separate 2,000-character
+  dictionary limit. Automatic translation is opt-in for submitted text only;
+  typing, OCR hover, positional lookup and history restoration never trigger it.
+  Keep custom translation servers loopback-only.
+- **Profiles and data:** use independent preferences in Qt's `wordcel/wordcel`
+  namespace and platformdirs' `wordcel` storage. Editing does not activate a
+  profile. Duplication copies mutable connection records but shares downloaded
+  resources. Resets use explicit key sets and keep identity, enabled features,
+  connections, resources, history, credentials and Anki notes. They never request
+  permissions, download resources or clear the whole namespace.
+- **Resources:** setup is explicit, cancellable and keyed by resource across
+  profile switches. Verify sizes/hashes before activation. Delete only owned
+  paths; keep external data and shared resources. Model changes invalidate caches;
+  mapped files wait for startup cleanup. First run allows skipping downloads and
+  opens lookup without a tutorial. Imported packs remain user-managed. Bundle
+  WaDoku's data licence, not just the converter's CC0 notice.
+- **History:** recording is opt-in. A visit is identified by language, encountered
+  form, context and span; repeated OCR must not restart its hover timer. Rendering,
+  Back and restoration never record a visit. A serial worker owns `history.sqlite3`
+  and its search engine. Use ordinary SQLite indexes, without FTS extensions;
+  deletion/retention clean up orphan records. Refresh cards without losing scroll
+  or selection.
+- **Audio and Anki:** preserve explicit audio source order, URLs and attribution;
+  do not add hidden fallback providers. Support Yomitan placeholders, JSON and
+  local sources. Each Anki save snapshots its word group, context and settings,
+  then prepares mapped fields only. Use exact deck IDs and native `dupe:` queries,
+  check before preparation and again after uploads, and retain Anki's final guard.
+  Concurrent inserts remain possible. Key status by word/reading and revision;
+  Anki failures must not block lookup or permanently disable saving.
 
-Dictionary lookup must not use LLM explanation, rewriting, aggregation or
-reranking. Translation stays separate from dictionary analysis. Submitted text
-can translate automatically on missing definitions or sentence
-input, both off by default, using per-profile Translation settings. Sentence detection
-uses punctuation, line breaks or at least three word groups, never a partial match.
+## Test
 
-### UI and asynchronous state
-
-Capture, recognition, lookup, downloads and note preparation run off the UI
-thread. Reject stale work by request revision and relevant profile/settings
-identity. Reuse prepared analyzers, OCR providers and stable cache identities.
-OCR preloading runs on the scan worker after event-loop startup, checks installed
-resources only and yields to scans. Shortcut listeners update bindings in place;
-disabling a binding must not wait on the UI thread.
-
-Pinning freezes the result. Disclosure and translation round trips preserve the
-dictionary document, selection, scroll and window geometry. Batch document/layout
-updates; derive action placement, pane sizes and scrolling from rendered bounds.
-Kanji uses a shared detail pane without rebuilding the dictionary document.
-Preview defaults to one definition; pinned results have no definition cutoff.
-Collapsed dictionaries and Wiktionary section visibility affect display only;
-Anki retains full source records. Structured/plain definition conversion lives
-in `dictionary/structured_content.py` and `dictionary/plain_content.py`.
-
-Translation has a separate reading surface. Source edits invalidate work
-immediately and debounce outside IME composition; output must match the current
-revision and text. Back/dismissal cancels work. Long input uses the explicit
-passage-size setting; dictionary input retains its separate 2,000-character limit.
-Fresh captured text uses the lookup source; manual direction is session-specific.
-Automatic output reuses the translation view in a separate pane without rebuilding
-definitions. It requires configured resources; typing previews, positional word
-lookups, history restoration and OCR hover never start automatic translation.
-Autoplay occurs on new lookup results or the separate pin preference, never on
-rendering, restoration or translation completion.
-
-Windows OCR popups preserve source focus, including fullscreen and kanji use;
-manual search accepts focus normally. Route popup navigation/actions only while
-the source remains foreground, consume matching releases after dismissal, and
-leave other input with the source. Popup actions yield to text fields. Unhandled
-`nativeEvent` returns `(False, 0)` directly: PyQt's base call can crash handle creation.
-Non-OCR shortcuts remain independently configurable, preserving OCR-only use.
-macOS routes menu-bar clicks through a narrow Cocoa adapter while Qt owns the
-menu and popup. Native listeners confirm event-tap readiness, retry failed
-startup after permission changes, and yield Escape to menus and dialogs.
-Permission notices recheck when their settings page opens or the app regains
-focus; navigation never requests access. The menu bar uses a dedicated template
-mark, with profile information in its tooltip.
-
-Hover areas restore only on matching display geometry/scale. Explicit dismissal
-pauses hover until the pointer leaves and returns; automatic hiding does not.
-Outside clicks resume scanning after a pinned result. Cursor-leave dismissal is
-opt-in and respects active drags, menus and Settings; corner windows are excluded.
-Passage copying uses frozen per-display captures and a separate OCR mailbox so
-hover jobs cannot replace it. Profile/provider changes discard pending clipboard
-results. Preserve paragraph boundaries without changing lookup text or offsets.
-
-### Lookup history
-
-History is globally opt-in under `history/`, initially recording pinned and
-manual/text lookups, with forever retention. `EncounterSession` identifies a visit
-by language, encountered form, context and span. Result delivery starts hover
-timing; identical OCR refreshes retain its deadline. Moving off a word or dismissing
-ends the visit. Pinning stops the timer and may claim the same encounter. Rendering,
-Back and saved-card restoration never create records; restoration also skips autoplay.
-Preference changes cancel pending recording without backfilling the current visit.
-
-A serial history worker owns `history.sqlite3` in managed app data (inside an
-explicit dictionary-directory override for fixtures). It stores encounter text,
-spans, ordered candidate word associations and plain definitions. Word identity
-includes language, exact headword and reading. Dictionary records for one identity
-share a card; distinct candidates remain distinct labels on that encounter.
-Cards display the encountered form; shorter fallback prefixes are excluded.
-Definitions are shared by word/source and replaced on the next encounter with
-that source, so saved search wording may differ from installed dictionaries.
-Deletion and retention remove orphan words, definitions and index entries.
-
-Normalized character uni-, bi- and trigrams use ordinary SQLite B-tree indexes,
-foreign keys and `instr`, without FTS extensions. Literal matches precede prepared
-dictionary-backed base forms, definitions and context; recency breaks ties.
-Only whole-query lexical matches contribute analyzer candidates. Sentence search
-is literal. The worker retains its SearchEngine and reuses the language layer's
-shared Turkish analyzer. History cards load in batches and retain unchanged items,
-selection and scroll when refreshed. Storage/search never run on the GUI thread.
-
-### Preferences and resources
-
-Settings use the `wordcel/wordcel` Qt namespace; managed data/cache use platformdirs'
-`wordcel` directory. Source and installed builds share them. Meikipop data stays
-untouched. Prior-version internal dictionary schemas are not migrated.
-Yomitan archives without language metadata remain supported.
-The built-in Japanese pitch recommendation is the WaDoku Pitch Accent pack.
-Its publisher index is stored in the imported metadata so revisions update
-through the shared dictionary update job. WaDoku data attribution and the full
-data licence are bundled in `resources/licenses/wadoku-data.txt`; the
-converter's CC0 notice does not replace that data licence. Existing manually
-imported packs stay user-managed when recommendations change.
-
-Settings presents eight stable destinations: app-wide General, plus profile
-pages for Lookup, Dictionaries, Shortcuts, Appearance, Audio, Translation and
-Anki. General owns startup, initial profile, history and storage. Feature pages
-keep enablement visible and place specialist capture, translation and Anki tuning
-under Advanced sections. Translation and Anki connection editors stay with their
-own features. Profile switching shortcuts are explicitly app-wide; other
-shortcuts and feature preferences belong to the profile being edited.
-
-`config/profiles.py` stores independent preferences. New profiles use built-in
-defaults; duplication copies preferences and mutable connection records while
-reusing downloaded resources. Legacy shared-default values are not converted.
-Profile IDs, names, languages, order and active selection stay independent of
-preference editing.
-
-Page-level restore actions and the profile menu's reset action use explicit key
-sets and authoritative defaults. A reset keeps identity, language, feature
-enablement, connection assignments, installed resources, history, credentials
-and Anki notes. It never starts downloads, requests permissions or clears the
-whole settings namespace. Profile editing and activation remain separate so
-changing a duplicate cannot change the source profile.
-
-Setup jobs are keyed by resource, retain progress across profile switches and
-block only conflicting actions. Verify model sizes/hashes before installation.
-Removal validates owned paths and never deletes linked external data. Removing
-a language retains shared OCR/translation resources; mapped files await startup
-cleanup. Model changes invalidate worker caches. Runtime-only translation setup
-preserves models. First run chooses a language, offers explicit resource setup,
-allows cancellation, retry and skipping, then leaves usable lookup without a
-tutorial or generic resume link. Downloads, generated packs and environments
-stay outside Git.
-
-### Audio and Anki
-
-Yomitan audio lookup is GPL-3.0-or-later with bundled attribution. Support source
-IDs, URL-encoded `{term}`/`{reading}`/`{language}` placeholders, `audioSourceList`
-JSON and local `android.db`. Custom HTTP(S) sources may use local servers.
-Explicit choices have no hidden fallback. Defaults prefer built-in recordings
-before system speech; imports retain source order/URLs and require installed OS
-voices. Wikimedia retains Japanese reading-qualified matching and attribution.
-Downloaded clips remain available for Anki.
-
-Each Anki save snapshots its headword group, context and settings, then queues
-worker preparation of mapped fields only. `glossary-first` uses the first entry;
-`glossary` uses all returned entries; `popup-selection-text` stays separate.
-Sentence furigana uses exact headwords. Card HTML stays independent of popup
-fonts/links; kanji exports use captured full data. Hover screenshots and OCR crops
-come from the same frame.
-
-Duplicate checks use native `dupe:` queries and exact deck IDs, including filtered
-cards' original decks. Selected scopes always include the destination. Check before
-preparation and recheck deck scopes after media upload; keep Anki's final guard.
-AnkiConnect has no conditional transaction, so a concurrent insert remains possible.
-Status results are keyed by lookup revision, groups and settings. Stale checks
-cannot erase a newer save; live checks reconcile deleted notes. Saved state belongs
-to each headword/reading, and its checkmark opens the notes. Anki unavailability
-must not block lookup or permanently disable saving.
-
-## Validation
-
-The optional OCR fixtures need NumPy (`python -m pip install numpy`), without
-OCR engines or models. After implementation changes, run once in the project environment:
+Run once after implementation changes, in the project environment:
 
 ```sh
 python -m unittest discover -s tests
 ```
 
-Use small fixtures for lookup, rendering, cancellation and imports. Real-model
-checks are for analysis changes or specific failures. OCR accuracy, global input,
-fullscreen, display scaling and clean-machine installation need user acceptance.
-`WORDCEL_TIMING=1` reports stage timings without text, pixels or paths.
-
-For a test handoff, inspect `git log @{upstream}..HEAD` and the corresponding diff,
-plus uncommitted changes. Group changed behavior into a short checklist in the
-conversation: action, expected result and relevant commits. Distinguish automated
-checks from untested platform behavior. No changelog or standing test-status file.
+Use small fixtures; OCR fixtures need NumPy but no models. Real-model tests are
+for analysis changes or specific failures. Global input, OCR accuracy, fullscreen,
+scaling and installation need manual acceptance. `WORDCEL_TIMING=1` logs stage
+timings without text, screenshots or paths. Handoff rules are in AGENTS.md.
 
 ## OCR providers
 
-The shared desktop selects providers explicitly in
-`gui/unified_ocr.py` (`ScanWorker.provider`), with language coverage in
-`language/support.py`. Adding a provider also requires its Settings/setup
-handling; dropping a directory into `ocr/providers/` does not register it here.
-Keep recognition local, model setup explicit and initialization worker-bound.
-Turkish setup prefers its default provider over other installed engines: PaddleOCR
-on Windows, Apple Vision on macOS. Saved provider choices remain unchanged.
-`ocr/windows_native.py` uses Windows.Media.Ocr through lazy PyWinRT imports.
-Only installed system OCR languages are selectable; recognizers and bitmaps
-stay on the scan worker. Normalized boxes reuse the shared Japanese hit lookup.
-Japanese removes Windows' inserted single ASCII separators between Japanese
-tokens and rebuilds source offsets, retaining boxes and Latin word spaces.
-Windows language packs are managed in Windows Settings; Wordcel does not download them.
+Register providers in `gui/unified_ocr.py` (`ScanWorker.provider`), language
+coverage in `language/support.py`, and setup in Settings. Keep initialization
+worker-bound. Turkish defaults to PaddleOCR on Windows and Apple Vision on macOS;
+preserve saved choices. Windows native OCR uses installed system language packs.
+Japanese whitespace normalization must retain Latin spaces, boxes and offsets.
 
-Providers use [ocr/interface.py](../src/wordcel/ocr/interface.py):
+Use [ocr/interface.py](../src/wordcel/ocr/interface.py):
 `Paragraph(full_text, words, box, is_vertical)` contains
-`Word(text, separator, box, source_start=None)` records. Preserve the original
-text and offsets. Boxes use normalized center x/y, width and height relative
-to the input image: a pixel box `(x, y, w, h)` in an image `(W, H)` becomes
-`((x + w/2)/W, (y + h/2)/H, w/W, h/H)`. Supply actual writing orientation;
-a tall box alone does not establish vertical text.
+`Word(text, separator, box, source_start=None)` records. Boxes are normalized
+center x/y, width and height. Convert pixel `(x, y, w, h)` in image `(W, H)` to
+`((x+w/2)/W, (y+h/2)/H, w/W, h/H)`. Preserve text offsets and actual writing
+orientation; a tall box does not establish vertical text.
 
-### Optional Paddle ONNX export
+<details>
+<summary>Optional Paddle ONNX export</summary>
 
-Ordinary Paddle setup uses the native runtime. An optional ONNX export needs
-a separate Python 3.12 conversion environment; keep the desktop on Paddle 3.2.2.
-Install the OCR models first in Settings or with
-`wordcel search --setup-ocr paddle`, then:
+Normal setup uses native Paddle 3.2.2. Export in a separate Python 3.12 environment
+after installing OCR models in Settings or with `wordcel search --setup-ocr paddle`:
 
 ```powershell
 py -3.12 -m venv .venv-ocr-export
@@ -280,68 +138,45 @@ py -3.12 -m venv .venv-ocr-export
 .\.venv-desktop\Scripts\python -m wordcel.scripts.quick_lookup --setup-ocr paddle --onnx-dir build\turkish-onnx
 ```
 
-Setup verifies source/export hashes and loads both models before activation.
-Normal setup restores native Paddle. Conversion dependencies are not needed
-at runtime.
+Setup verifies hashes and loads both models before activation. Normal setup
+restores native Paddle; conversion dependencies are not needed at runtime.
 
-Source morphology setup selects Torch 2.2.2 on Intel macOS, where that is the
-available wheel, and Torch 2.8.0 on Apple silicon, Windows and Linux. The
-macOS build workflow uses the same platform selector.
+</details>
 
 ## Packaging
 
-Routine reinstalls are local Windows test builds with source commits pushed to
-GitHub. Public releases follow user testing and an explicit release request;
-mark new releases as latest and retain older releases, assets and tags.
-Windows setup skips the license, welcome, destination and confirmation pages;
-license notices remain bundled with the app.
+Build workflows are in [.github/workflows](../.github/workflows); bundle and
+installer helpers are in [packaging](../packaging). Release policy is in AGENTS.md.
 
-Desktop releases contain the Windows setup EXE and two macOS DMGs, for Apple
-silicon and Intel. Bundles include Python and core libraries; Paddle and
-Stanza/Torch engines are installed explicitly alongside their model downloads.
-`packaging/optional_runtimes.py` records exact upstream wheel URLs and SHA256s
-from the build environment, analyzes their imports, then removes their owned
-files from the app bundle. Shared core dependencies stay bundled. Engine setup
-verifies downloads and native imports before publishing an immutable directory;
-inference only activates installed packages. Windows upgrades
-preserve settings/data; uninstall offers removal, also available unattended
-through `/REMOVEUSERDATA=1`.
+- Desktop releases contain the Windows EXE and Apple silicon/Intel DMGs. Bundle
+  Python and core libraries; install Paddle and Stanza/Torch explicitly with their
+  models. `packaging/optional_runtimes.py` records exact wheel URLs/hashes and
+  removes optional engines from bundles. Validate core and optional engines
+  separately, without model downloads. Torch is 2.2.2 on Intel macOS and 2.8.0
+  elsewhere.
+- MeikiOCR/PaddleX OpenCV overlap still needs frozen Windows validation in both
+  engine installation orders. Do not treat the combination as supported yet.
+- Upgrades preserve settings/data. Uninstall can remove them, including through
+  `/REMOVEUSERDATA=1`. Storage archives contain resources, not settings or caches;
+  they are platform-specific and optional engines require a matching manifest.
+  Verify paths/hashes, preserve existing resources and roll back failed imports.
+- macOS releases reuse one self-signed identity; PR builds use ad-hoc signing.
+  Create it with OpenSSL 3 and
+  `bash packaging/create-macos-signing.sh /absolute/private/backup-directory`.
+  Store base64 `signing.p12` as `MACOS_SIGNING_P12` and `password.txt` contents as
+  `MACOS_SIGNING_PASSWORD` in Actions secrets. Back up both outside Git.
+  Notarization and Windows publisher signing need release credentials; macOS
+  permission retention needs manual verification.
 
-MeikiOCR and PaddleX currently pin their headless and contrib OpenCV
-distributions to the same release. Their overlapping `cv2` ownership still
-requires frozen Windows validation in both engine installation orders before
-the combination can be treated as supported.
+## Credits
 
-Storage exports/imports installed resources without settings or download caches.
-Archives are platform-specific; optional engines also require the same build's
-manifest. Import checks paths and hashes before publishing, preserves existing
-resources and rolls back new entries on failure. Transfer jobs exclude setup
-and removal jobs. Run core and optional-engine packaging checks separately;
-the latter uses engine imports and small tensors, without downloading models.
-
-macOS releases reuse one self-signed identity; PR builds are ad-hoc signed.
-Create the release identity with OpenSSL 3 and
-`bash packaging/create-macos-signing.sh /absolute/private/backup-directory`.
-Store base64-encoded `signing.p12` as `MACOS_SIGNING_P12` and `password.txt`
-contents as `MACOS_SIGNING_PASSWORD` in repository Actions secrets. Back up
-both outside Git and reuse them across releases and architectures. Apple
-notarization and Windows publisher signing still require release credentials.
-Permission retention across macOS updates needs hands-on verification.
-
-## Upstream work
-
-Japanese rules were inherited from upstream Meikipop's
-[Nazeka rules](https://github.com/wareya/nazeka/blob/master/dict/deconjugator.json).
-Turkish analyzer fixes/context preferences and Persian spelling recovery were
-adapted from [Anki Miner](https://github.com/0xzerolight/anki_miner/tree/808b5208bf93d919b3f18ea3aba66db5fd7fd0ea/anki_miner/languages).
-Shared word/sentence policies were independently implemented with its registry
-design as a reference. Pitch, input and Anki integration drew on
-[Chibipop](https://github.com/stellarie/chibipop). Anki duplicate scopes and
-preparation ordering follow [Mangatan](https://github.com/1Selxo/Mangatan/tree/6022576909b2cbc9a97286822f801d316b30371b/lib/services/mining).
-The Screen AI adapter follows
-[Meikikai's native bridge](https://github.com/hectahertz/meikikai/tree/50efb401/src/meikikai/ocr/providers/chrome_screen_ai).
-The built-in Japanese pitch data comes from the
-[Wadoku pitch dictionary conversion](https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan);
-its source data is governed by the
-[Wadoku data licence](https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten+Lizenz).
-Licenses and attributions ship in `src/wordcel/resources/licenses/`.
+Rules and integration references:
+[Nazeka](https://github.com/wareya/nazeka/blob/master/dict/deconjugator.json),
+[Anki Miner](https://github.com/0xzerolight/anki_miner/tree/808b5208bf93d919b3f18ea3aba66db5fd7fd0ea/anki_miner/languages),
+[Chibipop](https://github.com/stellarie/chibipop),
+[Mangatan](https://github.com/1Selxo/Mangatan/tree/6022576909b2cbc9a97286822f801d316b30371b/lib/services/mining),
+[Meikikai](https://github.com/hectahertz/meikikai/tree/50efb401/src/meikikai/ocr/providers/chrome_screen_ai).
+WaDoku pitch data uses the
+[conversion](https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan) and
+[WaDoku data licence](https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten+Lizenz).
+Licences and attributions ship in `src/wordcel/resources/licenses/`.

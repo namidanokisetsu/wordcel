@@ -1,5 +1,7 @@
 # Using Wordcel
 
+[Report a bug](https://github.com/namidanokisetsu/wordcel/issues/new)
+
 ## Get started
 
 [Download](https://github.com/namidanokisetsu/wordcel/releases) and open Wordcel,
@@ -126,5 +128,3 @@ Manual Search works without these permissions.
 
 [Open an issue](https://github.com/namidanokisetsu/wordcel/issues/new) and describe
 what went wrong; screenshots help. Sign in to GitHub; no template required.
-
-[Development notes](DEVELOPMENT.md) cover running from source and building the app.
