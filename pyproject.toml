@@ -50,7 +50,11 @@ wordcel-search = "wordcel.scripts.quick_lookup:main"
 wordcel-translation = "wordcel.scripts.translation_server:main"
 
 [project.optional-dependencies]
-morphology = ["stanza==1.15.0", "torch==2.8.0"]
+morphology = [
+    "stanza==1.15.0",
+    "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "torch==2.8.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+]
 # MeikiOCR and PaddleX install cv2 under two distribution names. Keep their
 # wheels on the same release so Python wrappers match the native extension;
 # packaging keeps the shared core with MeikiOCR and isolates Paddle's extras.

@@ -307,11 +307,10 @@ inference only activates installed packages. Windows upgrades
 preserve settings/data; uninstall offers removal, also available unattended
 through `/REMOVEUSERDATA=1`.
 
-MeikiOCR's core dependency owns the headless OpenCV `cv2` loader. PaddleX's
-`ocr-core` dependency retains the matching contrib distribution and its
-contrib-only modules in the optional Paddle runtime. The packaging check
-requires both distributions to use the same OpenCV release and keeps their
-distribution metadata available for PaddleX's extras check.
+MeikiOCR and PaddleX currently pin their headless and contrib OpenCV
+distributions to the same release. Their overlapping `cv2` ownership still
+requires frozen Windows validation in both engine installation orders before
+the combination can be treated as supported.
 
 Storage exports/imports installed resources without settings or download caches.
 Archives are platform-specific; optional engines also require the same build's

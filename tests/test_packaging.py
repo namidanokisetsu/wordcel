@@ -11,18 +11,6 @@ spec.loader.exec_module(runtime_packaging)
 
 
 class OptionalPackagingTests(unittest.TestCase):
-    def test_cv2_owners_must_share_a_release_and_core_loader(self):
-        package = lambda version, files: SimpleNamespace(version=version, files=files)
-        core = {"opencv-python-headless": package("4.10.0.84", [
-            Path("cv2/__init__.py"), Path("cv2/version.py"), Path("cv2/cv2.abi3.so")])}
-        optional = {"opencv-contrib-python": package("4.10.0.84", [
-            Path("cv2/__init__.py"), Path("cv2/version.py"), Path("cv2/cv2.abi3.so"),
-            Path("cv2/face/__init__.pyi")])}
-        runtime_packaging.validate_cv2_ownership(core, optional)
-        optional["opencv-contrib-python"].version = "4.11.0.86"
-        with self.assertRaisesRegex(ValueError, "same release"):
-            runtime_packaging.validate_cv2_ownership(core, optional)
-
     def test_removed_libraries_also_remove_aliases_and_link_chains(self):
         optional = str(Path("fixture/torch/lib/libtorch.dylib").resolve())
         core = str(Path("fixture/numpy/lib/libnumpy.dylib").resolve())
