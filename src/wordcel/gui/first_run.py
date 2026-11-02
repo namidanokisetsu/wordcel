@@ -120,9 +120,10 @@ class LanguageSuggestion(QDialog):
         for identity in ("lightweight", "quality", "compact"):
             self.translation.addItem(model_label(identity), identity)
         from wordcel.translation_models import is_custom_profile, model_catalog
+        from wordcel.gui.resources import translation_ready
         self.translation_models = model_catalog()
         for identity, spec in self.translation_models.items():
-            if is_custom_profile(identity):
+            if is_custom_profile(identity) and (spec.get("source") != "local" or translation_ready(identity)):
                 self.translation.addItem(f'{spec["name"]} ({spec["size"] / 1e9:.2g} GB)', identity)
         self.translation.addItem("No translation download", None)
         self.translation.setToolTip("Downloaded models are shared by all languages")
@@ -139,7 +140,8 @@ class LanguageSuggestion(QDialog):
         selected = preferred if preferred in installed else next(iter(installed), "compact")
         if window.settings.contains(f"profiles/{self.profile}/translation"):
             selected = preferred
-        self.translation.setCurrentIndex(self.translation.findData(selected))
+        index = self.translation.findData(selected)
+        self.translation.setCurrentIndex(index if index >= 0 else self.translation.findData(None))
         self.translation.currentIndexChanged.connect(self.refresh_choices)
         self.translation.activated.connect(lambda _: setattr(self, "translation_touched", True))
         if "translation" in resource_rows:

@@ -115,3 +115,25 @@ class CustomModelUITests(unittest.TestCase):
             with patch.object(dialog, "update_translation_languages") as refresh:
                 dialog.prepared_translation(Capabilities(memory=8 * 1024**3), set())
                 refresh.assert_not_called()
+
+    def test_missing_local_model_is_not_offered_as_a_download_in_first_run(self):
+        from PyQt6.QtWidgets import QWidget
+        from wordcel.gui.first_run import LanguageSuggestion
+        from wordcel.dictionary.translation import TranslationSettings, save_profile_settings, load_profile_settings
+        from wordcel.translation_catalog import MODELS
+        identity = "gguf:" + "a" * 64
+        catalog = dict(MODELS, **{identity: dict(name="Local GGUF", size=100, source="local", file="custom.gguf")})
+        with tempfile.TemporaryDirectory() as directory:
+            window = QWidget()
+            self.addCleanup(window.deleteLater)
+            window.settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
+            window.directory, window.preferred_foreign = directory, "ja"
+            save_profile_settings(window.settings, "ja", TranslationSettings(profile=identity))
+            with patch("wordcel.translation_models.model_catalog", return_value=catalog), \
+                    patch("wordcel.gui.resources.translation_ready", return_value=False), \
+                    patch("wordcel.gui.resources.ocr_ready", return_value=False):
+                dialog = LanguageSuggestion(window)
+                self.addCleanup(dialog.deleteLater)
+                self.assertEqual(dialog.translation.findData(identity), -1)
+                self.assertIsNone(dialog.translation.currentData())
+                self.assertEqual(load_profile_settings(window.settings, "ja").profile, identity)
