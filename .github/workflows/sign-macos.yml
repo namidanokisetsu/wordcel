@@ -1,0 +1,49 @@
+name: Sign local Apple silicon build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Draft release tag
+        required: true
+        type: string
+      archive_sha256:
+        description: SHA256 of wordcel-arm64-unsigned.zip
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  sign:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify local build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+        run: |
+          [[ "$ARCHIVE_SHA256" =~ ^[[:xdigit:]]{64}$ ]]
+          gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' | grep -qx true
+          gh release download "$RELEASE_TAG" --pattern wordcel-arm64-unsigned.zip --dir build
+          printf '%s  %s\n' "$ARCHIVE_SHA256" build/wordcel-arm64-unsigned.zip | shasum -a 256 -c -
+          ditto -x -k build/wordcel-arm64-unsigned.zip dist
+          test "$(lipo -archs dist/wordcel.app/Contents/MacOS/wordcel)" = arm64
+          python3 -c "import plistlib,tomllib; expected=tomllib.load(open('pyproject.toml','rb'))['project']['version']; info=plistlib.load(open('dist/wordcel.app/Contents/Info.plist','rb')); assert info['CFBundleVersion']==expected and info['CFBundleShortVersionString']==expected,info"
+      - name: Sign app and create DMG
+        env:
+          MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
+        run: |
+          bash packaging/sign-macos.sh dist/wordcel.app
+          mkdir -p dist/dmg-root
+          cp -R dist/wordcel.app dist/dmg-root/
+          ln -s /Applications dist/dmg-root/Applications
+          hdiutil create -volname Wordcel -srcfolder dist/dmg-root -ov -format UDZO dist/wordcel.macos.arm64.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wordcel-macos-arm64
+          path: dist/wordcel.macos.arm64.dmg

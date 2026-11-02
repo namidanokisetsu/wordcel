@@ -210,6 +210,8 @@ installer helpers are in [packaging](../packaging). Release policy is in AGENTS.
   they are platform-specific and optional engines require a matching manifest.
   Verify paths/hashes, preserve existing resources and roll back failed imports.
 - macOS releases reuse one self-signed identity; PR builds use ad-hoc signing.
+  If hosted ARM runners are unavailable, validate a local ARM build and use
+  `sign-macos.yml` to verify its archive hash, sign it and create the DMG on Intel.
   Create it with OpenSSL 3 and
   `bash packaging/create-macos-signing.sh /absolute/private/backup-directory`.
   Store base64 `signing.p12` as `MACOS_SIGNING_P12` and `password.txt` contents as
