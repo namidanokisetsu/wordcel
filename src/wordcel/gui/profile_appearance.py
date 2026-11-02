@@ -159,9 +159,10 @@ class ProfileAppearance(QWidget):
         self.actions_section = SettingsSection("Buttons", actions, collapsible=True)
         content_layout.addWidget(self.preview_section)
         content_layout.addWidget(self.pinned_section)
+        content_layout.addWidget(self.actions_section)
         content_layout.addWidget(reading)
         self.content_section = SettingsSection("Content", content)
-        for section in (self.general_section, self.content_section, self.actions_section):
+        for section in (self.general_section, self.content_section):
             layout.addWidget(section)
         for field_form in (form, preview_form, pinned_form, actions_form, self.content_form):
             field_form.setContentsMargins(0, 0, 0, 0)
