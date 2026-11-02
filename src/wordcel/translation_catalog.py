@@ -1,4 +1,7 @@
 """Pinned managed models, independent of runtime hardware."""
+DEFAULT_ENDPOINT = "http://127.0.0.1:8766/v1"
+DEFAULT_MODEL = "hy-mt2"
+
 MODELS = {
     "quality": dict(name="Hy-MT2-7B Q8_0", label="Quality", quantization="Q8_0", memory=12 * 1024**3, repo="Hy-MT2-7B-GGUF", revision="ab8472660ac61fac25f1af43fac2599d52a8a775",
                     file="HY-MT2-7B-Q8_0.gguf", size=7981928896,

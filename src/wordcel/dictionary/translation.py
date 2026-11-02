@@ -16,9 +16,7 @@ from .library import language_code
 from wordcel.utils.timing import mark
 
 
-DEFAULT_ENDPOINT = "http://127.0.0.1:8766/v1"
-DEFAULT_MODEL = "hy-mt2"
-from wordcel.translation_catalog import MODELS
+from wordcel.translation_catalog import DEFAULT_ENDPOINT, DEFAULT_MODEL, MODELS
 MODEL_NAMES = {key: model["name"] for key, model in MODELS.items()}
 LANGUAGE_NAMES = {
     "en": "English", "ja": "Japanese", "tr": "Turkish", "zh": "Chinese", "cmn": "Chinese",

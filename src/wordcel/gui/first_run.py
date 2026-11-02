@@ -114,6 +114,7 @@ class LanguageSuggestion(QDialog):
             else:
                 detail_layout.addWidget(check)
             self.choices.append((task, check))
+        self.translation_touched = False
         self.translation = QComboBox(self)
         from wordcel.translation_catalog import model_label
         for identity in ("lightweight", "quality", "compact"):
@@ -135,6 +136,7 @@ class LanguageSuggestion(QDialog):
             selected = preferred
         self.translation.setCurrentIndex(self.translation.findData(selected))
         self.translation.currentIndexChanged.connect(self.refresh_choices)
+        self.translation.activated.connect(lambda _: setattr(self, "translation_touched", True))
         if "translation" in resource_rows:
             resource_rows["translation"].addWidget(self.translation, 1)
         else:
@@ -214,7 +216,7 @@ class LanguageSuggestion(QDialog):
             return
         self.capabilities, self.verified = capabilities, verified
         from wordcel.translation_catalog import recommend_model
-        if not self.window.settings.contains(f"profiles/{self.profile}/translation") \
+        if not self.translation_touched and not self.window.settings.contains(f"profiles/{self.profile}/translation") \
                 and not any(task.kind == "translation" and check.isChecked() for task, check in self.choices):
             from wordcel.gui.resources import translation_ready
             if not any(translation_ready(name) for name in ("lightweight", "quality", "compact")):

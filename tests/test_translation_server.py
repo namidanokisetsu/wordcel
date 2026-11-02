@@ -177,7 +177,7 @@ class InstallerTests(unittest.TestCase):
         model.write_bytes(b"model")
         models = {"quality": dict(file=model.name, repo="fixture", revision="revision", size=5,
                                    sha256=hashlib.sha256(model.read_bytes()).hexdigest())}
-        runtimes = {"win-x64": ((archive.name, hashlib.sha256(archive.read_bytes()).hexdigest()),)}
+        runtimes = {"win-x64-cpu": ((archive.name, hashlib.sha256(archive.read_bytes()).hexdigest()),)}
         with patch.object(server, "MODELS", models), patch.object(server, "RUNTIMES", runtimes), \
                 patch.object(server, "_platform_key", return_value="win-x64"), \
                 patch.object(server, "urlopen", side_effect=AssertionError("network")):

@@ -27,19 +27,17 @@ import zipfile
 
 from wordcel.utils.timing import mark, logger as timing_logger
 
-DEFAULT_ENDPOINT = "http://127.0.0.1:8766/v1"
 RELEASE = "b11146"
 _RELEASE_URL = f"https://github.com/ggml-org/llama.cpp/releases/download/{RELEASE}/"
 # SHA256 from GitHub's release-asset digest and Hugging Face's LFS oid.
 RUNTIMES = {
-    "win-x64": (
+    "win-x64-cuda": (
         ("llama-b11146-bin-win-cuda-13.4-x64.zip", "b1866c0ce76bc7bfb0c24b33e9a37e9669f1be18539b12c74ce361f81c41f047"),
         ("cudart-llama-bin-win-cuda-13.4-x64.zip", "738f8c251ac22b70c3ae6f83a10cf222725df0395246a2cf58f32bdb85fbe668")),
     "mac-arm64": (("llama-b11146-bin-macos-arm64.tar.gz", "1ad3f9eff80edb9dbef4259ad564d1720612ef7eea48fa4afed0e54f5f3d5711"),),
     "mac-x64": (("llama-b11146-bin-macos-x64.tar.gz", "305f0e3a17d2c01eb205cd0a62128357f1ec3b55329cb084d94e5ec0115d7a3b"),),
 }
 RUNTIMES.update({
-    "win-x64-cuda": RUNTIMES["win-x64"],
     "win-x64-cpu": (("llama-b11146-bin-win-cpu-x64.zip", "14cf1303ca9ac3abd94816850532f9f9a69ac66fbaca3776fc6f9061c2fac1d1"),),
     "win-x64-vulkan": (("llama-b11146-bin-win-vulkan-x64.zip", "55a378aa095b466979d85075234f66d7655c7a7483222af0c006c0e55b4d7bd6"),),
 })
@@ -51,7 +49,7 @@ RUNTIME_SIZES = {
     "llama-b11146-bin-macos-arm64.tar.gz": 11189714,
     "llama-b11146-bin-macos-x64.tar.gz": 11237237,
 }
-from wordcel.translation_catalog import MODELS
+from wordcel.translation_catalog import DEFAULT_ENDPOINT, DEFAULT_MODEL, MODELS
 
 _lock = threading.RLock()
 _running_warm = False
@@ -287,7 +285,7 @@ def install_model(profile="quality", directory=None, progress=None, cancelled=No
         if not runtime_path.is_dir():
             temporary = Path(tempfile.mkdtemp(prefix=".runtime-", dir=root)).resolve()
             try:
-                for name, digest in RUNTIMES.get(runtime_key, RUNTIMES[platform_key]):
+                for name, digest in RUNTIMES[runtime_key]:
                     archive = _download(_RELEASE_URL + name, root / "downloads" / name, digest,
                                         progress, cancelled, Path(downloads) / name if downloads else None, RUNTIME_SIZES.get(name))
                     _extract_archive(archive, temporary, cancelled)
@@ -301,6 +299,12 @@ def install_model(profile="quality", directory=None, progress=None, cancelled=No
                             shutil.copy2(dll, target)
                 _cancelled(cancelled)
                 temporary.rename(runtime_path)
+            except InterruptedError:
+                raise
+            except (OSError, ValueError) as error:
+                if backend in {"cuda", "vulkan"}:
+                    raise RuntimeError(f"{backend.upper()} runtime setup failed: {error} Choose CPU in Translation to retry.") from error
+                raise
             finally:
                 if temporary.exists() and temporary.parent == root:
                     shutil.rmtree(temporary)
@@ -377,7 +381,7 @@ def _installed_paths(profile, directory, backend="automatic"):
 
 
 def server_command(executable, model, keep_warm=False, backend="automatic"):
-    return [str(executable), "--model", str(model), "--alias", "hy-mt2", "--host", "127.0.0.1",
+    return [str(executable), "--model", str(model), "--alias", DEFAULT_MODEL, "--host", "127.0.0.1",
             "--port", "8766", "-ngl", "0" if backend == "cpu" else "99", "--ctx-size", "8192", "--parallel", "1",
             "--sleep-idle-seconds", "-1" if keep_warm else "60", "--cache-ram", "0", "--no-context-shift", "--jinja",
             "--no-webui", "--no-agent", "--log-disable"]
