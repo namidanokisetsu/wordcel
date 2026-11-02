@@ -1301,9 +1301,14 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.translation_capabilities, self.translation_verified = capabilities, verified
         if self.profile.currentData() not in profile_ids(self.settings):
             return
+        from wordcel.dictionary.library import language_code
+        try:
+            language_code(self.editing_language)
+        except ValueError:
+            return
         self.update_translation_capabilities()
         if hasattr(self, "resources"):
-            self.resources.refresh()
+            self.resources.refresh_translation()
 
     def update_translation_capabilities(self):
         custom = self.translation_mode.currentData() == "custom"

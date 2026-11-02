@@ -107,6 +107,10 @@ class CustomModelUITests(unittest.TestCase):
             settings.setValue("profile", identity)
             dialog = SetupDialog(directory, settings, Mock())
             self.addCleanup(dialog.deleteLater)
+            settings.remove(f"profiles/{identity}/language")
+            with patch.object(dialog.resources, "refresh_translation") as refresh:
+                dialog.prepared_translation(Capabilities(memory=8 * 1024**3), set())
+                refresh.assert_not_called()
             settings.clear()
             with patch.object(dialog, "update_translation_languages") as refresh:
                 dialog.prepared_translation(Capabilities(memory=8 * 1024**3), set())

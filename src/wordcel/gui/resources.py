@@ -216,6 +216,13 @@ class ResourcesPanel(QWidget):
         self.base_install.setVisible(supported and not ready)
         self.dictionary_section.show()
         self.base_install.setEnabled(not owner.operation_busy("morphology"))
+        self.refresh_translation()
+        self.refresh_actions()
+
+    def refresh_translation(self):
+        owner = self.owner
+        code = owner.editing_language
+        from wordcel.language.support import translation_supported
         source = owner.translation_source.currentData()
         target = owner.translation_target.currentData()
         source = code if source == "auto" else source
@@ -238,7 +245,6 @@ class ResourcesPanel(QWidget):
             self.downloads[name].setVisible(supported and not ready)
             self.downloads[name].setEnabled(supported and not ready and not owner.operation_busy("translation"))
         self.translation_section.setVisible(any(not row.isHidden() for row in self.model_rows.values()))
-        self.refresh_actions()
 
     def refresh_actions(self):
         owner = self.owner
