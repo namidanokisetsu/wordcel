@@ -31,7 +31,6 @@ class ResourceTests(unittest.TestCase):
             dialog = SetupDialog(directory, settings, Mock())
             try:
                 self.assertFalse(any(group.title() == "All languages" for group in dialog.findChildren(QGroupBox)))
-                dialog.preference_groups.controls["popup"][0].setChecked(False)
                 dialog.close_on_cursor_leave.setChecked(True)
                 self.assertTrue(settings.value("profiles/ja/close_on_cursor_leave", False, bool))
                 asset = DataAsset("dictionary:fixture", "Words", "ja", "dictionary", "fixture", size=10, status="Enabled")
@@ -219,7 +218,7 @@ class ResourceTests(unittest.TestCase):
                 try:
                     resources = dialog.resources
                     self.assertEqual([dialog.tabs.tabText(i) for i in range(dialog.tabs.count())],
-                                     ["Lookup", "Shortcuts", "Dictionaries", "Popup", "Audio", "Translation", "Anki", "History", "Storage", "Startup", "Connections", "Audio playback"])
+                                     ["Lookup", "Shortcuts", "Dictionaries", "Appearance", "Audio", "Translation", "Anki", "General"])
                     dialog.show_anki()
                     self.assertIs(dialog.tabs.currentWidget(), dialog.anki_tab)
                     dialog.show_audio()
@@ -240,7 +239,7 @@ class ResourceTests(unittest.TestCase):
                     dialog.deleteLater()
                     self.app.processEvents()
 
-    def test_translation_options_are_visible_and_start_models_on_demand(self):
+    def test_translation_advanced_options_remain_available_and_start_models_on_demand(self):
         with tempfile.TemporaryDirectory() as directory:
             settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
             save_profile_settings(settings, "ja", TranslationSettings(auto_start=False))
@@ -249,6 +248,9 @@ class ResourceTests(unittest.TestCase):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock())
                 try:
                     self.assertTrue(load_profile_settings(settings, "ja").auto_start)
+                    section = dialog.translation_advanced_widget.parentWidget()
+                    self.assertFalse(section.toggle.isChecked())
+                    section.toggle.setChecked(True)
                     self.assertFalse(dialog.translation_advanced_widget.isHidden())
                 finally:
                     dialog.deleteLater()
@@ -367,7 +369,6 @@ class ResourceTests(unittest.TestCase):
                 try:
                     button = dialog.resources.font_install
                     self.assertTrue(dialog.appearance.content_form.isRowVisible(button))
-                    dialog.preference_groups.controls["appearance"][0].setChecked(False)
                     with patch.object(dialog, "begin_operation") as install:
                         button.click()
                         install.assert_called_once_with([], fonts=True)

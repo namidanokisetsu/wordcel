@@ -379,8 +379,9 @@ class TranslationSetupTests(unittest.TestCase):
 
     def test_custom_address_is_validated_before_saving_and_has_no_download_action(self):
         self.dialog.translation_mode.setCurrentIndex(2)
-        self.assertTrue(self.dialog.translation_endpoint.isHidden())
-        self.assertFalse(self.dialog.translation_connection.isHidden())
+        self.dialog.translation_advanced_widget.parentWidget().toggle.setChecked(True)
+        self.assertFalse(self.dialog.translation_endpoint.isHidden())
+        self.assertTrue(self.dialog.translation_advanced_widget.isAncestorOf(self.dialog.translation_endpoint))
         self.assertTrue(all(row.isHidden() for row in self.dialog.resources.model_rows.values()))
         self.dialog.translation_endpoint.setText("https://outside.invalid/v1")
         self.assertFalse(self.dialog.save_translation())

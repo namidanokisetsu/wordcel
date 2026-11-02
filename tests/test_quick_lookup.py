@@ -483,7 +483,7 @@ class QuickLookupTests(unittest.TestCase):
         try:
             dialog.show()
             appearance_page = next(dialog.tabs.widget(i) for i in range(dialog.tabs.count())
-                                   if dialog.tabs.tabText(i) == "Popup")
+                                   if dialog.tabs.tabText(i) == "Appearance")
             for page in (dialog.shortcuts_tab, appearance_page):
                 dialog.tabs.setCurrentWidget(page)
                 if page is not dialog.shortcuts_tab:
@@ -2985,6 +2985,8 @@ class QuickLookupTests(unittest.TestCase):
         self.addCleanup(inputs.shutdown)
         controller = SimpleNamespace(window=self.window, input=inputs, _capture_hidden=False,
                                      session=SimpleNamespace(hovering=False, scanning=lambda pinned: False))
+        controller._sync_escape_state = lambda: UnifiedOCR._sync_escape_state(controller)
+        controller._escape_is_blocked = lambda: UnifiedOCR._escape_is_blocked(controller)
         inputs.popup_action_requested.connect(lambda action: UnifiedOCR.popup_action(controller, action))
         user32 = Mock()
         user32.GetForegroundWindow.return_value = 987654
@@ -4301,7 +4303,6 @@ class DictionaryManagerTests(unittest.TestCase):
 
     def test_preview_definition_limit_is_saved_per_profile_with_all_option(self):
         self.dialog.sync_profile('tr')
-        self.dialog.preference_groups.controls["appearance"][0].setChecked(False)
         self.assertFalse(hasattr(self.dialog.appearance, 'pinned_definitions'))
         self.dialog.appearance.preview_definitions.setValue(0)
         self.assertEqual(self.settings.value('profiles/tr/preview_definitions', type=int), 0)

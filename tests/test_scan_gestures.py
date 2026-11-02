@@ -483,8 +483,6 @@ class ScanSettingsTests(unittest.TestCase):
             settings = QSettings(str(Path(temp) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
             dialog = SetupDialog(Path(temp) / "library", settings, Mock(), window)
-            for group in dialog.preference_groups.controls:
-                settings.setValue(f"profiles/ja/overrides/{group}", True)
             dialog.profile_changed()
             dialog.profile.addItem("Turkish", "tr")
             try:
@@ -544,8 +542,6 @@ class ScanSettingsTests(unittest.TestCase):
             settings.setValue("profiles/ja/translation", '{"unknown": true}')
             settings.setValue("profiles/tr/translation", 'invalid json')
             dialog = SetupDialog(Path(temp) / "library", settings, Mock())
-            for group in dialog.preference_groups.controls:
-                settings.setValue(f"profiles/ja/overrides/{group}", True)
             dialog.profile_changed()
             try:
                 self.assertIn("Invalid translation settings", dialog.status.text())
@@ -564,8 +560,6 @@ class ScanSettingsTests(unittest.TestCase):
             settings.setValue("profiles/ja/hotkey", "")
             apply_shortcut = Mock()
             dialog = SetupDialog(Path(temp) / "library", settings, apply_shortcut)
-            for group in dialog.preference_groups.controls:
-                settings.setValue(f"profiles/ja/overrides/{group}", True)
             dialog.profile_changed()
             try:
                 self.assertFalse(dialog.shortcut.enabled.isChecked())
@@ -605,8 +599,6 @@ class ScanSettingsTests(unittest.TestCase):
             settings = QSettings(str(Path(temp) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
             dialog = SetupDialog(Path(temp) / "library", settings, Mock())
-            for group in dialog.preference_groups.controls:
-                settings.setValue(f"profiles/ja/overrides/{group}", True)
             dialog.profile_changed()
             try:
                 previous = dialog.ja_ocr_provider.currentData()

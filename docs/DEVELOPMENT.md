@@ -218,7 +218,8 @@ must not block lookup or permanently disable saving.
 
 ## Validation
 
-After implementation changes, run once in the project environment:
+The optional OCR fixtures need NumPy (`python -m pip install numpy`), without
+OCR engines or models. After implementation changes, run once in the project environment:
 
 ```sh
 python -m unittest discover -s tests
