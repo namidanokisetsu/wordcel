@@ -653,7 +653,9 @@ class QuickLookupWindow(QDialog):
         from wordcel.language.support import translation_languages
         profile = self.source.currentData() or self.settings.value("profile", "")
         try:
-            provider = load_profile_settings(self.settings, profile).provider
+            options = load_profile_settings(self.settings, profile)
+            from wordcel.translation_models import is_custom_profile
+            provider = "custom" if is_custom_profile(options.profile) else options.provider
         except ValueError:
             provider = "server"
         target = target or self.foreign.currentData() or self.settings.value(f"profiles/{profile}/target", default_partner(profile))

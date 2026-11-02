@@ -159,13 +159,18 @@ class SetupDialog(SettingsNavigation, QDialog):
         for label, control in (("From", self.translation_source), ("To", self.translation_target)):
             advanced_form.addRow(label, control)
         self.translation_mode = QComboBox()
-        from wordcel.translation_catalog import MODELS, model_label
-        for identity in ("quality", "lightweight"):
-            self.translation_mode.addItem(model_label(identity), identity)
-        self.translation_mode.addItem("Custom local server", "custom")
-        self.translation_mode.addItem(model_label("compact"), "compact")
+        self.translation_mode.setMinimumContentsLength(24)
+        self.translation_mode.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.reload_translation_models()
         self.translation_mode.setToolTip("Sizes are downloads. Running a model needs additional memory.")
-        translation_form.addRow("Model", self.translation_mode)
+        model_choice = QWidget()
+        model_row = QHBoxLayout(model_choice)
+        model_row.setContentsMargins(0, 0, 0, 0)
+        model_row.addWidget(self.translation_mode, 1)
+        self.translation_add = QPushButton("Add model…")
+        self.translation_add.clicked.connect(self.add_translation_model)
+        model_row.addWidget(self.translation_add)
+        translation_form.addRow("Model", model_choice)
         self.translation_form = translation_form
         self.translation_backend = QComboBox()
         for label, value in (("Automatic", "automatic"), ("CPU", "cpu"), ("Vulkan", "vulkan"), ("CUDA", "cuda")):
@@ -1125,14 +1130,42 @@ class SetupDialog(SettingsNavigation, QDialog):
         with QSignalBlocker(self.appearance.side_button_scrolling):
             self.appearance.side_button_scrolling.setChecked(self.settings.value(f"profiles/{code}/side_button_scrolling", True, bool))
 
+    def reload_translation_models(self, selected=None):
+        from wordcel.translation_catalog import MODELS, model_label
+        from wordcel.translation_models import model_catalog
+        selected = selected or self.translation_mode.currentData()
+        with QSignalBlocker(self.translation_mode):
+            self.translation_mode.clear()
+            for identity in ("quality", "lightweight"):
+                self.translation_mode.addItem(model_label(identity), identity)
+            self.translation_mode.addItem("Custom local server", "custom")
+            self.translation_mode.addItem(model_label("compact") + " · Recommended", "compact")
+            for identity, spec in model_catalog().items():
+                if identity not in MODELS:
+                    self.translation_mode.addItem(f'{spec["name"]} ({spec["size"] / 1e9:.2g} GB)', identity)
+            if selected and self.translation_mode.findData(selected) < 0:
+                self.translation_mode.addItem("Unavailable model", selected)
+            self.translation_mode.setCurrentIndex(max(0, self.translation_mode.findData(selected)))
+
+    def import_translation_model(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Import model", "", "GGUF models (*.gguf)")
+        if path:
+            self.begin_operation([], custom_model={"local_path": path})
+
+    def add_translation_model(self):
+        from wordcel.gui.translation_models import ModelDialog
+        dialog = ModelDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.begin_operation([], custom_model=dialog.selection)
+        dialog.deleteLater()
+
     def load_translation_controls(self, code):
         try:
             translation = load_profile_settings(self.settings, code)
         except ValueError as error:
             translation = TranslationSettings()
             self.status.setText(str(error))
-        with QSignalBlocker(self.translation_mode):
-            self.translation_mode.setCurrentIndex(self.translation_mode.findData(translation.profile if translation.provider == "server" else "custom"))
+        self.reload_translation_models(translation.profile if translation.provider == "server" else "custom")
         with QSignalBlocker(self.translation_backend):
             self.translation_backend.setCurrentIndex(self.translation_backend.findData(translation.backend))
         self.update_translation_controls(load=True)
@@ -1298,7 +1331,8 @@ class SetupDialog(SettingsNavigation, QDialog):
         code = self.profile.currentData()
         if not code:
             return
-        custom = self.translation_mode.currentData() == "custom"
+        from wordcel.translation_models import is_custom_profile
+        custom = self.translation_mode.currentData() == "custom" or is_custom_profile(self.translation_mode.currentData())
         normalize = lambda value: value if custom or value == "auto" else translation_language(value)
         partner = normalize(self.settings.value(f"profiles/{code}/target", default_partner(self.editing_language))
                             if load else self.translation_partner.currentData()
@@ -1386,11 +1420,11 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.remove_profile_button.setEnabled(not busy and self.profile.count() > 1)
 
     def begin_operation(self, paths, language=None, profile=None, recommended=None, remove=None, morphology=None, ocr=None, fonts=False,
-                        asset=None, remove_language=None, update=None, bundle=None, engine=None):
+                        asset=None, remove_language=None, update=None, bundle=None, engine=None, custom_model=None):
         request = SetupRequest.from_options(paths, language, self.translation_backend.currentData(), profile=profile,
                                             recommended=recommended, remove=remove, morphology=morphology, ocr=ocr,
                                             fonts=fonts, asset=asset, remove_language=remove_language, update=update,
-                                            bundle=bundle, engine=engine)
+                                            bundle=bundle, engine=engine, custom_model=custom_model)
         operation = SetupOperation(request, self.directory)
         if self.operation_busy(operation.resource):
             operation.deleteLater()
@@ -1452,6 +1486,9 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.cancel_button.setText("Cancel all" if len(self.operations) > 1 else "Cancel")
         self.cancel_button.setEnabled(any(not job.cancelled.is_set() for job in self.operations))
         self.set_operation_busy(bool(self.operations))
+        self.reload_translation_models()
+        from wordcel.gui.resources import managed_translation_available
+        managed_translation_available.cache_clear()
         self.update_translation_controls()
         self.update_ocr_controls()
         self.reload(preserve=True)

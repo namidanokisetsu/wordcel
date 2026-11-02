@@ -116,7 +116,8 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
         path = data / "translation/models" / model["file"]
         state = None if not path.exists() else "Installed" if path.stat().st_size == model["size"] else "Incomplete"
         add("translation:" + name, model.get("name", name),
-            kind="translation", value=name, paths=(path,), status=state)
+            kind="translation", value=name, paths=(path,), status=state,
+            origin=model.get("source", ""), source=model.get("repo_id", "Local GGUF" if model.get("source") == "local" else ""))
     runtimes = set((data / "translation").glob("runtime-*"))
     try:
         platform_key = _platform_key()

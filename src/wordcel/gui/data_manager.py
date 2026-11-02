@@ -294,7 +294,8 @@ class DataPanel(QWidget):
             present = asset.size > 0 or asset.status in {"Enabled", "Disabled", "Linked"}
             row.open.setVisible(present and bool(asset.paths))
             row.remove.setVisible(present and asset.removable)
-            row.download.setText("Repair" if present else "Download")
+            row.download.setText("Import…" if asset.kind == "translation" and asset.origin == "local" else
+                                 "Repair" if present else "Download")
             row.download.setVisible((not present or asset.status == "Incomplete")
                                     and asset.kind in {"translation", "runtime", "ocr", "morphology", "fonts", "recommended", "engine"})
         self.filter_rows()
@@ -309,6 +310,9 @@ class DataPanel(QWidget):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(path if path.is_dir() else path.parent)))
 
     def _download(self, asset):
+        if asset.kind == "translation" and asset.origin == "local":
+            self.owner.import_translation_model()
+            return
         if asset.kind == "engine":
             self.owner.begin_operation([], engine=asset.value)
             return

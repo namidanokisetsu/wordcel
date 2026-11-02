@@ -82,6 +82,10 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   Automatic selects verified CUDA/Vulkan support, otherwise CPU; macOS stays
   native. Runtime directories, manifests and server reuse include backend
   identity. Inference uses installed metadata without probing or downloading.
+  Recommended models share the runtime with user-selected single-file GGUFs.
+  Custom identities bind SHA256, size and safe paths; Hub files also pin a
+  publisher commit. Import copies local files into managed storage. Custom models
+  retain their choice across profiles and exports without Hy-MT2 language limits.
 - **Profiles and data:** use independent preferences in Qt's `wordcel/wordcel`
   namespace and platformdirs' `wordcel` storage. Editing does not activate a
   profile. Duplication copies mutable connection records but shares downloaded
@@ -167,11 +171,13 @@ Build workflows are in [.github/workflows](../.github/workflows); bundle and
 installer helpers are in [packaging](../packaging). Release policy is in AGENTS.md.
 
 - Desktop releases contain the Windows EXE and Apple silicon/Intel DMGs. Bundle
-  Python and core libraries; install Paddle and Stanza/Torch explicitly with their
-  models. `packaging/optional_runtimes.py` records exact wheel URLs/hashes and
-  removes optional engines from bundles. Validate core and optional engines
-  separately, without model downloads. Torch is 2.2.2 on Intel macOS and 2.8.0
-  elsewhere.
+  Python and core libraries; install Stanza/Torch explicitly with their models.
+  Paddle's pinned packages are collected into a separate runtime site and its
+  OCR worker prepends that site before importing Paddle or OpenCV. Source setup
+  uses the same isolated site under app data. `packaging/optional_runtimes.py`
+  records exact wheel URLs/hashes and removes optional engines from bundles.
+  Validate core and optional engines separately, without model downloads. Torch
+  is 2.2.2 on Intel macOS and 2.8.0 elsewhere.
 - MeikiOCR/PaddleX OpenCV overlap still needs frozen Windows validation in both
   engine installation orders. Do not treat the combination as supported yet.
 - Upgrades preserve settings/data. Uninstall can remove them, including through

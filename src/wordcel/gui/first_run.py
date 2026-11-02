@@ -119,6 +119,11 @@ class LanguageSuggestion(QDialog):
         from wordcel.translation_catalog import model_label
         for identity in ("lightweight", "quality", "compact"):
             self.translation.addItem(model_label(identity), identity)
+        from wordcel.translation_models import is_custom_profile, model_catalog
+        self.translation_models = model_catalog()
+        for identity, spec in self.translation_models.items():
+            if is_custom_profile(identity):
+                self.translation.addItem(f'{spec["name"]} ({spec["size"] / 1e9:.2g} GB)', identity)
         self.translation.addItem("No translation download", None)
         self.translation.setToolTip("Downloaded models are shared by all languages")
         from wordcel.gui.resources import translation_ready
@@ -130,7 +135,7 @@ class LanguageSuggestion(QDialog):
         except ValueError:
             preferred = "lightweight"
             self.translation_backend = "automatic"
-        installed = [name for name in ("lightweight", "quality", "compact") if translation_ready(name)]
+        installed = [name for name in self.translation_models if translation_ready(name)]
         selected = preferred if preferred in installed else next(iter(installed), "compact")
         if window.settings.contains(f"profiles/{self.profile}/translation"):
             selected = preferred
@@ -219,7 +224,7 @@ class LanguageSuggestion(QDialog):
         if not self.translation_touched and not self.window.settings.contains(f"profiles/{self.profile}/translation") \
                 and not any(task.kind == "translation" and check.isChecked() for task, check in self.choices):
             from wordcel.gui.resources import translation_ready
-            if not any(translation_ready(name) for name in ("lightweight", "quality", "compact")):
+            if not any(translation_ready(name) for name in self.translation_models):
                 identity = recommend_model(capabilities.memory, capabilities.gpu_memory, capabilities.cuda)
                 self.translation.setCurrentIndex(self.translation.findData(identity))
         self.refresh_choices()

@@ -20,7 +20,7 @@ class SetupRequest:
 
     def __post_init__(self):
         kinds = {"import", "recommended", "update", "replace", "bundle", "engine", "asset", "remove_language",
-                 "fonts", "ocr", "morphology", "remove", "translation"}
+                 "fonts", "ocr", "morphology", "remove", "translation", "custom_model"}
         if self.kind not in kinds:
             raise ValueError("Unknown setup operation")
         if self.kind in {"import", "recommended", "update"} and not isinstance(self.value, tuple):
@@ -44,14 +44,24 @@ class SetupRequest:
             raise ValueError("Invalid setup resource")
         if self.kind == "translation":
             from wordcel.translation_catalog import MODELS
-            if self.value not in {*MODELS, "runtime"}:
+            from wordcel.translation_models import is_custom_profile
+            if self.value not in {*MODELS, "runtime"} and not is_custom_profile(self.value):
                 raise ValueError("Choose a translation model")
+        if self.kind == "custom_model":
+            if not isinstance(self.value, dict):
+                raise ValueError("Choose a GGUF model")
+            if "local_path" in self.value:
+                if set(self.value) != {"local_path"} or not isinstance(self.value["local_path"], str):
+                    raise ValueError("Choose one GGUF file")
+            else:
+                from wordcel.translation_models import validate_custom_spec
+                validate_custom_spec(None, self.value)
         if self.backend not in {"automatic", "cpu", "vulkan", "cuda"}:
             raise ValueError("Unknown translation backend")
 
     @classmethod
     def from_options(cls, paths=(), language=None, backend="automatic", **options):
-        known = {"profile", "recommended", "remove", "morphology", "ocr", "fonts", "asset", "remove_language", "update", "bundle", "engine"}
+        known = {"profile", "recommended", "remove", "morphology", "ocr", "fonts", "asset", "remove_language", "update", "bundle", "engine", "custom_model"}
         if options.keys() - known:
             raise ValueError("Unknown setup option")
         selected = [(key, value) for key, value in options.items() if value is not None and value is not False]
@@ -78,6 +88,8 @@ class SetupRequest:
     def resource(self):
         if self.kind in {"bundle", "remove_language"}:
             return "all"
+        if self.kind == "custom_model":
+            return "translation"
         if self.kind == "asset":
             return setup_resource(self.value)
         if self.kind == "engine":
@@ -89,6 +101,8 @@ class SetupRequest:
     def job_keys(self):
         if self.resource == "all":
             return ("all",)
+        if self.kind == "custom_model":
+            return ("translation:custom-model",)
         if self.kind == "asset":
             return (self.value,)
         if self.kind == "import":
@@ -201,6 +215,14 @@ class SetupOperation(QObject):
             from wordcel.dictionary.library import remove_dictionary
             remove_dictionary(self.directory, value, lambda: self._emit(self.refresh), self.cancelled)
             return "Dictionary removed.", True
+        if kind == "custom_model":
+            from wordcel.translation_models import local_model, model_identity
+            from wordcel.scripts.translation_server import install_model
+            path = value.get("local_path")
+            spec = local_model(path, self.cancelled) if path else value
+            install_model(profile=model_identity(spec), model_spec=spec, local_model=path,
+                          backend=request.backend, progress=progress, cancelled=self.cancelled)
+            return "Model installed.", True
         if kind == "translation":
             from wordcel.scripts.translation_server import install_model
             options = dict(runtime_only=True) if value == "runtime" else dict(profile=value)

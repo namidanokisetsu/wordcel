@@ -84,6 +84,8 @@ choose languages and enter text. Translation runs offline after setup.
 On Windows, **Runtime** selects Automatic, CPU, Vulkan or CUDA. Automatic uses
 a compatible GPU when detected, otherwise CPU. Switching runtimes reuses models.
 **Compact** is a smaller Q4 option; **Lightweight** and **Quality** retain Q8.
+Use **Add model…** for another GGUF quantization from a public Hugging Face
+repository or a local file. It must be compatible with llama.cpp and fit in memory.
 Transfer estimates exclude verified cached files; interrupted downloads resume.
 **Translate when no definition is found** and **Auto-translate sentences** are
 off by default. Enable them per profile to translate submitted text automatically.

@@ -74,7 +74,9 @@ def profile_translation_available(settings, identity):
         target = settings.value(prefix + "translation_target", "auto")
         source = profile_language(settings, identity) if source == "auto" else source
         target = settings.value(prefix + "target", "en") if target == "auto" else target
-        if not (translation_supported(source, options.provider) and translation_supported(target, options.provider)):
+        from wordcel.translation_models import is_custom_profile
+        language_provider = "custom" if is_custom_profile(options.profile) else options.provider
+        if not (translation_supported(source, language_provider) and translation_supported(target, language_provider)):
             return False
         if options.provider == "custom":
             return bool(local_endpoint(options.endpoint) and options.model.strip())
@@ -121,22 +123,36 @@ class ResourcesPanel(QWidget):
         self.translation_section = QWidget(self)
         layout = QVBoxLayout(self.translation_section)
         layout.setContentsMargins(0, 0, 0, 0)
-        from wordcel.translation_catalog import MODELS
-        for name in MODELS:
+        self.translation_layout = layout
+        self.ensure_model_rows()
+        for control in (owner.translation_partner, owner.translation_source, owner.translation_target):
+            control.currentIndexChanged.connect(self.refresh)
+        self.refresh()
+
+    def ensure_model_rows(self):
+        from wordcel.translation_models import model_catalog
+        for name in model_catalog():
+            if name in self.downloads:
+                continue
             widget = QWidget()
             row = QHBoxLayout(widget)
             row.setContentsMargins(0, 0, 0, 0)
             download = QPushButton("Download model")
             download.setToolTip("Installed models are shared by all languages")
-            download.clicked.connect(lambda checked=False, name=name: owner.begin_operation([], profile=name))
+            download.clicked.connect(lambda checked=False, name=name: self.install_model(name))
             self.downloads[name] = download
             self.model_rows[name] = widget
             row.addWidget(download)
             row.addStretch()
-            layout.addWidget(widget)
-        for control in (owner.translation_partner, owner.translation_source, owner.translation_target):
-            control.currentIndexChanged.connect(self.refresh)
-        self.refresh()
+            self.translation_layout.addWidget(widget)
+
+    def install_model(self, identity):
+        from wordcel.translation_models import model_catalog
+        spec = model_catalog().get(identity, {})
+        if spec.get("source") == "local":
+            self.owner.import_translation_model()
+        else:
+            self.owner.begin_operation([], profile=identity)
 
     def install_dictionaries(self):
         if self.missing_dictionaries:
@@ -204,15 +220,21 @@ class ResourcesPanel(QWidget):
         target = owner.translation_target.currentData()
         source = code if source == "auto" else source
         target = owner.translation_partner.currentData() if target == "auto" else target
+        from wordcel.translation_models import is_custom_profile
+        language_provider = "custom" if is_custom_profile(owner.translation_mode.currentData()) else "server"
         supported = (owner.translation_mode.currentData() != "custom"
-                     and translation_supported(source) and translation_supported(target))
+                     and translation_supported(source, language_provider) and translation_supported(target, language_provider))
+        self.ensure_model_rows()
+        from wordcel.translation_models import model_catalog
+        catalog = model_catalog()
         for name in self.downloads:
             ready = supported and translation_ready(name, owner.translation_backend.currentData())
             selected = owner.translation_mode.currentData() == name
             self.model_rows[name].setVisible(supported and selected and not ready)
             cost = translation_transfer_size(name, owner.translation_backend.currentData(), owner.translation_capabilities,
                                              owner.translation_verified)
-            self.downloads[name].setText("Download model" + (f" ({cost / 1e6:.0f} MB)" if cost is not None else ""))
+            local = catalog.get(name, {}).get("source") == "local"
+            self.downloads[name].setText("Import model" if local else "Download model" + (f" ({cost / 1e6:.0f} MB)" if cost is not None else ""))
             self.downloads[name].setVisible(supported and not ready)
             self.downloads[name].setEnabled(supported and not ready and not owner.operation_busy("translation"))
         self.translation_section.setVisible(any(not row.isHidden() for row in self.model_rows.values()))
@@ -253,8 +275,13 @@ class ResourcePreparation(QObject):
             root = translation_path()
             artifacts = [(root / "downloads" / name, name, digest)
                          for name, digest in set(asset for assets in RUNTIMES.values() for asset in assets)]
-            artifacts.extend((root / "downloads/huggingface" / model["repo"] / model["revision"] / model["file"],
-                              model["file"], model["sha256"]) for model in _translation_server.MODELS.values())
+            from wordcel.translation_models import model_catalog
+            for identity, model in model_catalog(root).items():
+                repo = model.get("repo") or model.get("repo_id", "").replace("/", "--")
+                if repo and model.get("revision"):
+                    source_file = model.get("source_file", model["file"])
+                    artifacts.append((root / "downloads/huggingface" / repo / model["revision"] / source_file,
+                                      model["file"], model["sha256"]))
             for path, name, digest in artifacts:
                 try:
                     stat = path.stat()
@@ -279,7 +306,11 @@ def translation_transfer_size(profile, backend="automatic", capabilities=None, v
     RUNTIME_SIZES, RELEASE = _translation_server.RUNTIME_SIZES, _translation_server.RELEASE
     _platform_key = _translation_server._platform_key
     installation, translation_path = _translation_server.installation, _translation_server.translation_path
-    model, root = MODELS[profile], translation_path(directory)
+    from wordcel.translation_models import model_catalog
+    root = translation_path(directory)
+    model = model_catalog(root).get(profile)
+    if model is None:
+        return None
     installed = installation(root)
     entry = installed.get("models", {}).get(profile, {})
     target = root / "models" / model["file"]
