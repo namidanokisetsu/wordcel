@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from PyQt6.QtCore import QPoint, QRect, QSettings, pyqtSignal
+from PyQt6.QtCore import QPoint, QRect, QSettings, Qt, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QCheckBox, QLineEdit, QToolButton, QWidget
 
@@ -1044,6 +1044,24 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.assertFalse(self.window.scan_toggle.isChecked())
         self.assertTrue(self.window.search.isEnabled())
         self.window.show_message.assert_called_once_with("Screen Recording")
+
+    def test_permission_failure_retries_once_after_returning_from_settings(self):
+        with patch("wordcel.gui.unified_ocr.sys.platform", "darwin"), \
+                patch("wordcel.utils.macos.require_screen_capture_permission",
+                      side_effect=RuntimeError("Screen Recording")):
+            self.controller.set_enabled(True)
+        self.assertTrue(self.controller._permission_retry_pending)
+        with patch("wordcel.utils.macos.privacy_permission_granted", return_value=False), \
+                patch.object(self.controller, "set_enabled") as retry:
+            self.controller.application_state_changed(Qt.ApplicationState.ApplicationActive)
+            retry.assert_not_called()
+        with patch("wordcel.utils.macos.privacy_permission_granted", return_value=True), \
+                patch.object(self.controller, "set_enabled") as retry:
+            self.controller.application_state_changed(Qt.ApplicationState.ApplicationActive)
+            retry.assert_called_once_with(True, request_access=False, _permission_retry=True)
+            retry.reset_mock()
+            self.controller.application_state_changed(Qt.ApplicationState.ApplicationActive)
+            retry.assert_not_called()
 
     def test_startup_requests_screen_permission_only_for_enabled_scan(self):
         for bindings in ("shift", ""):

@@ -5,7 +5,7 @@ import threading
 from queue import SimpleQueue
 from time import monotonic
 
-from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, Qt, QTimer, QSignalBlocker, pyqtSignal
 from PyQt6.QtGui import QCursor, QImage
 from PyQt6.QtWidgets import QApplication, QTextEdit
 
@@ -403,6 +403,9 @@ class UnifiedOCR(QObject):
         self.hover_screen = None
         self._frozen_pixels = None
         self._frozen_screen = None
+        self._permission_retry_pending = False
+        self._permission_retry_attempted = False
+        self._permission_retry_features = set()
         self.preload_timer = QTimer(self)
         self.preload_timer.setSingleShot(True)
         self.preload_timer.timeout.connect(self.preload)
@@ -434,6 +437,7 @@ class UnifiedOCR(QObject):
         window.installEventFilter(self)
         self._application = QApplication.instance()
         self._application.installEventFilter(self)
+        self._application.applicationStateChanged.connect(self.application_state_changed)
         self._application.aboutToQuit.connect(self.shutdown)
         self._restore_scan_area()
         settings = getattr(window, "settings", None)
@@ -906,7 +910,13 @@ class UnifiedOCR(QObject):
             self._crop_retries = 0
         return QRect(self.capture_region)
 
-    def set_enabled(self, enabled, *, request_access=True):
+    def set_enabled(self, enabled, *, request_access=True, _permission_retry=False):
+        if not enabled:
+            self._permission_retry_pending = False
+            self._permission_retry_attempted = False
+            self._permission_retry_features.clear()
+        elif not _permission_retry:
+            self._permission_retry_attempted = False
         if enabled:
             from wordcel.language.support import ocr_supported
             if not ocr_supported(self.window.preferred_foreign, self.profile_ocr_provider):
@@ -949,13 +959,55 @@ class UnifiedOCR(QObject):
                 self.hit_worker = HitWorker(self.completed, getattr(self.window, "directory", None))
                 self.hit_worker.start()
             self.reload_settings()
+            self._permission_retry_pending = False
+            self._permission_retry_attempted = False
+            self._permission_retry_features.clear()
+            if _permission_retry:
+                with QSignalBlocker(self.window.scan_toggle):
+                    self.window.scan_toggle.setChecked(True)
         except Exception as error:
+            retry_features = self._permission_features(error)
+            retrying = _permission_retry
             if self.input:
                 self.input.shutdown()
                 self.input = None
             self.enabled = False
             self.window.scan_toggle.setChecked(False)
-            self.window.show_message(str(error) or "Global scan keys are unavailable. Check input permissions in system settings.")
+            if retrying:
+                self._permission_retry_pending = False
+                self._permission_retry_features.clear()
+                self.window.show_message("Restart Wordcel after enabling macOS permissions.")
+            else:
+                self._permission_retry_features = retry_features
+                self._permission_retry_pending = bool(retry_features)
+                self._permission_retry_attempted = False
+                self.window.show_message(str(error) or "Global scan keys are unavailable. Check input permissions in system settings.")
+
+    @staticmethod
+    def _permission_features(error):
+        if sys.platform != "darwin":
+            return set()
+        message = str(error).casefold()
+        features = set()
+        if "screen recording" in message:
+            features.add("screen_recording")
+        if "input monitoring" in message:
+            features.add("input_monitoring")
+        if "accessibility" in message or isinstance(error, OSError):
+            features.add("accessibility")
+        if isinstance(error, OSError):
+            features.add("input_monitoring")
+        return features
+
+    def application_state_changed(self, state):
+        if (state != Qt.ApplicationState.ApplicationActive or not self._permission_retry_pending
+                or self._permission_retry_attempted or sys.platform != "darwin"):
+            return
+        from wordcel.utils.macos import privacy_permission_granted
+        if not all(privacy_permission_granted(feature) for feature in self._permission_retry_features):
+            return
+        self._permission_retry_attempted = True
+        self.set_enabled(True, request_access=False, _permission_retry=True)
 
     def hold_changed(self, active):
         changed = self.session.hold(active)
