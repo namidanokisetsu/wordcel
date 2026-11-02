@@ -274,6 +274,8 @@ resolve_HF = resolve_hf
 def local_model(path: str | Path, cancelled=None) -> dict[str, Any]:
     """Hash a local GGUF and return an identity-stable import descriptor."""
     path = Path(path)
+    if cancelled and (cancelled.is_set() if hasattr(cancelled, "is_set") else cancelled()):
+        raise InterruptedError("Translation model import cancelled.")
     if path.suffix.lower() != ".gguf" or not path.is_file():
         raise ValueError("Choose an existing GGUF model file.")
     filename = path.name

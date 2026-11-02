@@ -3713,6 +3713,23 @@ class QuickLookupTests(unittest.TestCase):
                 expected = widget if widget is self.window.search else self.window.browser
                 self.assertIs(self.app.focusWidget(), expected)
 
+    def test_search_reopens_after_dismissal_during_dictionary_selection(self):
+        self.window.show_entries((entry(),), kanji=(KanjiEntry("猫", meanings=("cat",)),))
+        self.window._select_kanji("猫")
+        self.app.processEvents()
+        QTest.mousePress(self.window.browser.viewport(), Qt.MouseButton.LeftButton,
+                         pos=self.window.browser.viewport().rect().center())
+        self.assertTrue(self.window.browser.selecting)
+        # Native dismissal can consume the release before the browser receives it.
+        self.window.hide()
+        self.window.open_search()
+        QTest.keyClicks(self.window.search, "hanashi")
+        self.wait_until(lambda: self.window._pending_revision is None
+                        and self.window._result is not None and self.window._result.text == "hanashi")
+        self.assertIn("hanashi", self.window.browser.toPlainText())
+        self.assertFalse(self.window.browser.selecting)
+        self.assertTrue(self.window.kanji_panel.isHidden())
+
     def test_kanji_divider_remembers_share_and_keeps_manual_window_size(self):
         self.window.show_entries((entry(),), kanji=(KanjiEntry("猫", meanings=("cat",)),))
         self.app.processEvents()

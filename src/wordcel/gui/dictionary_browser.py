@@ -13,6 +13,12 @@ class DictionaryBrowser(QTextBrowser):
         self.selecting = False
         self._selection_emitted = False
 
+    def hideEvent(self, event):
+        # A native dismissal can consume the mouse release during selection.
+        self.selecting = False
+        self._selection_emitted = False
+        super().hideEvent(event)
+
     def contextMenuEvent(self, event):
         menu = self.createStandardContextMenu()
         if self.selected_text():

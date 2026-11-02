@@ -90,6 +90,17 @@ class DictionaryControlTests(unittest.TestCase):
         QTest.mouseRelease(self.browser.viewport(), Qt.MouseButton.LeftButton, pos=point)
         self.assertEqual(self.lookups, ["progress"])
 
+    def test_hiding_ends_selection_gesture_without_clearing_selected_text(self):
+        self.browser.setHtml("<p>progress</p>")
+        self.app.processEvents()
+        QTest.mouseDClick(self.browser.viewport(), Qt.MouseButton.LeftButton, pos=self.point("progress"))
+        self.assertTrue(self.browser.selecting)
+        self.browser.hide()
+        self.assertFalse(self.browser.selecting)
+        self.assertFalse(self.browser._selection_emitted)
+        self.assertEqual(self.browser.selected_text(), "progress")
+        self.assertEqual(self.lookups, ["progress"])
+
     def test_hover_cursors_follow_links_text_and_empty_space(self):
         entry = Entry("fixture", "terakki", "", "Wiktionary", "tr", ("progress",))
         self.browser.setHtml(render_result(SearchResult("terakki", "tr", "en", (entry,))))
