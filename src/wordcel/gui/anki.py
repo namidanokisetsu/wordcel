@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 from wordcel.anki import (AnkiClient, DUPLICATE_ACTIONS, DUPLICATE_SCOPES, FIELD_SOURCES, load_settings, media_value, note_values,
                            sentence_readings, suggest_fields)
 from wordcel.gui.shortcut_edit import ShortcutEdit
-from wordcel.gui.quick_lookup import _GlossConverter
+from wordcel.gui.gloss_content import _GlossConverter
 from wordcel.dictionary.structured_content import StructuredContentConverter
 from wordcel.utils.timing import mark
 
