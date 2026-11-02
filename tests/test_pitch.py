@@ -12,6 +12,45 @@ from wordcel.dictionary.pitch import (PITCH_DATA, PITCH_OBJECT, PITCH_PREFIX, Pi
 
 
 class PitchTests(unittest.TestCase):
+    def test_wadoku_fixture_assigns_japanese_language_and_keeps_variants(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "wadoku-pitch.zip"
+            words = root / "words.zip"
+            with zipfile.ZipFile(words, "w") as output:
+                output.writestr("index.json", json.dumps({"title": "JMdict", "format": 3,
+                                                           "sourceLanguage": "ja"}))
+                output.writestr("term_bank_1.json", json.dumps([
+                    ["猫", "ねこ", "", "", 0, ["cat"]],
+                    ["橋", "はし", "", "", 0, ["bridge"]],
+                ]))
+            packs = root / "packs"
+            import_yomitan(words, packs)
+            with zipfile.ZipFile(archive, "w") as output:
+                output.writestr("index.json", json.dumps({
+                    "title": "Wadoku Pitch Accent", "revision": "20260705.01", "format": 3,
+                    "indexUrl": "https://example.test/wadoku/index.json",
+                    "downloadUrl": "https://example.test/wadoku/wadoku-pitch.zip",
+                }))
+                output.writestr("term_meta_bank_1.json", json.dumps([
+                    ["猫", "pitch", {"reading": "ねこ", "pitches": [
+                        {"position": 1}, {"position": 0, "devoice": [1]}]}],
+                    ["橋", "pitch", {"reading": "はし", "pitches": [{"position": 2}]}],
+                ]))
+
+            imported = import_yomitan(archive, packs, language="ja")
+            library = Library(packs)
+            try:
+                wadoku = next(meta for _, meta, _ in library.packs if meta["title"] == "Wadoku Pitch Accent")
+                self.assertEqual(wadoku["language"], "ja")
+                entries = {entry.term: entry for entry in library.lookup("猫") + library.lookup("橋")}
+                self.assertEqual([pitch.position for pitch in entries["猫"].pitches], [1, 0])
+                self.assertEqual(entries["猫"].pitches[1].devoice, (1,))
+                self.assertEqual(entries["橋"].pitches[0].position, 2)
+                self.assertEqual(wadoku["title"], "Wadoku Pitch Accent")
+            finally:
+                library.close()
+
     def test_morae_and_pitch_patterns(self):
         self.assertEqual(morae("きょうアームいっぽん"), ("きょ", "う", "ア", "ー", "ム", "い", "っ", "ぽ", "ん"))
         for position, expected in ((0, (False, True, True, True)), (1, (True, False, False, False)),

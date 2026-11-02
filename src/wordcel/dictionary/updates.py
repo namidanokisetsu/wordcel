@@ -38,8 +38,8 @@ def check_update(metadata, fetch=None):
         from .catalog import recommendations
         recommended = next((item for item in recommendations(metadata["language"])
                             if item.identity == metadata["resource_id"]), None)
-        if recommended and "jmdict-yomitan" in recommended.url:
-            index_url = recommended.url.removesuffix(".zip") + ".json"
+        if recommended:
+            index_url = recommended.index_url or recommended.url.removesuffix(".zip") + ".json"
     if not index_url:
         return result
     try:

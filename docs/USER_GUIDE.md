@@ -105,6 +105,10 @@ In **Dictionaries**, use **Import ZIPs** to add Yomitan packs. If a bundle
 contains several ZIPs, extract the outer archive first. Select a dictionary and
 choose **Remove** to remove it from every profile. Use the resource controls on
 the relevant page to install missing dictionaries, OCR or translation models.
+Japanese recommendations include JMdict, KANJIDIC, BCCWJ and the WaDoku pitch
+dictionary. WaDoku data is attributed to [Wadoku](https://www.wadoku.de) and
+distributed under its [data licence](https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten+Lizenz).
+Imported Yomitan packs remain available as user-managed dictionaries.
 
 **General > Startup > Preload OCR** prepares the active engine in the background by default.
 Turn it off to load models on the first scan. Loaded models stay in memory until

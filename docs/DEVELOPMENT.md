@@ -30,7 +30,7 @@ input handling and dictionary renderer. Language-specific analysis stays separat
 
 | Area | Main modules | Responsibility |
 | --- | --- | --- |
-| Dictionaries | `dictionary/library.py`, `dictionary/search.py` | Atomic Yomitan imports, indexed lookup, ordering and revision-based cache invalidation. |
+| Dictionaries | `dictionary/catalog.py`, `dictionary/library.py`, `dictionary/search.py`, `dictionary/updates.py` | Atomic Yomitan imports, indexed lookup, ordering, stable recommendation identities and revision-based cache invalidation. |
 | Languages | `language/profiles.py`, `language/support.py`, `language/*_analyzer.py` | Language availability, source spans, deconjugation and spelling recovery. |
 | Popup | `gui/quick_lookup.py`, `gui/dictionary_browser.py`, `gui/lookup_session.py` | Result state, shared rendering, navigation and disclosure. |
 | History | `history.py`, `gui/lookup_history.py` | Encounter transitions, worker-owned SQLite storage, indexed text search and browsing. |
@@ -158,6 +158,12 @@ Settings use the `wordcel/wordcel` Qt namespace; managed data/cache use platform
 `wordcel` directory. Source and installed builds share them. Meikipop data stays
 untouched. Prior-version internal dictionary schemas are not migrated.
 Yomitan archives without language metadata remain supported.
+The built-in Japanese pitch recommendation is the WaDoku Pitch Accent pack.
+Its publisher index is stored in the imported metadata so revisions update
+through the shared dictionary update job. WaDoku data attribution and the full
+data licence are bundled in `resources/licenses/wadoku-data.txt`; the
+converter's CC0 notice does not replace that data licence. Existing manually
+imported packs stay user-managed when recommendations change.
 
 Settings presents eight stable destinations: app-wide General, plus profile
 pages for Lookup, Dictionaries, Shortcuts, Appearance, Audio, Translation and
@@ -325,4 +331,8 @@ design as a reference. Pitch, input and Anki integration drew on
 preparation ordering follow [Mangatan](https://github.com/1Selxo/Mangatan/tree/6022576909b2cbc9a97286822f801d316b30371b/lib/services/mining).
 The Screen AI adapter follows
 [Meikikai's native bridge](https://github.com/hectahertz/meikikai/tree/50efb401/src/meikikai/ocr/providers/chrome_screen_ai).
+The built-in Japanese pitch data comes from the
+[Wadoku pitch dictionary conversion](https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan);
+its source data is governed by the
+[Wadoku data licence](https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten+Lizenz).
 Licenses and attributions ship in `src/wordcel/resources/licenses/`.

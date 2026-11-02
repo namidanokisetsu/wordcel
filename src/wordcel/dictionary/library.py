@@ -76,7 +76,8 @@ def resource_identity(metadata):
     from .catalog import recommendations
     for recommended in recommendations(metadata["language"]):
         index_url = metadata.get("index_url", "")
-        if recommended.matches(metadata) and (not index_url or index_url == recommended.url.removesuffix(".zip") + ".json"):
+        recommended_index = recommended.index_url or recommended.url.removesuffix(".zip") + ".json"
+        if recommended.matches(metadata) and (not index_url or index_url == recommended_index):
             return recommended.identity
     source = metadata.get("index_url") or metadata["title"]
     return hashlib.sha256((metadata["language"] + ":" + source).encode()).hexdigest()

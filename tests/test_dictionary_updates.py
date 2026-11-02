@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 import zipfile
 
 from wordcel.dictionary.library import Library, import_yomitan
+from wordcel.dictionary.catalog import recommendations
 from wordcel.dictionary.updates import check_update, replace_dictionary, update_batch, DictionaryUpdate
 
 
@@ -38,6 +39,30 @@ class DictionaryUpdateTests(unittest.TestCase):
         fetch.return_value["revision"] = "release-a"
         self.assertEqual(check_update(self.metadata, fetch).status, "Up to date")
         self.assertEqual(check_update({**self.metadata, "index_url": ""}, fetch).status, "Replace from ZIP")
+
+    def test_wadoku_embedded_index_is_used_for_revisions_without_source_language(self):
+        archive = self.root / "wadoku-pitch.zip"
+        wadoku_index = recommendations("ja")[-1].index_url
+        with zipfile.ZipFile(archive, "w") as bundle:
+            bundle.writestr("index.json", json.dumps({
+                "title": "Wadoku Pitch Accent", "revision": "20260705.01", "format": 3,
+                "indexUrl": wadoku_index,
+                "downloadUrl": recommendations("ja")[-1].url,
+            }))
+            bundle.writestr("term_meta_bank_1.json", json.dumps([
+                ["猫", "pitch", {"reading": "ねこ", "pitches": [{"position": 1}]}]]))
+        wadoku_directory = self.root / "wadoku-library"
+        import_yomitan(archive, wadoku_directory, language="ja")
+        library = Library(wadoku_directory)
+        self.addCleanup(library.close)
+        metadata = dict(library.packs[0][1])
+        recommendation = recommendations("ja")[-1]
+        self.assertEqual(metadata["resource_id"], recommendation.identity)
+        fetch = Mock(return_value={"revision": "20260705.02", "downloadUrl": recommendation.url})
+        available = check_update(metadata, fetch)
+        self.assertEqual(available.status, "Update available")
+        self.assertEqual(available.available, "20260705.02")
+        fetch.assert_called_once_with(recommendation.index_url)
 
     def test_dated_titles_keep_identity_and_all_readers_refresh_with_their_preferences(self):
         second = Library(self.directory)

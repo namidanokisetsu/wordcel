@@ -18,6 +18,7 @@ class RecommendedDictionary:
     url: str
     website: str
     pack_title: str = ""
+    index_url: str = ""
 
     @property
     def identity(self):
@@ -42,9 +43,10 @@ def recommendations(language):
                 RecommendedDictionary("Frequency · BCCWJ", "ja",
                 "https://raw.githubusercontent.com/Kuuuube/yomitan-dictionaries/main/dictionaries/BCCWJ_SUW_LUW_combined.zip",
                 "https://github.com/Kuuuube/yomitan-dictionaries", "BCCWJ"),
-                RecommendedDictionary("Pitch · Kanjium", "ja",
-                "https://raw.githubusercontent.com/FooSoft/yomichan/dictionaries/kanjium_pitch_accents.zip",
-                "https://github.com/toasted-nutbread/yomichan-pitch-accent-dictionary", "Kanjium Pitch Accents"))
+                RecommendedDictionary("Pitch · WaDoku", "ja",
+                "https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan/releases/latest/download/wadoku-pitch.zip",
+                "https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan", "Wadoku Pitch Accent",
+                "https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan/releases/latest/download/index.json"))
     # Mandarin headwords are published under Chinese; the cmn pack is a small supplement.
     archive_language = "zh" if language == "cmn" else language
     return (RecommendedDictionary("Wiktionary · English definitions", language,
