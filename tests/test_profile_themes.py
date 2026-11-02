@@ -34,10 +34,13 @@ class ProfileThemeTests(unittest.TestCase):
             try:
                 self.assertFalse(widget.preview_grammar.isChecked())
                 self.assertTrue(widget.pinned_grammar.isChecked())
+                self.assertTrue(widget.dictionary_labels.isChecked())
+                widget.dictionary_labels.setChecked(False)
                 widget.controls['font_size_sentence'].setValue(22)
                 widget.save()
                 widget.reload()
                 self.assertEqual(widget.controls['font_size_sentence'].value(), 22)
+                self.assertFalse(widget.dictionary_labels.isChecked())
                 for name, control in widget.action_controls.items():
                     self.assertEqual(control.isChecked(), name != "audio_sentence")
                 widget.action_controls['audio_sentence'].setChecked(True)
@@ -48,8 +51,12 @@ class ProfileThemeTests(unittest.TestCase):
                 self.assertTrue(widget.action_controls['audio'].isChecked())
                 profile[0] = 'tr'
                 widget.reload()
+                self.assertTrue(widget.dictionary_labels.isChecked())
                 for name, control in widget.action_controls.items():
                     self.assertEqual(control.isChecked(), name != "audio_sentence")
+                profile[0] = 'ja'
+                widget.reload()
+                self.assertFalse(widget.dictionary_labels.isChecked())
             finally:
                 widget.deleteLater()
 

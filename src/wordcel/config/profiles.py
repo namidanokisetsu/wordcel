@@ -267,7 +267,7 @@ PROFILE_PAGE_KEYS = {
                    "color_highlight_word", "color_highlight_reading", "custom/", "buttons/", "pitch_colors",
                    "kanji_stroke_order", "headword_furigana", "definition_furigana", "compact_preview",
                    "preview_frequency", "preview_pitch", "preview_grammar", "preview_definitions",
-                   "pinned_frequency", "pinned_pitch", "pinned_grammar", "pinned_sentence", "snap_scrolling",
+                   "pinned_frequency", "pinned_pitch", "pinned_grammar", "dictionary_labels", "pinned_sentence", "snap_scrolling",
                    "close_on_cursor_leave", "cursor_close_margin", "translation_side_by_side"),
     "Audio": ("audio_volume", "audio_autoplay_mode", "audio_priority"),
     "Translation": ("target", "translation_source", "translation_target"),

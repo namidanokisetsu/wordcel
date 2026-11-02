@@ -110,7 +110,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                   definition_furigana=False, collapsed=(), kanji_details=(),
                   preview_frequency=True, preview_pitch=True, preview_definitions=1,
                   pinned_frequency=True, pinned_pitch=True, grammar=None, separate_headwords=False,
-                  headword_actions=0, hidden_sections=None):
+                  headword_actions=0, hidden_sections=None, dictionary_labels=True):
     """Share lexical headings while preserving the configured dictionary order."""
     preview_definitions = max(0, min(50, preview_definitions))
     maximum = preview_definitions if preview else 0
@@ -187,7 +187,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
             section_key = _dictionary_section_key(term, reading, source)
             full = not maximum or (source in expanded or section_key in expanded) and not preview
             more = bool(maximum and len(entries) > maximum)
-            hidden = (source in collapsed or section_key in collapsed) and not preview
+            hidden = dictionary_labels and (source in collapsed or section_key in collapsed) and not preview
             generic_source = source in ("Turkish Bilingual", "Turkish Monolingual", "Turkish Etymology")
             normalized = [normalize_definitions(entry.definitions, source) for entry in entries]
             limit = 240 if result.source == "ja" and not full else None
@@ -213,13 +213,16 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                 parts.append(f'<a name="dictionary-{index}"></a>')
                 anchored.add(source)
             if not preview:
-                label = converter.first_source or _source_name(source)
                 section = (f'<a name="scroll-section-{group_index}-{index}"></a>'
                            if source != first_source else "")
-                parts.append(f'<p class="source">{section}<a href="collapse:{group_index}:{index}" '
-                             f'title="{"Expand" if hidden else "Collapse"}" style="color:{muted}">'
-                             f'<small>{disclosure_html(not hidden, muted, round(config.font_size_definitions * .6))} '
-                             f'{escape(label)}</small></a></p>')
+                if dictionary_labels:
+                    label = converter.first_source or _source_name(source)
+                    parts.append(f'<p class="source">{section}<a href="collapse:{group_index}:{index}" '
+                                 f'title="{"Expand" if hidden else "Collapse"}" style="color:{muted}">'
+                                 f'<small>{disclosure_html(not hidden, muted, round(config.font_size_definitions * .6))} '
+                                 f'{escape(label)}</small></a></p>')
+                else:
+                    parts.append(section)
             if len(definitions) > 1:
                 opening = '<ol style="margin-left:20px">' if len(definitions) > 9 else "<ol>"
                 parts.append(opening + "".join(f"<li>{gloss}</li>" for gloss in definitions) + "</ol>")

@@ -89,6 +89,28 @@ class DictionaryCollapseTests(unittest.TestCase):
                     self.assertEqual(label_rect(label), before)
                     self.assertEqual(self.window.geometry(), geometry)
 
+    def test_hiding_labels_reveals_collapsed_definitions_and_keeps_sections(self):
+        entries = (_entry("JMdict", ("house",)), _entry("Second source", ("home",)))
+        self.window.show_entries(entries, "ie")
+        self.window.show()
+        self.app.processEvents()
+        self.window._link(QUrl("collapse:0:0"))
+        self.assertNotIn("house", self.window.browser.toPlainText())
+        self.window.settings.setValue("profiles/ja/dictionary_labels", False)
+        self.window._render(static=True)
+        text = self.window.browser.toPlainText()
+        self.assertNotIn("JMdict", text)
+        self.assertNotIn("Second source", text)
+        self.assertIn("house", text)
+        self.assertIn("home", text)
+        self.assertNotIn('href="collapse:', self.window.browser.toHtml())
+        self.assertEqual(len(self.window.browser.section_scroll.section_tops()), 2)
+        self.assertEqual(self.window._result.entries, entries)
+        self.window.settings.setValue("profiles/ja/dictionary_labels", True)
+        self.window._render(static=True)
+        self.assertIn("JMdict", self.window.browser.toPlainText())
+        self.assertNotIn("house", self.window.browser.toPlainText())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -90,6 +90,8 @@ class ProfileAppearance(QWidget):
         self.pinned_frequency = QCheckBox("Frequency")
         self.pinned_pitch = QCheckBox("Pitch")
         self.pinned_grammar = QCheckBox("Grammar labels")
+        self.dictionary_labels = QCheckBox("Dictionary labels")
+        self.dictionary_labels.setToolTip("Show dictionary names and collapse controls")
         self.preview_definitions = QSpinBox()
         self.preview_definitions.setRange(0, 50)
         self.preview_definitions.setSpecialValueText("All")
@@ -101,6 +103,7 @@ class ProfileAppearance(QWidget):
         pinned_form.addRow(self.pinned_frequency)
         pinned_form.addRow(self.pinned_pitch)
         pinned_form.addRow(self.pinned_grammar)
+        pinned_form.addRow(self.dictionary_labels)
         self.pinned_sentence = QCheckBox("Show sentence when pinned")
         pinned_form.addRow(self.pinned_sentence)
         self.snap_scrolling = QCheckBox("Snap scrolling")
@@ -174,7 +177,8 @@ class ProfileAppearance(QWidget):
         self.kanji_stroke_order.toggled.connect(self.save)
         self.preview_frequency.toggled.connect(self.save)
         self.preview_pitch.toggled.connect(self.save)
-        for control in (self.preview_grammar, self.pinned_frequency, self.pinned_pitch, self.pinned_grammar):
+        for control in (self.preview_grammar, self.pinned_frequency, self.pinned_pitch, self.pinned_grammar,
+                        self.dictionary_labels):
             control.toggled.connect(self.save)
         self.preview_definitions.valueChanged.connect(self.save)
         self.compact_preview.toggled.connect(self.save)
@@ -202,7 +206,7 @@ class ProfileAppearance(QWidget):
         self.preview_grammar.setChecked(self.settings.value(prefix + "preview_grammar", False, bool))
         for name, control in self.action_controls.items():
             control.setChecked(self.settings.value(prefix + "buttons/" + name, name != "audio_sentence", bool))
-        for name in ("pinned_frequency", "pinned_pitch", "pinned_grammar"):
+        for name in ("pinned_frequency", "pinned_pitch", "pinned_grammar", "dictionary_labels"):
             getattr(self, name).setChecked(self.settings.value(prefix + name, True, bool))
         self.preview_definitions.setValue(self.settings.value(prefix + "preview_definitions", 1, int))
         self.preview_form.setRowVisible(self.preview_pitch, self.japanese_controls)
@@ -279,7 +283,7 @@ class ProfileAppearance(QWidget):
         self.settings.setValue(prefix + "preview_pitch", self.preview_pitch.isChecked())
         for name, control in self.action_controls.items():
             self.settings.setValue(prefix + "buttons/" + name, control.isChecked())
-        for name in ("preview_grammar", "pinned_frequency", "pinned_pitch", "pinned_grammar"):
+        for name in ("preview_grammar", "pinned_frequency", "pinned_pitch", "pinned_grammar", "dictionary_labels"):
             self.settings.setValue(prefix + name, getattr(self, name).isChecked())
         self.settings.setValue(prefix + "preview_definitions", self.preview_definitions.value())
         self.settings.setValue(prefix + "pinned_sentence", self.pinned_sentence.isChecked())

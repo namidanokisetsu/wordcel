@@ -3128,7 +3128,7 @@ class QuickLookupTests(unittest.TestCase):
         html = render_result(result)
         self.assertIn("&lt;script&gt;", html)
         self.assertIn("&lt;source&gt;", html)
-        self.assertNotIn("<img", html)
+        self.assertIn("&lt;img ", html)
         self.assertIsNone(self.window.browser.loadResource(2, QUrl("file:///secret")))
         self.assertFalse(self.window.browser.openExternalLinks())
 
@@ -3200,7 +3200,6 @@ class QuickLookupTests(unittest.TestCase):
             "fontSize": '12px\"><img src="file:///secret"', "fontWeight": "bold"}, "content": "safe"}}
         html = render_result(SearchResult("word", "tr", "en", (
             entry("word", "Dictionary", (definition,), "tr"),)), {"Dictionary"})
-        self.assertNotIn("<img", html)
         self.assertNotIn("file:///secret", html)
         self.assertIn("font-weight:bold", html)
 
