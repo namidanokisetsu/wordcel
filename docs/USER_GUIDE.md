@@ -120,6 +120,13 @@ open until saves finish. Turn on **Anki tray notifications** to see save results
 
 ## FAQ
 
+### OCR doesn't work when holding Shift
+
+In your profile's **Lookup** settings, check that the selected OCR model is
+installed and ready. Download any missing resources. In **Shortcuts**, check that
+**Screen lookup key** is set to **Shift**, or use the key you configured. If another
+app or shortcut uses the same key, change one of them and try again.
+
 ### Wordcel won't open on macOS
 
 Drag Wordcel from the downloaded DMG to **Applications** and open it there.
