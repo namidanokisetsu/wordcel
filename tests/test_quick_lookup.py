@@ -3921,6 +3921,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertFalse(self.window._kanji_view)
 
     def test_origin_word_switches_kanji_without_lookup_or_window_changes(self):
+        from wordcel.config.config import config
         kanji = (KanjiEntry("敷", meanings=("spread",)), KanjiEntry("島", meanings=("island",)))
         self.window.show_entries((entry("敷く"), entry("敷島")), "敷嶋てとらch.", kanji=kanji)
         self.app.processEvents()
@@ -3936,7 +3937,10 @@ class QuickLookupTests(unittest.TestCase):
             header_bottom = browser.cursorRect(browser.document().find("敷島")).bottom()
             meanings_top = browser.cursorRect(browser.document().find("island")).top()
             self.assertGreater(meanings_top, header_bottom)
-            self.assertTrue(browser.document().find("島").charFormat().fontUnderline())
+            active = browser.document().find("島").charFormat()
+            self.assertFalse(active.fontUnderline())
+            self.assertEqual(active.foreground().color().name(), config.color_highlight_word.lower())
+            self.assertEqual(browser.document().find("敷").charFormat().foreground().color().name(), config.color_foreground.lower())
             cursor = browser.document().find("敷")
             cursor.setPosition(cursor.selectionStart())
             point = browser.cursorRect(cursor).center() + QPoint(2, 0)
@@ -3946,7 +3950,9 @@ class QuickLookupTests(unittest.TestCase):
             self.assertEqual(self.window._kanji_details, {"敷"})
             self.assertIn("spread", browser.toPlainText())
             self.assertNotIn("island", browser.toPlainText())
-            self.assertTrue(browser.document().find("敷").charFormat().fontUnderline())
+            active = browser.document().find("敷").charFormat()
+            self.assertFalse(active.fontUnderline())
+            self.assertEqual(active.foreground().color().name(), config.color_highlight_word.lower())
             self.window._link(QUrl("kanjiselect:敷"))
             self.assertTrue(self.window._kanji_view)
             self.window._link(QUrl("kanjiselect:猫"))

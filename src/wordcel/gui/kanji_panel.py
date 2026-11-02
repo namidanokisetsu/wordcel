@@ -135,10 +135,10 @@ def render_kanji_details(entries, scheme="kanji", *, origin="", available_charac
         word = []
         for char in origin:
             if char == character:
-                word.append(f'<span style="color:{accent}"><u>{_text(char)}</u></span>')
+                word.append(f'<span style="color:{accent}">{_text(char)}</span>')
             elif char in available_characters:
                 word.append(f'<a href="kanjiselect:{quote(char, safe="")}" '
-                            f'style="color:{accent};text-decoration:none">{_text(char)}</a>')
+                            f'style="color:{_text(config.color_foreground)};text-decoration:none">{_text(char)}</a>')
             else:
                 word.append(_text(char))
         parts.append(f'<p style="margin:0;font-size:{config.font_size_header}px">{"".join(word)}</p>')

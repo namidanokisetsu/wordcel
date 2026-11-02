@@ -7,7 +7,7 @@ import math
 
 from PyQt6.QtCore import QEvent, QMimeData, QObject, QPointF, QSizeF, Qt, QUrl
 from PyQt6.QtGui import (QColor, QFont, QFontMetricsF, QTextCharFormat, QTextCursor,
-                         QTextDocument, QTextFormat, QTextLength, QTextObjectInterface)
+                         QTextDocument, QTextFormat, QTextLayout, QTextLength, QTextObjectInterface)
 from PyQt6.QtWidgets import QToolTip
 
 from wordcel.config.config import config
@@ -92,17 +92,28 @@ class RubyObject(QObject, QTextObjectInterface):
         painter.setFont(font)
         painter.setPen(fmt.foreground().color())
         text = fmt.property(BASE)
-        painter.drawText(QPointF(rect.x() + (rect.width() - base.horizontalAdvance(text)) / 2,
-                                 rect.bottom()), text)
+        left = rect.x() + (rect.width() - base.horizontalAdvance(text)) / 2
         active = fmt.property(ACTIVE_KANJI)
         if active:
-            left = rect.x() + (rect.width() - base.horizontalAdvance(text)) / 2
-            for index, character in enumerate(text):
+            layout = QTextLayout(text, font)
+            accent = QTextCharFormat()
+            accent.setForeground(QColor(config.color_highlight_word))
+            formats, offset = [], 0
+            for character in text:
+                length = len(character.encode("utf-16-le")) // 2
                 if character == active:
-                    start = left + base.horizontalAdvance(text[:index])
-                    end = left + base.horizontalAdvance(text[:index + 1])
-                    y = rect.bottom() + base.underlinePos()
-                    painter.drawLine(QPointF(start, y), QPointF(end, y))
+                    selection = QTextLayout.FormatRange()
+                    selection.start, selection.length = offset, length
+                    selection.format = accent
+                    formats.append(selection)
+                offset += length
+            layout.setFormats(formats)
+            layout.beginLayout()
+            line = layout.createLine()
+            layout.endLayout()
+            layout.draw(painter, QPointF(left, rect.bottom() - line.ascent()))
+        else:
+            painter.drawText(QPointF(left, rect.bottom()), text)
         painter.restore()
 
 
@@ -246,9 +257,12 @@ class RubyBrowser(DictionaryBrowser):
                 cursor.setPosition(fragment.position() + fragment.length(), QTextCursor.MoveMode.KeepAnchor)
                 if fmt.objectType() == RUBY:
                     fmt.setProperty(ACTIVE_KANJI, selected)
+                    fmt.setForeground(QColor(config.color_foreground))
                     cursor.setCharFormat(fmt)
                 elif fmt.anchorHref().startswith("headkanji:"):
-                    fmt.setFontUnderline(unquote(fmt.anchorHref().rpartition(":")[2]) == selected)
+                    active = unquote(fmt.anchorHref().rpartition(":")[2]) == selected
+                    fmt.setFontUnderline(False)
+                    fmt.setForeground(QColor(config.color_highlight_word if active else config.color_foreground))
                     cursor.setCharFormat(fmt)
                 iterator += 1
         self._glyphs = []

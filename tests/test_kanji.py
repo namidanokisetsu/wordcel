@@ -1,5 +1,6 @@
 import unittest
 
+from wordcel.config.config import config
 from wordcel.dictionary.kanji import KanjiEntry, kanji_characters
 from wordcel.gui.kanji_panel import render_kanji, render_kanji_details, render_kanji_export
 
@@ -46,7 +47,8 @@ class KanjiTests(unittest.TestCase):
     def test_origin_header_highlights_selected_kanji_and_escapes_text(self):
         html = render_kanji_details((KanjiEntry("猫", meanings=("cat",)),),
                                    origin="猫<&𠮷", available_characters={"猫", "𠮷"})
-        self.assertIn("<u>猫</u>", html)
+        self.assertIn(f'color:{config.color_highlight_word}">猫</span>', html)
+        self.assertNotIn("<u>", html)
         self.assertNotIn("background-color:", html)
         self.assertIn("&lt;&amp;", html)
         self.assertIn('href="kanjiselect:%F0%A0%AE%B7"', html)
