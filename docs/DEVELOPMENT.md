@@ -156,9 +156,8 @@ selection and scroll when refreshed. Storage/search never run on the GUI thread.
 
 Settings use the `wordcel/wordcel` Qt namespace; managed data/cache use platformdirs'
 `wordcel` directory. Source and installed builds share them. Meikipop data stays
-untouched. Prior-version internal dictionary schemas are not migrated; legacy
-shared preference values are migrated before use. Yomitan archives without
-language metadata remain supported.
+untouched. Prior-version internal dictionary schemas are not migrated.
+Yomitan archives without language metadata remain supported.
 
 Settings presents eight stable destinations: app-wide General, plus profile
 pages for Lookup, Dictionaries, Shortcuts, Appearance, Audio, Translation and
@@ -168,14 +167,11 @@ under Advanced sections. Translation and Anki connection editors stay with their
 own features. Profile switching shortcuts are explicitly app-wide; other
 shortcuts and feature preferences belong to the profile being edited.
 
-`config/inheritance.py` performs a versioned, idempotent migration of legacy
-shared defaults before runtime settings are read. It snapshots each profile's
-effective values, including explicit empty and false values, writes independent
-profile preferences and records completion only after a successful sync. Profile
-IDs, names, languages, order and the active selection remain unchanged. New
-profiles use built-in defaults. Runtime editors no longer expose shared defaults
-or inheritance controls, and duplicating a profile copies preferences without
-copying downloaded resources or mutable connection state.
+`config/profiles.py` stores independent preferences. New profiles use built-in
+defaults; duplication copies preferences and mutable connection records while
+reusing downloaded resources. Legacy shared-default values are not converted.
+Profile IDs, names, languages, order and active selection stay independent of
+preference editing.
 
 Page-level restore actions and the profile menu's reset action use explicit key
 sets and authoritative defaults. A reset keeps identity, language, feature
