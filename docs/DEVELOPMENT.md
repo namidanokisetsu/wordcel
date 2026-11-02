@@ -70,6 +70,14 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   dictionary limit. Automatic translation is opt-in for submitted text only;
   typing, OCR hover, positional lookup and history restoration never trigger it.
   Keep custom translation servers loopback-only.
+  `translation_catalog.py` owns model IDs, revisions, hashes, sizes and memory
+  budgets. Existing Q8 selections stay unchanged; Q4 is an explicit option.
+  Fresh setup recommends 1.8B Q8 with 4 GiB available after a 2 GiB system
+  reserve; unknown memory recommends no download. Budgets include 8K context
+  and inference buffers. Driver/device probes run on a setup worker. Windows
+  Automatic selects verified CUDA/Vulkan support, otherwise CPU; macOS stays
+  native. Runtime directories, manifests and server reuse include backend
+  identity. Inference uses installed metadata without probing or downloading.
 - **Profiles and data:** use independent preferences in Qt's `wordcel/wordcel`
   namespace and platformdirs' `wordcel` storage. Editing does not activate a
   profile. Duplication copies mutable connection records but shares downloaded
@@ -82,6 +90,12 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   mapped files wait for startup cleanup. First run allows skipping downloads and
   opens lookup without a tutorial. Imported packs remain user-managed. Bundle
   WaDoku's data licence, not just the converter's CC0 notice.
+  First run leaves fonts, Stanza and translation unchecked. Setup requests
+  validate one operation before deriving job identity and worker dispatch.
+  Engine wheels and translation archives share verified resumable downloads;
+  URL/hash/size metadata and HTTP validators bind partials. Publication follows
+  size/SHA256 checks; Hugging Face retains its model downloader. Dictionary
+  installs/updates share transport with separate import/revision validation.
 - **History:** recording is opt-in. A visit is identified by language, encountered
   form, context and span; repeated OCR must not restart its hover timer. Rendering,
   Back and restoration never record a visit. A serial worker owns `history.sqlite3`

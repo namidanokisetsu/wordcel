@@ -5,8 +5,9 @@
 ## Get started
 
 [Download](https://github.com/namidanokisetsu/wordcel/releases) and open Wordcel,
-then choose a language. Download the dictionaries and OCR resources during
-setup, or add them later in **Settings**. See [supported languages](LANGUAGES.md).
+then choose a language. Setup offers dictionary lookup with optional screen
+recognition. Fonts, word-form models and translation are separate choices;
+add them later in **Settings**. See [supported languages](LANGUAGES.md).
 
 Click Wordcel's tray/menu-bar icon to open **Search**. Right-click it for
 **Settings** or **Quit**. Closing Search leaves Wordcel running.
@@ -78,6 +79,10 @@ sources from a Yomitan settings export. Browser-only voices may be unavailable.
 
 Download a model in **Translation**, then open **Translate** from the tray,
 choose languages and enter text. Translation runs offline after setup.
+On Windows, **Runtime** selects Automatic, CPU, Vulkan or CUDA. Automatic uses
+a compatible GPU when detected, otherwise CPU. Switching runtimes reuses models.
+**Compact** is a smaller Q4 option; **Lightweight** and **Quality** retain Q8.
+Transfer estimates exclude verified cached files; interrupted downloads resume.
 **Translate when no definition is found** and **Auto-translate sentences** are
 off by default. Enable them per profile to translate submitted text automatically.
 Typing or hovering over OCR text does not trigger translation.
