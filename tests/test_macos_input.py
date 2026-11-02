@@ -16,7 +16,7 @@ from pynput import keyboard
 from wordcel.gui.keyboard_listener import KeyboardListener
 from wordcel.gui.shortcut_edit import ShortcutEdit
 from wordcel.gui.text_shortcuts import TextHotKeys
-from wordcel.utils.macos import require_input_monitoring_permission
+from wordcel.utils.macos import privacy_permission_granted, require_input_monitoring_permission
 
 
 class ShortcutRecordingTests(unittest.TestCase):
@@ -56,6 +56,14 @@ class ShortcutRecordingTests(unittest.TestCase):
 
 
 class InputPermissionTests(unittest.TestCase):
+    def test_permission_status_probe_never_requests_access(self):
+        quartz = Mock(CGPreflightListenEventAccess=Mock(return_value=False),
+                      CGRequestListenEventAccess=Mock())
+        with patch("sys.platform", "darwin"), patch.dict(sys.modules, {"Quartz": quartz}):
+            self.assertFalse(privacy_permission_granted("input_monitoring"))
+        quartz.CGPreflightListenEventAccess.assert_called_once_with()
+        quartz.CGRequestListenEventAccess.assert_not_called()
+
     def test_accessibility_requests_access_and_reports_denial(self):
         from wordcel.utils.macos import require_accessibility_permission
         api = Mock(kAXTrustedCheckOptionPrompt="prompt")
@@ -117,6 +125,18 @@ class InputPermissionTests(unittest.TestCase):
 
 @unittest.skipUnless(sys.platform == "darwin", "macOS event tap")
 class MacListenerTests(unittest.TestCase):
+    def test_listener_that_exits_before_native_ready_is_rejected(self):
+        listener = KeyboardListener()
+        with patch("wordcel.utils.macos.require_input_monitoring_permission"), \
+                patch.object(keyboard.Listener, "start"), \
+                patch.object(listener, "is_alive", return_value=False), \
+                patch.object(listener, "stop") as stop, \
+                patch.object(listener, "join") as join:
+            with self.assertRaisesRegex(OSError, "before it became ready"):
+                listener.start()
+        stop.assert_called_once_with()
+        join.assert_called_once_with(timeout=1)
+
     def test_intercept_requires_accessibility_before_starting_thread(self):
         listener = KeyboardListener(darwin_intercept=lambda kind, event: event)
         with patch("wordcel.utils.macos.require_input_monitoring_permission"), \
@@ -135,7 +155,10 @@ class MacListenerTests(unittest.TestCase):
         with patch("wordcel.utils.macos.require_input_monitoring_permission"), \
                 patch("wordcel.utils.macos.require_accessibility_permission") as accessibility, \
                 patch.object(HIServices, "AXIsProcessTrusted", side_effect=lambda: events.append("resolve")), \
-                patch.object(keyboard.Listener, "start", side_effect=lambda: events.append("start")):
+                patch.object(keyboard.Listener, "start", side_effect=lambda: events.append("start")), \
+                patch.object(listener, "is_alive", return_value=True), \
+                patch.object(listener, "_ready", True), \
+                patch.object(listener, "_loop", object(), create=True):
             listener.start()
         self.assertEqual(events, ["resolve", "start"])
         accessibility.assert_not_called()

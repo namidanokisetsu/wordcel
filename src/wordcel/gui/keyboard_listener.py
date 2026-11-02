@@ -24,7 +24,23 @@ class MacListenerMixin:
             # PyObjC's lazy symbol cache is not thread-safe. Keyboard and mouse
             # listeners both use this function as soon as their threads start.
             HIServices.AXIsProcessTrusted()
-        return super().start()
+        result = super().start()
+        if sys.platform == "darwin":
+            self._condition.acquire()
+            try:
+                if self.is_alive():
+                    self._condition.wait_for(
+                        lambda: (self._ready and getattr(self, "_loop", None) is not None)
+                        or not self.is_alive(), timeout=1)
+                ready = (self._ready and getattr(self, "_loop", None) is not None
+                         and self.is_alive())
+            finally:
+                self._condition.release()
+            if not ready:
+                self.stop()
+                self.join(timeout=1)
+                raise OSError("Global input listener stopped before it became ready.")
+        return result
 
     def canonical(self, key):
         if sys.platform == "darwin":

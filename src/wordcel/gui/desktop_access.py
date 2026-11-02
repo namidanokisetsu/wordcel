@@ -36,11 +36,15 @@ class DesktopAccess(QObject):
             return
         dialogs = [dialog for dialog in QApplication.topLevelWidgets()
                    if isinstance(dialog, QDialog) and dialog.isVisible()]
-        if any(not dialog.isMinimized() for dialog in dialogs):
+        # A visible setup/settings dialog owns Dock activation. The lookup
+        # window itself remains a route to the primary search action.
+        other_dialogs = [dialog for dialog in dialogs if dialog is not self.window]
+        if any(not dialog.isMinimized() for dialog in other_dialogs):
             return
-        if dialogs:
-            dialogs[0].showNormal()
-            dialogs[0].raise_()
-            dialogs[0].activateWindow()
+        if other_dialogs:
+            dialog = other_dialogs[0]
+            dialog.showNormal()
+            dialog.raise_()
+            dialog.activateWindow()
             return
         self.window.open_search()

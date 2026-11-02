@@ -33,3 +33,15 @@ class DesktopInputTests(unittest.TestCase):
                 self.assertIsNone(inputs.shortcuts)
             finally:
                 inputs.shutdown()
+
+    def test_escape_blocked_by_a_qt_popup_is_passed_through(self):
+        with patch("wordcel.gui.desktop_input.KeyboardListener"), patch("wordcel.gui.desktop_input.TextHotKeys"), patch("pynput.mouse.Listener"):
+            inputs = DesktopInput("shift", "", "", 400)
+        try:
+            inputs.visible.set()
+            inputs.escape_dismiss_blocked.set()
+            inputs.filter_key(0x100, SimpleNamespace(vkCode=27))
+            inputs.filter_key(0x101, SimpleNamespace(vkCode=27))
+            inputs.keys.suppress_event.assert_not_called()
+        finally:
+            inputs.shutdown()

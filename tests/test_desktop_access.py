@@ -53,6 +53,13 @@ class DesktopAccessTests(unittest.TestCase):
         self.access.reopen()
         self.window.open_settings.assert_not_called()
 
+    def test_visible_lookup_window_routes_dock_activation_to_search(self):
+        self.dialog.open_search = Mock()
+        self.access.window = self.dialog
+        self.dialog.show()
+        self.access.reopen()
+        self.dialog.open_search.assert_called_once_with()
+
     def test_minimized_dialog_is_restored(self):
         self.dialog.showMinimized()
         QTest.qWait(20)

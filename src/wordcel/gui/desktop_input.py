@@ -64,6 +64,8 @@ class DesktopInput(QObject):
         self.pin_ready = threading.Event()
         self.pin_pending = threading.Event()
         self.popup_controls_active = threading.Event()
+        # Updated from the Qt thread while menus or dialogs own Escape.
+        self.escape_dismiss_blocked = threading.Event()
         self.pin_gesture = "popup"
         self._consumed_pin = None
         self._darwin_consumed_pin = None
@@ -124,7 +126,8 @@ class DesktopInput(QObject):
             previous.stop()
 
     def key(self, key, down):
-        if sys.platform != "win32" and down and key == keyboard.Key.esc and self.visible.is_set():
+        if (sys.platform != "win32" and down and key == keyboard.Key.esc
+                and self.visible.is_set() and not self.escape_dismiss_blocked.is_set()):
             if sys.platform == "darwin":
                 self._darwin_escape = True
             self.dismissed.emit()
@@ -221,6 +224,13 @@ class DesktopInput(QObject):
                     self._consumed_navigation_keys.discard(data.vkCode)
                 self.keys.suppress_event()
                 return False
+        if data.vkCode == 0x1B and self.escape_dismiss_blocked.is_set():
+            if self._escape_down:
+                if not down:
+                    self._escape_down = False
+                self.keys.suppress_event()
+                return False
+            return True
         if data.vkCode == 0x1B and (self.visible.is_set() or self._escape_down):
             if down and not self._escape_down:
                 self.dismissed.emit()
@@ -314,6 +324,8 @@ class DesktopInput(QObject):
         if event_type not in (Quartz.kCGEventKeyDown, Quartz.kCGEventKeyUp):
             return event
         key_code = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGKeyboardEventKeycode)
+        if key_code == 53 and self.escape_dismiss_blocked.is_set() and not self._darwin_escape:
+            return event
         if (self._darwin_escape and key_code == 53) or key_code == self._darwin_pin_key:
             if event_type == Quartz.kCGEventKeyUp:
                 if key_code == self._darwin_pin_key:
@@ -364,6 +376,7 @@ class DesktopInput(QObject):
     def shutdown(self):
         self.navigation_source = None
         self.popup_controls_active.clear()
+        self.escape_dismiss_blocked.clear()
         self.hover_active.clear()
         self.pin_ready.clear()
         self.pin_pending.clear()

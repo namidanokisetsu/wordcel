@@ -1,6 +1,6 @@
 """Opt-in selection lookup; native callbacks never touch widgets."""
 from time import monotonic
-from PyQt6.QtCore import QObject, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import QApplication
 
@@ -12,12 +12,14 @@ class TextTriggers(QObject):
         super().__init__(window)
         self.window = window
         self.listener = None
+        self._permission_blocked = False
         self.press = self.last_click = None
         self.capture_timer = QTimer(self)
         self.capture_timer.setSingleShot(True)
         self.capture_timer.setInterval(60)
         self.capture_timer.timeout.connect(self.capture_selection)
         self.clicked.connect(self.click)
+        QApplication.instance().applicationStateChanged.connect(self.application_state_changed)
         window.mode_changed.connect(self.reload)
         window.scan_settings_changed.connect(self.reload)
         self.reload()
@@ -31,6 +33,7 @@ class TextTriggers(QObject):
             try:
                 require_input_monitoring_permission()
             except InputMonitoringPermissionError as error:
+                self._permission_blocked = True
                 self.window.show_message(str(error))
                 return
             from pynput import mouse
@@ -44,12 +47,21 @@ class TextTriggers(QObject):
                 return
             if hasattr(listener, "is_alive") and not listener.is_alive():
                 listener.stop()
+                self._permission_blocked = True
                 self.window.show_message("Text selection lookup could not start. Check Input Monitoring in System Settings.")
                 return
+            self._permission_blocked = False
             self.listener = listener
-        elif not enabled and self.listener is not None:
-            self.listener.stop()
-            self.listener = None
+        elif not enabled:
+            if self.listener is not None:
+                self.listener.stop()
+                self.listener = None
+            self._permission_blocked = False
+
+    def application_state_changed(self, state):
+        if state == Qt.ApplicationState.ApplicationActive and self._permission_blocked:
+            self._permission_blocked = False
+            self.reload()
 
     def click(self, x, y, down, left=True):
         self.capture_timer.stop()

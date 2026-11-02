@@ -432,7 +432,9 @@ class UnifiedOCR(QObject):
         if hasattr(window, "dismiss_button"):
             window.dismiss_button.clicked.connect(self.dismiss)
         window.installEventFilter(self)
-        QApplication.instance().aboutToQuit.connect(self.shutdown)
+        self._application = QApplication.instance()
+        self._application.installEventFilter(self)
+        self._application.aboutToQuit.connect(self.shutdown)
         self._restore_scan_area()
         settings = getattr(window, "settings", None)
         self.hover_enabled = bool(self.hover_region is not None and settings is not None
@@ -662,12 +664,21 @@ class UnifiedOCR(QObject):
         self._sync_pin_ready()
 
     def eventFilter(self, watched, event):
+        if event.type() in (QEvent.Type.Show, QEvent.Type.Hide,
+                            QEvent.Type.WindowActivate, QEvent.Type.WindowDeactivate,
+                            QEvent.Type.FocusIn, QEvent.Type.FocusOut):
+            is_top_level = watched is not self.window and bool(
+                getattr(watched, "isWindow", lambda: False)())
+            if is_top_level:
+                QTimer.singleShot(0, self._sync_escape_state)
         if watched is self.window:
             if event.type() == QEvent.Type.Enter:
                 self.leave_timer.stop()
             elif event.type() == QEvent.Type.Leave and not self.window.is_pinned and not self.holding:
                 self.leave_timer.start()
         if watched is self.window and event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
+            if self._escape_is_blocked():
+                return super().eventFilter(watched, event)
             self.dismiss()
             return True
         if watched is self.window and self.input:
@@ -753,6 +764,7 @@ class UnifiedOCR(QObject):
         self.input.popup_bindings = bindings
 
     def _sync_pin_ready(self):
+        self._sync_escape_state()
         if self.input and hasattr(self.input, "popup_controls_active"):
             active = self.window.isVisible() and self.window.is_pinned
             (self.input.popup_controls_active.set if active else self.input.popup_controls_active.clear)()
@@ -776,6 +788,19 @@ class UnifiedOCR(QObject):
                      (self.window.isVisible() or self._capture_hidden) and getattr(self.window, "_peek", False) and
                      not self.window.is_pinned and not self.input.pin_pending.is_set())
             (self.input.pin_ready.set if ready else self.input.pin_ready.clear)()
+
+    def _escape_is_blocked(self):
+        modal = QApplication.activeModalWidget()
+        return (QApplication.activePopupWidget() is not None
+                or (modal is not None and modal is not self.window)
+                or (QApplication.activeWindow() is not None
+                    and QApplication.activeWindow() is not self.window))
+
+    def _sync_escape_state(self):
+        if self.input is None or not hasattr(self.input, "escape_dismiss_blocked"):
+            return
+        (self.input.escape_dismiss_blocked.set if self._escape_is_blocked()
+         else self.input.escape_dismiss_blocked.clear)()
 
     def navigate_overlay(self, virtual_key):
         self.window.navigate_overlay(virtual_key)
@@ -908,7 +933,7 @@ class UnifiedOCR(QObject):
                 from wordcel.config.config import config
                 self.input = DesktopInput(getattr(self, "activation_bindings", config.activation_bindings), "", "", QApplication.doubleClickInterval(), self)
                 self.input.hold_changed.connect(self.hold_changed)
-                self.input.dismissed.connect(self.dismiss)
+                self.input.dismissed.connect(self._dismiss_from_input)
                 self.input.clicked.connect(self.outside_click)
                 self.input.pointer_moved.connect(self.check_popup_cursor)
                 self.input.pin_requested.connect(self.pin_requested)
@@ -973,6 +998,16 @@ class UnifiedOCR(QObject):
         if self.input:
             self.input.visible.clear()
         self._sync_pin_ready()
+
+    def _dismiss_from_input(self):
+        """Dismiss only after menus and dialogs have had first refusal."""
+        if self._escape_is_blocked():
+            return
+        QTimer.singleShot(0, self._dismiss_if_unblocked)
+
+    def _dismiss_if_unblocked(self):
+        if not self._escape_is_blocked():
+            self.dismiss()
 
     def outside_click(self):
         if self.input and self.input.pin_pending.is_set():
@@ -1249,6 +1284,8 @@ class UnifiedOCR(QObject):
 
     def shutdown(self):
         self.restore_capture_visibility()
+        if getattr(self, "_application", None) is not None:
+            self._application.removeEventFilter(self)
         self.set_enabled(False)
         self.preload_timer.stop()
         self.leave_timer.stop()

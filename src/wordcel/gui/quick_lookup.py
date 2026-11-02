@@ -1227,6 +1227,8 @@ class QuickLookupWindow(QDialog):
         self._shortcut_callbacks = {name: getattr(self, name + "_requested").emit
                                     for name in ("hotkey", "translation", "hover_toggle", "copy", "next_profile", "previous_profile")}
         self._shortcuts_restored = False
+        self._failed_shortcuts = set()
+        QApplication.instance().applicationStateChanged.connect(self._application_state_changed)
         self.next_profile_requested.connect(lambda: self.cycle_profile(1))
         self.previous_profile_requested.connect(lambda: self.cycle_profile(-1))
         from wordcel.gui.selection import SelectionCapture
@@ -3673,6 +3675,8 @@ class QuickLookupWindow(QDialog):
     def _update_shortcut_listener(self, attribute, bindings):
         from wordcel.gui.text_shortcuts import TextHotKeys
         from wordcel.utils.macos import AccessibilityPermissionError, InputMonitoringPermissionError
+        if not hasattr(self, "_failed_shortcuts"):
+            self._failed_shortcuts = set()
         previous = getattr(self, attribute)
         if previous is not None:
             if bindings:
@@ -3681,16 +3685,24 @@ class QuickLookupWindow(QDialog):
                 previous.update_bindings({})
                 previous.stop()
                 setattr(self, attribute, None)
+            self._failed_shortcuts.discard(attribute)
             return ""
         if bindings:
             listener = TextHotKeys(bindings)
             try:
                 listener.start()
             except (InputMonitoringPermissionError, AccessibilityPermissionError, OSError) as error:
+                self._failed_shortcuts.add(attribute)
                 self.show_message(str(error))
                 return str(error)
             setattr(self, attribute, listener)
+            self._failed_shortcuts.discard(attribute)
         return ""
+
+    def _application_state_changed(self, state):
+        if (state == Qt.ApplicationState.ApplicationActive and self._shortcuts_restored
+                and self._failed_shortcuts):
+            self.restore_shortcut()
 
     def shutdown(self):
         if self._shutting_down:

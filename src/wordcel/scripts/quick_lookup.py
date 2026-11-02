@@ -256,12 +256,32 @@ def main(argv=None):
         sync_optional_actions()
         window.mode_changed.connect(sync_optional_actions)
         window.lookup_history.preferences_changed.connect(sync_optional_actions)
-    tray.setContextMenu(menu)
-    activation_reasons = (QSystemTrayIcon.ActivationReason.Trigger,
-                          QSystemTrayIcon.ActivationReason.DoubleClick) if sys.platform == "darwin" else (
-                              QSystemTrayIcon.ActivationReason.Trigger,)
-    tray.activated.connect(lambda reason: window.open_search()
-                           if reason in activation_reasons else None)
+    tray_adapter = None
+    if sys.platform == "darwin":
+        # QSystemTrayIcon only reports the status-item geometry after a menu
+        # has been assigned. The Cocoa adapter detaches it after installation
+        # so the native monitor owns the click distinction.
+        tray.setContextMenu(menu)
+        try:
+            from wordcel.gui.macos_tray import MacTrayAdapter
+            tray_adapter = MacTrayAdapter(tray, menu, window.open_search, app)
+            if tray_adapter.install():
+                # Cocoa owns the distinction between left and right clicks;
+                # Qt's attached context menu otherwise consumes both paths.
+                tray.setContextMenu(None)
+            else:
+                tray_adapter = None
+        except (AttributeError, ImportError, RuntimeError, TypeError):
+            tray_adapter = None
+    tray.setContextMenu(None if tray_adapter else menu)
+    if tray_adapter is None:
+        activation_reasons = (QSystemTrayIcon.ActivationReason.Trigger,
+                              QSystemTrayIcon.ActivationReason.DoubleClick) if sys.platform == "darwin" else (
+                                  QSystemTrayIcon.ActivationReason.Trigger,)
+        tray.activated.connect(lambda reason: window.open_search()
+                               if reason in activation_reasons else None)
+    if tray_adapter:
+        app.aboutToQuit.connect(tray_adapter.shutdown)
     from wordcel.gui.profile_indicator import ProfileIndicator
     profile_indicator = ProfileIndicator()
     window.profile_activated.connect(profile_indicator.show_profile)

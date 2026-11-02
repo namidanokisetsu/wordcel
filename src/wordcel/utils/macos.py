@@ -18,6 +18,25 @@ _PRIVACY_SETTINGS = {
 }
 
 
+def privacy_permission_granted(feature: str) -> bool:
+    """Return a permission state without prompting or changing system settings."""
+    if sys.platform != "darwin":
+        return True
+    try:
+        if feature == "accessibility":
+            from ApplicationServices import AXIsProcessTrusted
+            return bool(AXIsProcessTrusted())
+        if feature == "input_monitoring":
+            from Quartz import CGPreflightListenEventAccess
+            return bool(CGPreflightListenEventAccess())
+        if feature == "screen_recording":
+            from Quartz import CGPreflightScreenCaptureAccess
+            return bool(CGPreflightScreenCaptureAccess())
+    except (ImportError, AttributeError):
+        return False
+    raise ValueError(f"Unknown macOS privacy feature: {feature}")
+
+
 def open_privacy_settings(feature: str) -> bool:
     """Open the macOS settings pane for a permission-dependent feature."""
     if sys.platform != "darwin":

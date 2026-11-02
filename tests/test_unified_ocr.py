@@ -1357,6 +1357,24 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
             self.controller.pin_requested()
         self.assertFalse(self.window.is_pinned)
 
+    def test_escape_from_global_input_waits_for_menus_and_dialogs(self):
+        self.controller.input = SimpleNamespace(escape_dismiss_blocked=threading.Event(), shutdown=Mock())
+        with patch.object(QApplication, "activePopupWidget", return_value=Mock()):
+            self.controller._sync_escape_state()
+            self.assertTrue(self.controller.input.escape_dismiss_blocked.is_set())
+            with patch.object(self.controller, "dismiss") as dismiss:
+                self.controller._dismiss_from_input()
+            dismiss.assert_not_called()
+
+        self.controller.input.escape_dismiss_blocked.clear()
+        with patch.object(QApplication, "activePopupWidget", return_value=None), \
+                patch.object(QApplication, "activeModalWidget", return_value=None), \
+                patch.object(QApplication, "activeWindow", return_value=self.window), \
+                patch.object(self.controller, "dismiss") as dismiss:
+            self.controller._dismiss_from_input()
+            self.app.processEvents()
+        dismiss.assert_called_once_with()
+
     def test_close_button_suppresses_reopen_for_current_hold(self):
         self.window.show()
         self.window.dismiss_button.click()
