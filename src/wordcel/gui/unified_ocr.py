@@ -1099,9 +1099,6 @@ class UnifiedOCR(QObject):
                 self._sync_pin_ready()
             return
         try:
-            if sys.platform == "darwin":
-                from wordcel.utils.macos import require_screen_capture_permission
-                require_screen_capture_permission()
             screen = QApplication.screenAt(point) or QApplication.primaryScreen()
             geometry = screen.geometry()
             scale = screen.devicePixelRatio()
