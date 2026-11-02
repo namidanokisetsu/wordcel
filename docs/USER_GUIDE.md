@@ -14,24 +14,47 @@ After the first language choice, Wordcel offers the resources needed for that
 profile. You can skip downloads and install them later from the relevant
 settings page. Setup then opens Search.
 
-### macOS permissions
+## FAQ
 
-In **System Settings > Privacy & Security**, enable Wordcel under:
+### Wordcel won't open on macOS
+
+Open the downloaded DMG, drag Wordcel to **Applications**, then open it from
+there. If macOS says the developer cannot be verified or Apple cannot check the
+app for malicious software, go to **System Settings > Privacy & Security**,
+scroll down and click **Open Anyway**, then confirm **Open**. Use this for the
+Wordcel copy downloaded from the [official releases](https://github.com/namidanokisetsu/wordcel/releases).
+See [Apple's opening instructions](https://support.apple.com/en-us/102445).
+
+Allow the permissions Wordcel requests when you use scanning or shortcuts.
+
+### Scanning or shortcuts don't work on macOS
+
+If a permission prompt was skipped, open **System Settings > Privacy & Security**
+and enable Wordcel under:
 
 - **Screen & System Audio Recording** (called **Screen Recording** on older
   versions): capture text for OCR.
 - **Input Monitoring**: detect scan keys, mouse buttons and global shortcuts.
 - **Accessibility**: handle scan/pin controls and copy selected text from other apps.
 
-Return to Wordcel after granting access. If access is still unavailable, choose
-**Quit** from the menu-bar icon and reopen it. Closing Search does not quit
-Wordcel. For source runs, grant access to the launching terminal or app shown
-in these lists.
+Quit Wordcel from its menu-bar icon, then reopen it after granting access.
+Closing Search does not quit Wordcel. If access is already enabled but still
+fails, quit Wordcel first, turn its permission off and back on, then reopen it.
+If that does not help, quit again and, where **−** and **+** controls are available,
+remove Wordcel from the affected permission list and add
+**Applications > Wordcel.app** again. Enable it and reopen Wordcel. For source
+runs, grant access to the launching terminal or app shown in these lists.
 
-If manual search works but OCR or **Command+Shift+D** does nothing, check these
-permissions first. Manual Search and Settings remain available when access is
+Manual Search and Settings remain available when access is
 denied, with recovery actions shown beside the affected feature. See Apple's
 [privacy settings guide](https://support.apple.com/guide/mac-help/change-privacy-security-settings-on-mac-mchl211c911f/mac).
+
+### Report a bug
+
+Choose **Report a bug** from the tray/menu-bar menu to open GitHub with Wordcel's
+version and your OS filled in. Describe what went wrong and submit; a screenshot
+helps. A GitHub account is required, but there is no required template.
+If Wordcel won't open, [report it directly](https://github.com/namidanokisetsu/wordcel/issues/new).
 
 ## Look up a word
 
