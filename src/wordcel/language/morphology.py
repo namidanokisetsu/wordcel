@@ -16,6 +16,13 @@ def torch_version(system=None, machine=None):
     return TORCH_DEFAULT_VERSION
 
 
+def numpy_requirement(system=None, machine=None):
+    """Return the NumPy ABI constraint paired with the selected Torch wheel."""
+    system = system or platform.system().lower()
+    machine = (machine or platform.machine()).lower()
+    return "numpy<2" if system == "darwin" and machine in {"x86_64", "amd64"} else None
+
+
 def model_available(language):
     if language == "tr":
         from .turkish_analyzer import available

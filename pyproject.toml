@@ -52,6 +52,7 @@ wordcel-translation = "wordcel.scripts.translation_server:main"
 [project.optional-dependencies]
 morphology = [
     "stanza==1.15.0",
+    "numpy<2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "torch==2.8.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
 ]

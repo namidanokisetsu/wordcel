@@ -25,6 +25,20 @@ class DataAssetTests(unittest.TestCase):
         path.write_bytes(data)
         return path
 
+    def source_paddle(self):
+        from wordcel.optional_runtimes import SOURCE_PADDLE_MARKER, source_runtime_root
+        root = source_runtime_root("paddle", self.data)
+        self.write(root / "site/cv2/__init__.py")
+        self.write(root / "site/cv2/cv2.abi3.so")
+        for distribution, version in {
+                "opencv_contrib_python": "4.10.0.84", "paddlepaddle": "3.2.2",
+                "paddleocr": "3.7.0", "paddlex": "3.7.2"}.items():
+            self.write(root / f"site/{distribution}-{version}.dist-info/METADATA")
+        for package in ("paddle", "paddleocr", "paddlex"):
+            (root / "site" / package).mkdir()
+        (root / "complete.json").write_text(json.dumps(SOURCE_PADDLE_MARKER))
+        return root
+
     def pack(self, language):
         archive = self.root / (language + ".zip")
         with zipfile.ZipFile(archive, "w") as bundle:
@@ -46,6 +60,17 @@ class DataAssetTests(unittest.TestCase):
         self.assertTrue(any(asset.language == "en" and asset.kind == "dictionary" for asset in assets.values()))
         self.assertFalse(assets["builtin:ja"].removable)
         self.assertTrue(any(asset.kind == "recommended" and asset.language == "ja" for asset in assets.values()))
+
+    def test_source_paddle_engine_is_inventory_managed_separately_from_models(self):
+        root = self.source_paddle()
+        self.write(self.data / "languages/tr/paddle/3.7.0/model.bin")
+        with patch("wordcel.optional_runtimes.manifest", return_value=None):
+            assets = {asset.key: asset for asset in inventory(self.library, **self.roots)}
+            self.assertEqual(assets["engine:paddle"].paths, (root.resolve(),))
+            self.assertEqual(assets["engine:paddle"].status, "Installed")
+            remove_asset("engine:paddle", self.library, Mock(), threading.Event(), **self.roots)
+        self.assertFalse(root.exists())
+        self.assertTrue((self.data / "languages/tr/paddle/3.7.0/model.bin").exists())
 
     def test_removing_language_deletes_its_packs_and_models_but_keeps_shared_data(self):
         russian, japanese = self.pack("ru"), self.pack("ja")

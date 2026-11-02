@@ -6,6 +6,13 @@ from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 root = Path(SPECPATH)
 sys.path.insert(0, str(root / "packaging"))
+paddle_site = root / "build" / "paddle-build-site"
+if not paddle_site.is_dir():
+    raise RuntimeError("The isolated Paddle build site is missing.")
+# Keep the base environment first so shared cv2 files collected for the app
+# remain headless; Paddle packages are still discoverable from the appended
+# site and are moved to the optional runtime by strip().
+sys.path.append(str(paddle_site))
 from optional_runtimes import prepare, strip
 runtime_manifest, external_files = prepare(root)
 ranking_dir = root / "build" / "turkish-ranking"

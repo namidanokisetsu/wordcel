@@ -89,7 +89,9 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
         assets.append(DataAsset(key, title, language, kind, value, paths, size,
                                 status or ("Installed" if present else "Not installed"), removable, identity, source, revision, origin))
 
-    from wordcel.optional_runtimes import manifest as engine_manifest, runtime_root, ready as engine_ready
+    from wordcel.optional_runtimes import (
+        manifest as engine_manifest, runtime_root, source_runtime_root, ready as engine_ready,
+    )
     engine_config = engine_manifest()
     if engine_config:
         for feature in engine_config["features"]:
@@ -97,6 +99,10 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
             state = "Installed" if engine_ready(feature, data) else "Incomplete" if root.exists() else "Not installed"
             add("engine:" + feature, "Paddle OCR engine" if feature == "paddle" else "Word-form engine",
                 kind="engine", value=feature, paths=(root,), status=state)
+    else:
+        root = source_runtime_root("paddle", data)
+        state = "Installed" if engine_ready("paddle", data) else "Incomplete" if root.exists() else "Not installed"
+        add("engine:paddle", "Paddle OCR engine", kind="engine", value="paddle", paths=(root,), status=state)
 
     for name, model in MODELS.items():
         path = data / "translation/models" / model["file"]

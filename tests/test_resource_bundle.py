@@ -34,6 +34,25 @@ class ResourceBundleTests(unittest.TestCase):
     def kwargs(self, root):
         return dict(data_root=root / "data", cache_root=root / "cache")
 
+    def source_paddle(self, root):
+        from wordcel.optional_runtimes import SOURCE_PADDLE_MARKER, source_runtime_root
+        engine = source_runtime_root("paddle", root / "data")
+        (engine / "site/cv2").mkdir(parents=True)
+        (engine / "site/cv2/__init__.py").write_bytes(b"OWNER = 'contrib'\n")
+        (engine / "site/cv2/cv2.abi3.so").write_bytes(b"fixture")
+        for distribution, version in {
+                "opencv_contrib_python": "4.10.0.84", "paddlepaddle": "3.2.2",
+                "paddleocr": "3.7.0", "paddlex": "3.7.2"}.items():
+            metadata = engine / f"site/{distribution}-{version}.dist-info/METADATA"
+            metadata.parent.mkdir()
+            metadata.write_text(f"Name: {distribution}\nVersion: {version}\n")
+        for package in ("paddle", "paddleocr", "paddlex"):
+            package_dir = engine / "site" / package
+            package_dir.mkdir()
+            (package_dir / "__init__.py").write_bytes(b"# fixture\n")
+        (engine / "complete.json").write_text(json.dumps(SOURCE_PADDLE_MARKER))
+        return engine
+
     def export(self, progress=lambda text: None):
         export_bundle(self.archive, self.source / "library", progress, self.cancelled, **self.kwargs(self.source))
 
@@ -56,6 +75,16 @@ class ResourceBundleTests(unittest.TestCase):
             self.assertEqual(library.packs[0][1]["title"], "Words")
         self.assertEqual((self.destination / "data/translation/runtime-fixture/llama-server.exe").read_bytes(), b"fixture")
         self.assertFalse((self.destination / "data/settings.json").exists())
+
+    def test_source_paddle_engine_round_trips_as_managed_resource(self):
+        self.source_paddle(self.source)
+        with patch("wordcel.optional_runtimes.manifest", return_value=None):
+            self.export()
+            self.restore()
+        from wordcel.optional_runtimes import source_runtime_root
+        engine = source_runtime_root("paddle", self.destination / "data")
+        self.assertTrue((engine / "complete.json").is_file())
+        self.assertTrue((engine / "site/cv2/cv2.abi3.so").is_file())
 
     def test_corrupt_resource_does_not_publish_any_files(self):
         def corrupt(files):

@@ -4,6 +4,7 @@ import hashlib
 import importlib
 import json
 import os
+import platform
 from pathlib import Path, PurePosixPath
 import re
 import sys
@@ -23,6 +24,7 @@ SOURCE_PADDLE_PACKAGES = (
 )
 SOURCE_PADDLE_MARKER = {
     "opencv": "4.10.0.84", "paddle": "3.2.2", "paddleocr": "3.7.0", "paddlex": "3.7.2",
+    "platform": f"{sys.platform}-{platform.machine().lower()}", "python": sys.implementation.cache_tag,
 }
 
 
@@ -46,7 +48,8 @@ def runtime_root(feature, data_root=None):
 def source_runtime_root(feature, data_root=None):
     """Return the source install location for a process-isolated engine."""
     from wordcel.utils.paths import paths
-    return Path(data_root or paths.data_dir) / "engines" / f"{feature}-source"
+    identity = f"{sys.platform}-{platform.machine().lower()}-{sys.implementation.cache_tag}"
+    return Path(data_root or paths.data_dir) / "engines" / f"{feature}-source-{identity}"
 
 
 def runtime_site(feature, data_root=None):
@@ -497,6 +500,12 @@ def _install_source_paddle(progress=None, cancelled=None):
             _run(["-m", "pip", "install", "--disable-pip-version-check", "--target", str(site),
                   *SOURCE_PADDLE_PACKAGES], cancelled)
             _cancel(cancelled)
+            # Import the complete staged environment in a separate CLI before
+            # publishing its marker. This catches native loader and metadata
+            # failures without touching the desktop interpreter.
+            _run(["-m", "wordcel.scripts.quick_lookup", "--check-engine", "paddle",
+                  "--engine-directory", str(site)], cancelled)
+            (stage / "complete.json").write_text(json.dumps(SOURCE_PADDLE_MARKER), encoding="utf-8")
             if not _source_paddle_ready(stage):
                 raise RuntimeError("Paddle's contrib OpenCV runtime is incomplete.")
             previous = Path(temporary) / "previous"

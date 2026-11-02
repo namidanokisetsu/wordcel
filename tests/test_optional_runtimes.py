@@ -106,6 +106,9 @@ class OptionalRuntimeTests(unittest.TestCase):
                 patch.object(engines, "activate") as activate, \
                 patch("wordcel.scripts.setup_morphology._run") as run:
             def install(arguments, cancelled=None):
+                if "--target" not in arguments:
+                    self.assertEqual(arguments[:3], ["-m", "wordcel.scripts.quick_lookup", "--check-engine"])
+                    return
                 site = Path(arguments[arguments.index("--target") + 1])
                 (site / "cv2").mkdir()
                 (site / "cv2/__init__.py").write_text("OWNER = 'contrib'\n")
@@ -120,15 +123,15 @@ class OptionalRuntimeTests(unittest.TestCase):
                     metadata.write_text(f"Name: {distribution}\nVersion: {version}\n")
                 for package in ("paddle", "paddleocr", "paddlex"):
                     (site / package).mkdir()
-                root = site.parent
-                (root / "complete.json").write_text(json.dumps(engines.SOURCE_PADDLE_MARKER))
             run.side_effect = install
             engines.install("paddle")
-            command = run.call_args.args[0]
+            command = run.call_args_list[0].args[0]
             self.assertIn("--target", command)
             self.assertNotIn("--no-deps", command)
             for package in engines.SOURCE_PADDLE_PACKAGES:
                 self.assertIn(package, command)
+            self.assertEqual(run.call_count, 2)
+            self.assertIn("--check-engine", run.call_args_list[1].args[0])
             self.assertTrue(engines.ready("paddle"))
             self.assertNotIn(str(engines.source_runtime_root("paddle") / "site"), __import__("sys").path)
             activate.assert_not_called()

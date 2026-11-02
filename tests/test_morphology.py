@@ -41,10 +41,12 @@ class MorphologyTests(unittest.TestCase):
         analyzer.pipeline.assert_called_once()
 
     def test_source_torch_pin_uses_the_available_intel_mac_wheel(self):
-        from wordcel.language.morphology import torch_version
+        from wordcel.language.morphology import numpy_requirement, torch_version
         self.assertEqual(torch_version("darwin", "x86_64"), "2.2.2")
         self.assertEqual(torch_version("darwin", "arm64"), "2.8.0")
         self.assertEqual(torch_version("win32", "AMD64"), "2.8.0")
+        self.assertEqual(numpy_requirement("darwin", "x86_64"), "numpy<2")
+        self.assertIsNone(numpy_requirement("darwin", "arm64"))
 
     def test_multiword_expansions_find_later_lemmas_without_replacing_exact_forms(self):
         for language, surface, words, expected in (
@@ -196,8 +198,9 @@ class MorphologyTests(unittest.TestCase):
             install("ru")
         commands = [call.args[0] for call in run.call_args_list]
         self.assertEqual(commands[0], ["-m", "ensurepip"])
-        self.assertIn("https://download.pytorch.org/whl/cpu", commands[1])
-        self.assertIn("stanza==1.15.0", commands[2])
+        torch = next(command for command in commands if any(value.startswith("torch==") for value in command))
+        self.assertIn("https://download.pytorch.org/whl/cpu", torch)
+        self.assertIn("stanza==1.15.0", commands[-2])
         self.assertEqual(commands[-1], ["-m", "wordcel.scripts.setup_morphology", "ru"])
 
     def test_installer_cancellation_finishes_current_step_without_launching_next(self):

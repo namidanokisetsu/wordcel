@@ -382,9 +382,11 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                 if not target.resolve().is_relative_to(roots[root]) or not _unlinked(target, roots[root]):
                     raise ValueError("Linked resource destinations cannot be imported.")
                 if root == "data" and relative.startswith("engines/"):
-                    from wordcel.optional_runtimes import manifest as engine_manifest, runtime_root
+                    from wordcel.optional_runtimes import manifest as engine_manifest, runtime_root, source_runtime_root
                     config = engine_manifest()
-                    if not config or target not in [runtime_root(feature, roots["data"]) for feature in config["features"]]:
+                    managed = config and target in [runtime_root(feature, roots["data"]) for feature in config["features"]]
+                    source = target == source_runtime_root("paddle", roots["data"])
+                    if not managed and not source:
                         raise ValueError("This engine archive requires the same Wordcel build as the exporting computer.")
                 if any(target == previous or target.is_relative_to(previous) or previous.is_relative_to(target) for previous in targets):
                     raise ValueError("Overlapping resource destinations.")
@@ -435,8 +437,12 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                         raise ValueError("Managed translation model checksum mismatch.")
                 if root == "data" and relative.startswith("engines/"):
                     feature = target.name.split("-", 1)[0]
-                    if (not (stage / "site").is_dir() or
-                            json.loads((stage / "complete.json").read_text(encoding="utf-8")) != config["features"][feature]):
+                    if target == source_runtime_root("paddle", roots["data"]):
+                        from wordcel.optional_runtimes import _source_paddle_ready
+                        if not _source_paddle_ready(stage):
+                            raise ValueError("Incomplete engine archive.")
+                    elif (not (stage / "site").is_dir() or
+                          json.loads((stage / "complete.json").read_text(encoding="utf-8")) != config["features"][feature]):
                         raise ValueError("Incomplete engine archive.")
                 if target.exists() and relative != _TRANSLATION_MANIFEST:
                     for item in unit["files"]:

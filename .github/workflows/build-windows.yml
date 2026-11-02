@@ -26,7 +26,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -e '.[morphology,turkish-ocr]'
-          pip install paddleocr==3.7.0 'paddlex[ocr-core]==3.7.2' paddlepaddle==3.2.2 opencv-contrib-python==4.10.0.84
           pip install pyinstaller==6.22.3
 
       - name: check setup flow
@@ -40,6 +39,10 @@ jobs:
         run: |
           rmdir build -r -force -ErrorAction SilentlyContinue || true
           rmdir dist -r -force -ErrorAction SilentlyContinue || true
+
+      - name: install isolated Paddle build site
+        run: |
+          python -m pip install --target build/paddle-build-site paddleocr==3.7.0 'paddlex[ocr-core]==3.7.2' paddlepaddle==3.2.2 opencv-contrib-python==4.10.0.84
 
       - name: build Windows installer
         run: ./Build-Windows.ps1 -Python python -ISCC 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
