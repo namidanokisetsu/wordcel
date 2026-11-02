@@ -81,6 +81,12 @@ class IndependentProfileSettingsTests(unittest.TestCase):
         migrate_defaults(self.settings)
         self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 29)
 
+    def test_empty_versioned_defaults_remove_stale_local_values(self):
+        self.settings.setValue("defaults_version", 1)
+        self.settings.setValue("profiles/ja/audio_volume", 42)
+        migrate_defaults(self.settings)
+        self.assertFalse(self.settings.contains("profiles/ja/audio_volume"))
+
     def test_duplicate_clones_values_and_mutable_connection_records(self):
         self.settings.setValue("profiles/ja/theme_name", "Light")
         self.settings.setValue("profiles/ja/anki/enabled", True)
