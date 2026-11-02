@@ -4,19 +4,6 @@ from pathlib import Path
 import sys
 
 
-def report_bug():
-    import platform
-    from urllib.parse import urlencode
-    from PyQt6.QtCore import QUrl
-    from PyQt6.QtGui import QDesktopServices
-    from wordcel import __version__
-
-    body = (f"What went wrong?\n\n\nWordcel: {__version__}\n"
-            f"OS: {platform.system()} {platform.release()} ({platform.machine()})\n")
-    url = "https://github.com/namidanokisetsu/wordcel/issues/new?" + urlencode({"body": body})
-    QDesktopServices.openUrl(QUrl(url))
-
-
 def main(argv=None):
     from wordcel.utils.windowed_processes import configure_windowed_helpers
     configure_windowed_helpers()
@@ -256,7 +243,6 @@ def main(argv=None):
     profiles.aboutToShow.connect(populate_profiles)
     menu.addSeparator()
     menu.addAction("Settings", window.open_settings)
-    menu.addAction("Report a bug", report_bug)
     menu.addSeparator()
     menu.addAction("Quit", app.quit)
     if sys.platform == "darwin":

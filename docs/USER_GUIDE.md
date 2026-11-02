@@ -51,10 +51,9 @@ denied, with recovery actions shown beside the affected feature. See Apple's
 
 ### Report a bug
 
-Choose **Report a bug** from the tray/menu-bar menu to open GitHub with Wordcel's
-version and your OS filled in. Describe what went wrong and submit; a screenshot
-helps. A GitHub account is required, but there is no required template.
-If Wordcel won't open, [report it directly](https://github.com/namidanokisetsu/wordcel/issues/new).
+[Open an issue](https://github.com/namidanokisetsu/wordcel/issues/new) and describe
+what went wrong; a screenshot helps. A GitHub account is required, but there is
+no required template.
 
 ## Look up a word
 
