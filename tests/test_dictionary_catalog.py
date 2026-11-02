@@ -16,12 +16,20 @@ class DictionaryCatalogTests(unittest.TestCase):
     def test_japanese_pitch_recommendation_uses_wadoku_update_index(self):
         japanese = recommendations("ja")
         self.assertEqual([item.title for item in japanese],
-                         ["JMdict", "Kanji · KANJIDIC", "Frequency · BCCWJ", "Pitch · WaDoku"])
+                         ["JMdict", "Kanji · KANJIDIC", "Frequency · Jiten Global", "Pitch · WaDoku"])
         pitch = japanese[-1]
         self.assertEqual(pitch.pack_title, "Wadoku Pitch Accent")
         self.assertEqual(pitch.index_url,
                          "https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan/releases/latest/download/index.json")
         self.assertTrue(pitch.matches({"language": "ja", "title": "Wadoku Pitch Accent"}))
+
+    def test_jiten_global_has_publisher_updates_and_does_not_match_media_lists(self):
+        frequency = recommendations("ja")[2]
+        self.assertEqual(frequency.url, "https://api.jiten.moe/api/frequency-list/download")
+        self.assertEqual(frequency.index_url, "https://api.jiten.moe/api/frequency-list/index")
+        self.assertTrue(frequency.matches({"language": "ja", "title": "Jiten"}))
+        self.assertFalse(frequency.matches({"language": "ja", "title": "Jiten (Anime)"}))
+        self.assertFalse(frequency.matches({"language": "ja", "title": "BCCWJ"}))
 
     def test_every_offered_language_has_a_dictionary_or_managed_translation(self):
         self.assertEqual(AVAILABLE_LANGUAGES, DICTIONARY_LANGUAGES | TRANSLATION_LANGUAGES)

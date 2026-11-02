@@ -18,6 +18,7 @@ class RecommendedDictionary:
     website: str
     pack_title: str = ""
     index_url: str = ""
+    exact_title: bool = False
 
     @property
     def identity(self):
@@ -25,7 +26,9 @@ class RecommendedDictionary:
         return hashlib.sha256((self.language + ":" + self.url).encode()).hexdigest()
 
     def matches(self, metadata):
-        return metadata["language"] == self.language and metadata["title"].startswith(self.pack_title or self.title)
+        title = self.pack_title or self.title
+        return metadata["language"] == self.language and (
+            metadata["title"] == title if self.exact_title else metadata["title"].startswith(title))
 
 
 def recommendations(language):
@@ -39,9 +42,10 @@ def recommendations(language):
                 RecommendedDictionary("Kanji · KANJIDIC", "ja",
                 "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download/KANJIDIC_english.zip",
                 "https://github.com/yomidevs/jmdict-yomitan", "KANJIDIC"),
-                RecommendedDictionary("Frequency · BCCWJ", "ja",
-                "https://raw.githubusercontent.com/Kuuuube/yomitan-dictionaries/main/dictionaries/BCCWJ_SUW_LUW_combined.zip",
-                "https://github.com/Kuuuube/yomitan-dictionaries", "BCCWJ"),
+                RecommendedDictionary("Frequency · Jiten Global", "ja",
+                "https://api.jiten.moe/api/frequency-list/download",
+                "https://jiten.moe/frequency-dictionaries", "Jiten",
+                "https://api.jiten.moe/api/frequency-list/index", exact_title=True),
                 RecommendedDictionary("Pitch · WaDoku", "ja",
                 "https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan/releases/latest/download/wadoku-pitch.zip",
                 "https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan", "Wadoku Pitch Accent",

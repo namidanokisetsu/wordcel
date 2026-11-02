@@ -50,8 +50,10 @@ In **Dictionaries**, use **Import ZIPs** to add Yomitan dictionaries. If a ZIP
 contains other ZIPs, extract it first. Removing a dictionary removes it from
 every profile. Download dictionaries here, OCR resources in **Lookup**, and
 translation models in **Translation**.
-Japanese recommendations include JMdict, KANJIDIC, BCCWJ and the WaDoku pitch
-dictionary. WaDoku data is attributed to [Wadoku](https://www.wadoku.de) and
+Japanese recommendations include JMdict, KANJIDIC, Jiten Global and the WaDoku pitch
+dictionary. [Jiten frequency data](https://jiten.moe/frequency-dictionaries) uses
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+WaDoku data is attributed to [Wadoku](https://www.wadoku.de) and
 distributed under its [data licence](https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten+Lizenz).
 
 **General > Startup > Preload OCR** loads the OCR model at startup. Turn it off

@@ -322,7 +322,7 @@ class ResourceTests(unittest.TestCase):
                         dialog.resources.dictionary_install.click()
                     dictionaries = install.call_args.kwargs["recommended"]
                     self.assertEqual([item.pack_title for item in dictionaries],
-                                     ["JMdict [", "KANJIDIC", "BCCWJ", "Wadoku Pitch Accent"])
+                                     ["JMdict [", "KANJIDIC", "Jiten", "Wadoku Pitch Accent"])
                 finally:
                     dialog.deleteLater()
                     self.app.processEvents()
