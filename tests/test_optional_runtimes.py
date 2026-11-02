@@ -6,6 +6,7 @@ import tempfile
 import threading
 from types import SimpleNamespace
 import unittest
+from urllib.error import HTTPError
 from unittest.mock import patch
 import zipfile
 
@@ -98,3 +99,93 @@ class OptionalRuntimeTests(unittest.TestCase):
                 patch("wordcel.scripts.setup_morphology._run", side_effect=lambda *args: calls.append("model")):
             install("ru")
         self.assertEqual(calls, ["engine", "model"])
+
+    def test_interrupted_wheel_download_resumes_with_range_and_validator(self):
+        content = b"x" * (1024 * 1024 + 137) + b"tail"
+        digest = hashlib.sha256(content).hexdigest()
+        destination = self.root / "cache" / "fixture.whl"
+        cancelled = threading.Event()
+        requests = []
+
+        class Response(io.BytesIO):
+            def __init__(self, body, status, headers):
+                super().__init__(body)
+                self.status, self.headers = status, headers
+
+        def transfer(request, timeout=0):
+            requests.append(request)
+            if len(requests) == 1:
+                return Response(content, 200, {"Content-Length": str(len(content)), "ETag": '"fixture-v1"'})
+            offset = int(request.get_header("Range").removeprefix("bytes=").removesuffix("-"))
+            self.assertEqual(request.get_header("If-range"), '"fixture-v1"')
+            return Response(content[offset:], 206, {
+                "Content-Length": str(len(content) - offset),
+                "Content-Range": f"bytes {offset}-{len(content) - 1}/{len(content)}",
+                "ETag": '"fixture-v1"'})
+
+        def stop_after_first_chunk(text):
+            cancelled.set()
+
+        with patch.object(engines, "urlopen", side_effect=transfer):
+            with self.assertRaises(InterruptedError):
+                engines.download_verified("https://example.invalid/fixture.whl", destination, digest,
+                                          stop_after_first_chunk, cancelled, len(content))
+            temporary, metadata = engines._download_paths(destination)
+            self.assertEqual(temporary.stat().st_size, 1024 * 1024)
+            self.assertTrue(metadata.is_file())
+            cancelled.clear()
+            result = engines.download_verified("https://example.invalid/fixture.whl", destination, digest,
+                                               cancelled=cancelled, size=len(content))
+        self.assertEqual(result, destination)
+        self.assertEqual(destination.read_bytes(), content)
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[1].get_header("Range"), "bytes=1048576-")
+        self.assertFalse(temporary.exists())
+        self.assertFalse(metadata.exists())
+
+    def test_ignored_range_restarts_without_duplicate_bytes(self):
+        content = b"fixture content" * 100
+        digest = hashlib.sha256(content).hexdigest()
+        destination = self.root / "cache" / "fixture.whl"
+        temporary, metadata = engines._download_paths(destination)
+        temporary.parent.mkdir(parents=True)
+        temporary.write_bytes(content[:20])
+        metadata.write_text(json.dumps({"url": "https://example.invalid/fixture.whl", "sha256": digest,
+                                        "size": len(content), "etag": '"v1"', "last_modified": None}))
+        requests = []
+
+        class Response(io.BytesIO):
+            def __init__(self, body, status, headers):
+                super().__init__(body)
+                self.status, self.headers = status, headers
+
+        def transfer(request, timeout=0):
+            requests.append(request)
+            if len(requests) <= 2:
+                return Response(content, 200, {"Content-Length": str(len(content)), "ETag": '"v1"'})
+            self.fail("A restart should issue one plain request")
+
+        with patch.object(engines, "urlopen", side_effect=transfer):
+            engines.download_verified("https://example.invalid/fixture.whl", destination, digest, size=len(content))
+        self.assertEqual(destination.read_bytes(), content)
+        self.assertEqual(len(requests), 2)
+        self.assertIn("Range", requests[0].headers)
+        self.assertNotIn("Range", requests[1].headers)
+
+    def test_complete_partial_handles_416_and_corrupt_partial_is_removed(self):
+        content = b"complete fixture"
+        digest = hashlib.sha256(content).hexdigest()
+        destination = self.root / "cache" / "fixture.whl"
+        temporary, metadata = engines._download_paths(destination)
+        temporary.parent.mkdir(parents=True)
+        temporary.write_bytes(content)
+        metadata.write_text(json.dumps({"url": "https://example.invalid/fixture.whl", "sha256": digest,
+                                        "size": len(content), "etag": '"v1"', "last_modified": None}))
+        error = HTTPError("https://example.invalid/fixture.whl", 416, "range", {
+            "Content-Range": f"bytes */{len(content)}"}, io.BytesIO())
+        with patch.object(engines, "urlopen", side_effect=error):
+            self.assertEqual(engines.download_verified("https://example.invalid/fixture.whl", destination, digest,
+                                                       size=len(content)), destination)
+        self.assertEqual(destination.read_bytes(), content)
+        self.assertFalse(temporary.exists())
+        self.assertFalse(metadata.exists())
