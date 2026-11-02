@@ -65,7 +65,13 @@ class SetupRequest:
         elif kind == "recommended":
             value = tuple(value) if isinstance(value, (list, tuple)) else (value,)
         elif kind == "update":
-            kind, value = ("update", tuple(value)) if isinstance(value, list) else ("replace", tuple(value))
+            from wordcel.dictionary.updates import DictionaryUpdate
+            if isinstance(value, (list, tuple)) and all(isinstance(item, DictionaryUpdate) for item in value):
+                value = tuple(value)
+            elif isinstance(value, tuple) and len(value) == 2 and isinstance(value[1], str):
+                kind = "replace"
+            else:
+                raise ValueError("Choose dictionary updates or one replacement ZIP")
         return cls(kind, value, language, backend)
 
     @property

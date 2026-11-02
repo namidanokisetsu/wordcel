@@ -16,6 +16,18 @@ class ResourceJobs(QObject):
             return dict(self._jobs)
 
     def claim(self, keys, owner, cancelled, title):
+        # Imports, installs and removal can use different item identities while
+        # mutating the same library or runtime registry.
+        categories = {"dictionary": "dictionaries", "dictionary-import": "dictionaries",
+                      "translation": "translation", "runtime": "translation",
+                      "stanza": "morphology", "ocr": "ocr", "font": "fonts"}
+        resources = []
+        for key in keys:
+            prefix = key.split(":", 1)[0]
+            resource = ("ocr" if key == "engine:paddle" else "morphology") if prefix == "engine" else categories.get(prefix)
+            if resource:
+                resources.append(resource)
+        keys = tuple(dict.fromkeys((*keys, *resources)))
         with self._lock:
             if self._jobs and ("all" in keys or "all" in self._jobs):
                 return False
