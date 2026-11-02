@@ -376,8 +376,6 @@ class QuickLookupWindow(QDialog):
         self.search.setPlaceholderText("Search")
         self.search.setAccessibleName("Search text")
         self.search.textEdited.connect(lambda _: setattr(self, "_selection_lookup", False))
-        self.search.setClearButtonEnabled(True)
-        self.search.findChild(QToolButton).setProperty("action_name", "close")
         self.search.setMaxLength(2000)
         self.search.textChanged.connect(self._edited)
         self.search.returnPressed.connect(lambda: self.submit(selection=True))
