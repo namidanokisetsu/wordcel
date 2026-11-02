@@ -736,6 +736,39 @@ class QuickLookupTests(unittest.TestCase):
         dialog.search.setText("Turkish")
         self.assertEqual(dialog.selected_code(), "tr")
 
+    def test_japanese_setup_syncs_installed_ocr_with_existing_settings(self):
+        from wordcel.gui.first_run import LanguageSuggestion
+        from wordcel.gui.language_setup import SetupTask
+        dialog = SetupDialog(self.temp.name, self.settings, self.window.apply_shortcut, self.window)
+        self.window._setup = dialog
+        dialog.ja_ocr_provider.addItem("Windows OCR (local)", "windows")
+        with patch("wordcel.language.support.ocr_supported", return_value=True), \
+                patch("wordcel.language.support.default_ocr_provider", return_value="meikiocr"), \
+                patch("wordcel.gui.resources.ocr_ready", side_effect=lambda provider, *_: provider == "windows"):
+            for installed, downloads in ((True, False), (True, True), (False, True)):
+                with self.subTest(installed=installed, downloads=downloads):
+                    self.settings.remove("profiles/ja/ocr_provider")
+                    dialog.update_ocr_controls()
+                    self.assertEqual(dialog.ja_ocr_provider.currentData(), "meikiocr")
+                    wizard = LanguageSuggestion(self.window, "ja")
+                    self.addCleanup(wizard.deleteLater)
+                    self.assertEqual(wizard.ocr.currentData(), "windows")
+                    selected = "windows" if installed else "paddle"
+                    wizard.ocr.setCurrentIndex(wizard.ocr.findData(selected))
+                    for task, check in wizard.choices:
+                        check.setChecked(task.kind == "ocr" or installed and downloads and task.kind == "dictionary")
+                    with patch("wordcel.gui.language_setup.LanguageSetup") as setup:
+                        wizard.accept()
+                    if installed:
+                        self.assertEqual(self.settings.value("profiles/ja/ocr_provider"), selected)
+                        self.assertEqual(dialog.ja_ocr_provider.currentData(), selected)
+                    if downloads:
+                        setup.return_value.cancelled.is_set.return_value = False
+                        task = SetupTask("dictionary", "Dictionary", None) if installed else SetupTask("ocr", "Screen recognition", selected)
+                        wizard.download_finished([(task, "")], [])
+                        self.assertEqual(self.settings.value("profiles/ja/ocr_provider"), selected)
+                        self.assertEqual(dialog.ja_ocr_provider.currentData(), selected)
+
     def test_translation_language_picker_stays_inside_panel_without_a_modal_window(self):
         self.window.open_translation()
         panel = self.window.translation_panel

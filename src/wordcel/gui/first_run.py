@@ -321,6 +321,9 @@ class LanguageSuggestion(QDialog):
             if ocr_ready(self.ocr.currentData(), self.window.settings.value("screenai_directory", "")):
                 self.window.settings.setValue(f"profiles/{self.profile}/ocr_provider", self.ocr.currentData())
                 self.window.scan_settings_changed.emit()
+                if self.window._setup is not None:
+                    self.window._setup.update_ocr_controls()
+                    self.window._setup.resources.refresh()
         tasks = self.selected_tasks()
         if not tasks:
             self.finish_setup()
@@ -369,6 +372,7 @@ class LanguageSuggestion(QDialog):
         self.window.scan_settings_changed.emit()
         if self.window._setup is not None:
             self.window._setup.reload(preserve=True)
+            self.window._setup.update_ocr_controls()
             self.window._setup.resources.refresh()
         cancelled = self.operation.cancelled.is_set()
         from PyQt6.QtWidgets import QApplication
