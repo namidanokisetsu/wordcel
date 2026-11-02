@@ -420,7 +420,8 @@ def _runtime_entry(registry, backend="automatic", root=None):
         if not available(runtime) and isinstance(runtimes, dict):
             runtime = runtimes.get("cpu", {})
         if not available(runtime):
-            runtime = registry
+            legacy_backend = registry.get("backend", "cuda" if platform_name.startswith("win-") else "native")
+            runtime = registry if not preference or legacy_backend == preference else {}
     elif backend != "automatic":
         runtimes = registry.get("runtimes", {})
         runtime = runtimes.get(backend, {}) if isinstance(runtimes, dict) else {}

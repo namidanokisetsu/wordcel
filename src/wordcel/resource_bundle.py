@@ -496,7 +496,13 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                 has_manifest_unit = incoming_manifest is not None
             if has_manifest_unit or manifest_path.exists():
                 existing = _read_translation_manifest(manifest_path) if manifest_path.exists() else None
-                _write_translation_manifest(manifest_path, _merge_translation_manifests(existing, incoming_manifest))
+                merged = _merge_translation_manifests(existing, incoming_manifest)
+                if merged.get("platform", "").startswith("win-"):
+                    from wordcel.translation_hardware import detect_capabilities
+                    merged["automatic_backend"] = detect_capabilities().select()
+                elif merged.get("platform", "").startswith("mac-"):
+                    merged["automatic_backend"] = "native"
+                _write_translation_manifest(manifest_path, merged)
                 manifest_written = True
         from wordcel.dictionary.library import library_changed
         library_changed(roots["library"])

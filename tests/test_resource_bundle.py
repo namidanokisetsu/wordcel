@@ -218,7 +218,9 @@ class TranslationBundleTests(unittest.TestCase):
                 self.archive = self.root / (backend + ".zip")
                 self.make_translation(backend=backend)
                 self.export()
-                self.import_archive()
+                from wordcel.translation_hardware import Capabilities
+                with patch("wordcel.translation_hardware.detect_capabilities", return_value=Capabilities(vulkan=backend == "vulkan")):
+                    self.import_archive()
                 installed = json.loads((self.destination / "data/translation/installation.json").read_text())
                 self.assertEqual(installed["backend"], backend)
                 self.assertEqual(installed["automatic_backend"], backend)
@@ -229,6 +231,20 @@ class TranslationBundleTests(unittest.TestCase):
                 executable, model_path = _installed_paths("lightweight", self.destination / "data/translation", backend)
                 self.assertTrue(executable.is_file())
                 self.assertEqual(model_path.read_bytes(), b"model")
+
+    def test_imported_cuda_runtime_does_not_override_local_cpu_capability(self):
+        self.make_translation(backend="cuda")
+        self.export()
+        from wordcel.translation_hardware import Capabilities
+        with patch("wordcel.translation_hardware.detect_capabilities", return_value=Capabilities()):
+            self.import_archive()
+        root = self.destination / "data/translation"
+        installed = json.loads((root / "installation.json").read_text())
+        self.assertEqual(installed["automatic_backend"], "cpu")
+        from wordcel.scripts.translation_server import _installed_paths
+        with self.assertRaises(RuntimeError):
+            _installed_paths("lightweight", root)
+        self.assertTrue(_installed_paths("lightweight", root, "cuda")[0].is_file())
 
     def test_legacy_cuda_bundle_reconstructs_metadata_when_old_export_omitted_it(self):
         self.make_translation(backend="cuda", legacy=True)
