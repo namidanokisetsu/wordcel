@@ -3702,6 +3702,9 @@ class QuickLookupWindow(QDialog):
     def _application_state_changed(self, state):
         if (state == Qt.ApplicationState.ApplicationActive and self._shortcuts_restored
                 and self._failed_shortcuts):
+            from wordcel.utils.macos import privacy_permission_granted
+            if sys.platform == "darwin" and not privacy_permission_granted("input_monitoring"):
+                return
             self.restore_shortcut()
 
     def shutdown(self):

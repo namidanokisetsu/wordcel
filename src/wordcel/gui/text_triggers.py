@@ -1,4 +1,5 @@
 """Opt-in selection lookup; native callbacks never touch widgets."""
+import sys
 from time import monotonic
 from PyQt6.QtCore import QObject, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QCursor
@@ -60,6 +61,10 @@ class TextTriggers(QObject):
 
     def application_state_changed(self, state):
         if state == Qt.ApplicationState.ApplicationActive and self._permission_blocked:
+            if sys.platform == "darwin":
+                from wordcel.utils.macos import privacy_permission_granted
+                if not privacy_permission_granted("input_monitoring"):
+                    return
             self._permission_blocked = False
             self.reload()
 
