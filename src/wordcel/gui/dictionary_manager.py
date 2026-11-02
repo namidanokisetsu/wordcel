@@ -211,9 +211,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self._section_scans = set()
         self.sections_ready.connect(self._sections_ready)
         from wordcel.config.profiles import migrate
-        from wordcel.config.inheritance import migrate_defaults
         migrate(settings, directory)
-        migrate_defaults(settings)
         self.settings = settings
         self._apply_shortcut = apply_shortcut
         self.operation = None

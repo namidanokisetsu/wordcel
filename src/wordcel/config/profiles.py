@@ -6,7 +6,7 @@ import sys
 from uuid import uuid4
 
 
-PROFILE_VERSION = 2
+PROFILE_VERSION = 1
 PROFILE_KEYS = (
     "hotkey", "hotkey_preset", "translation_hotkey", "translation_hotkey_preset",
     "copy_hotkey", "copy_hotkey_preset", "hover_hotkey", "hover_hotkey_preset",
@@ -194,10 +194,6 @@ def migrate(settings, directory=None):
             settings.setValue(key, deepcopy(value))
         raise
 
-    # Complete the inheritance migration when this is the first settings
-    # entry point. A later call is a cheap idempotent no-op.
-    from wordcel.config.inheritance import migrate_defaults
-    migrate_defaults(settings)
     return True
 
 

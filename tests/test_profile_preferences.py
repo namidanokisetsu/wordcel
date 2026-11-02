@@ -1,20 +1,17 @@
 import json
 import os
-import sys
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QSettings
 
-from wordcel.config.inheritance import migrate_defaults
 from wordcel.config.profiles import (APP_SHORTCUT_DEFAULTS, create_profile, ensure_private_connection,
                                      reset_app_page, reset_page, reset_profile)
 
 
-class IndependentProfileSettingsTests(unittest.TestCase):
+class ProfilePreferenceTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -24,68 +21,6 @@ class IndependentProfileSettingsTests(unittest.TestCase):
         self.settings.setValue("profile_order", ["ja", "tr"])
         self.settings.setValue("profiles/ja/language", "ja")
         self.settings.setValue("profiles/tr/language", "tr")
-
-    def test_migration_materializes_effective_values_and_removes_legacy_scope(self):
-        self.settings.setValue("defaults_version", 1)
-        self.settings.setValue("defaults/appearance/font_size_header", 22)
-        self.settings.setValue("defaults/appearance/custom/highlight", "")
-        self.settings.setValue("defaults/shortcuts/popup/copy_shortcut", "")
-        self.settings.setValue("profiles/ja/overrides/appearance", False)
-        self.settings.setValue("profiles/ja/font_size_header", 99)
-        self.settings.setValue("profiles/ja/custom/highlight", "stale")
-        self.settings.setValue("profiles/tr/overrides/appearance", True)
-        self.settings.setValue("profiles/tr/font_size_header", 31)
-        self.settings.setValue("profiles/tr/pitch_colors", False)
-        self.settings.setValue("profiles/tr/overrides/shortcuts", True)
-        self.settings.setValue("profiles/tr/hotkey", "")
-
-        self.assertTrue(migrate_defaults(self.settings))
-        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 22)
-        self.assertEqual(self.settings.value("profiles/ja/custom/highlight"), "")
-        self.assertEqual(self.settings.value("profiles/tr/font_size_header", 0, int), 31)
-        self.assertFalse(self.settings.value("profiles/tr/pitch_colors", True, bool))
-        self.assertEqual(self.settings.value("profiles/tr/hotkey"), "")
-        self.assertFalse(any(key.startswith("defaults/") for key in self.settings.allKeys()))
-        self.assertFalse(any("/overrides/" in key for key in self.settings.allKeys()))
-
-        before = {key: self.settings.value(key) for key in self.settings.allKeys()}
-        self.assertFalse(migrate_defaults(self.settings))
-        self.assertEqual(before, {key: self.settings.value(key) for key in self.settings.allKeys()})
-        self.assertTrue((self.path.parent / "settings.ini.inheritance-backup.ini").exists())
-
-    def test_migration_failure_does_not_mark_completion_and_keeps_backup(self):
-        self.settings.setValue("defaults_version", 1)
-        self.settings.setValue("defaults/appearance/font_size_header", 22)
-        self.settings.setValue("profiles/ja/overrides/appearance", False)
-        with patch("wordcel.config.inheritance._sync", side_effect=OSError("disk full")):
-            with self.assertRaises(OSError):
-                migrate_defaults(self.settings)
-        self.assertEqual(self.settings.value("defaults_version", 0, int), 1)
-        backup = QSettings(str(self.path) + ".inheritance-backup.ini", QSettings.Format.IniFormat)
-        self.assertEqual(backup.value("defaults/appearance/font_size_header", 0, int), 22)
-        migrate_defaults(self.settings)
-        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 22)
-
-    def test_profile_settings_are_direct_after_migration(self):
-        self.settings.setValue("defaults_version", 1)
-        self.settings.setValue("defaults/appearance/font_size_header", 22)
-        self.settings.setValue("profiles/ja/overrides/appearance", False)
-        migrate_defaults(self.settings)
-        self.settings.setValue("profiles/ja/font_size_header", 29)
-        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 29)
-        self.assertFalse(self.settings.contains("defaults/appearance/font_size_header"))
-
-    def test_unversioned_defaults_do_not_override_local_values(self):
-        self.settings.setValue("defaults/appearance/font_size_header", 22)
-        self.settings.setValue("profiles/ja/font_size_header", 29)
-        migrate_defaults(self.settings)
-        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 29)
-
-    def test_empty_versioned_defaults_remove_stale_local_values(self):
-        self.settings.setValue("defaults_version", 1)
-        self.settings.setValue("profiles/ja/audio_volume", 42)
-        migrate_defaults(self.settings)
-        self.assertFalse(self.settings.contains("profiles/ja/audio_volume"))
 
     def test_duplicate_clones_values_and_mutable_connection_records(self):
         self.settings.setValue("profiles/ja/theme_name", "Light")

@@ -66,7 +66,7 @@ class NamedProfileTests(unittest.TestCase):
         self.assertEqual(before, {key: self.settings.value(key) for key in self.settings.allKeys()})
         self.assertFalse(self.settings.contains("profiles_version"))
         migrate(self.settings, self.directory)
-        self.assertEqual(self.settings.value("profiles_version", 0, int), 2)
+        self.assertEqual(self.settings.value("profiles_version", 0, int), 1)
 
     def test_startup_profile_defaults_to_last_used_and_preserves_selection(self):
         from wordcel.gui.dictionary_manager import SetupDialog
