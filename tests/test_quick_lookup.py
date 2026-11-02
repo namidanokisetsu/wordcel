@@ -411,7 +411,7 @@ class QuickLookupTests(unittest.TestCase):
                     self.app.processEvents()
                     self.wait_until(lambda: not self.window.render_timer.isActive())
                     self.app.processEvents()
-                    top = self.window.audio_button
+                    top = self.window.sentence_audio_button
                     bottom = self.window.dismiss_button
                     self.assertTrue(top.isVisible())
                     self.assertTrue(bottom.isVisible())
@@ -2266,7 +2266,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(self.window.foreign.currentData(), "en")
         self.window.audio = Mock()
         self.window.show_entries((entry(),), "猫")
-        self.window.audio_button.click()
+        self.window._headword_rows[("猫", "ねこ")][2].click()
         self.window.audio.play.assert_called_once()
 
     def test_sentence_audio_reads_source_or_translation_in_its_language(self):
@@ -2474,7 +2474,7 @@ class QuickLookupTests(unittest.TestCase):
         self.app.processEvents()
         self.window.audio.play.assert_not_called()
         self.window.audio.play_text.assert_not_called()
-        QTest.mouseClick(self.window.audio_button, Qt.MouseButton.LeftButton)
+        QTest.mouseClick(self.window._headword_rows[("猫", "ねこ")][2], Qt.MouseButton.LeftButton)
         self.window.audio.play.assert_called_once()
         self.window.audio.play_text.assert_not_called()
         QTest.mouseClick(self.window.sentence_audio_button, Qt.MouseButton.LeftButton)
@@ -2576,7 +2576,7 @@ class QuickLookupTests(unittest.TestCase):
         self.window.show_entries((entry(),), "猫", peek=True)
         self.window.set_context("公園で猫が寝ている。")
         self.window.pin.setChecked(True)
-        self.assertTrue(self.window.audio_button.isVisible())
+        self.assertTrue(self.window._headword_rows[("猫", "ねこ")][2].isVisible())
         self.assertFalse(self.window.header.isVisible())
         self.assertTrue(self.window.search.isHidden())
         self.assertEqual(self.window.audio_actions.parentWidget(), self.window.browser.viewport())
@@ -3776,6 +3776,37 @@ class QuickLookupTests(unittest.TestCase):
         self.window._place_actions()
         self.assertTrue(second_row.isHidden())
 
+    def test_single_headword_audio_uses_heading_in_manual_and_pinned_results(self):
+        for snap in (False, True):
+            self.settings.setValue("profiles/ja/snap_scrolling", snap)
+            self.settings.setValue("profiles/ja/pinned_sentence", True)
+            self.window.reload_appearance()
+            self.window.open_search()
+            self.window.show_entries((entry(definitions=("meaning " * 200,)),), "猫")
+            for pinned in (False, True):
+                if pinned:
+                    self.window._set_peek(True)
+                    self.window.set_context("公園で猫が寝ている。")
+                    self.window.pin.setChecked(True)
+                for width in (340, 600):
+                    with self.subTest(snap=snap, pinned=pinned, width=width):
+                        self.window.resize(width, 340)
+                        self.app.processEvents()
+                        browser = self.window.browser
+                        row, _, audio = self.window._headword_rows[("猫", "ねこ")]
+                        block = self.window._headword_blocks[0]
+                        heading = browser.document().documentLayout().blockBoundingRect(block)
+                        top = heading.top() - browser.verticalScrollBar().value()
+                        self.assertTrue(audio.isVisible())
+                        self.assertTrue(self.window.audio_button.isHidden())
+                        self.assertEqual(row.parentWidget(), browser.viewport())
+                        self.assertGreaterEqual(row.y(), top)
+                        following = browser.document().documentLayout().blockBoundingRect(block.next())
+                        self.assertLess(row.geometry().bottom(), following.top() - browser.verticalScrollBar().value())
+                        self.assertLessEqual(heading.right(), row.x())
+                        if pinned:
+                            self.assertFalse(row.geometry().intersects(self.window.audio_actions.geometry()))
+
     def test_kanji_long_summary_keeps_window_geometry(self):
         self.window.show_entries((entry(),), peek=True,
                                  kanji=(KanjiEntry("猫", meanings=("Long meaning " * 500,)),))
@@ -3831,13 +3862,15 @@ class QuickLookupTests(unittest.TestCase):
             block = self.window._action_heading
             heading = browser.document().documentLayout().blockBoundingRect(block)
             controls = self.window.audio_actions
+            row, anki, audio = self.window._headword_rows[("猫", "ねこ")]
             self.assertFalse(self.window.header.isVisible())
             self.assertTrue(controls.isVisible())
             self.assertGreaterEqual(controls.y(), heading.top())
             following = browser.document().documentLayout().blockBoundingRect(block.next())
             self.assertLess(controls.geometry().bottom(), following.top())
-            self.assertLessEqual(heading.right(), controls.x())
-            for button in (self.window.anki_button, self.window.sentence_audio_button, self.window.audio_button):
+            self.assertLessEqual(heading.right(), row.x())
+            self.assertFalse(row.geometry().intersects(controls.geometry()))
+            for button in (anki, self.window.sentence_audio_button, audio):
                 self.assertEqual(button.size(), self.window.copy_button.size())
                 self.assertEqual(button.iconSize(), self.window.copy_button.iconSize())
                 self.assertEqual(button.styleSheet(), self.window.copy_button.styleSheet())
@@ -3857,9 +3890,9 @@ class QuickLookupTests(unittest.TestCase):
         self.settings.setValue("profiles/ja/buttons/audio", True)
         self.window.reload_appearance()
         self.app.processEvents()
-        self.assertTrue(self.window.audio_button.isVisible())
+        self.assertTrue(audio.isVisible())
         self.assertFalse(self.window.sentence_audio_button.isVisible())
-        self.assertFalse(self.window.anki_button.isVisible())
+        self.assertFalse(anki.isVisible())
 
     def test_pinned_translation_controls_stay_outside_text_when_resized(self):
         self.window.show_entries((entry(),), "猫", peek=True)

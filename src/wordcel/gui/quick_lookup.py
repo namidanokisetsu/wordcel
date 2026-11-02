@@ -336,6 +336,7 @@ class QuickLookupWindow(QDialog):
         self.search.setAccessibleName("Search text")
         self.search.textEdited.connect(lambda _: setattr(self, "_selection_lookup", False))
         self.search.setClearButtonEnabled(True)
+        self.search.findChild(QToolButton).setProperty("action_name", "close")
         self.search.setMaxLength(2000)
         self.search.textChanged.connect(self._edited)
         self.search.returnPressed.connect(lambda: self.submit(selection=True))
@@ -1935,7 +1936,7 @@ class QuickLookupWindow(QDialog):
 
     def _sync_headword_actions(self):
         groups = self._headword_groups()
-        if self._translation_view or self._peek and not self.is_pinned or len(groups) < 2:
+        if self._translation_view or self._peek and not self.is_pinned:
             groups = {}
         for key in list(self._headword_rows):
             if key not in groups:
