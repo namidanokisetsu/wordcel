@@ -1,6 +1,7 @@
 # Using Wordcel
 
-[Report a bug](https://github.com/namidanokisetsu/wordcel/issues/new)
+If you encounter a problem, check the [FAQ](#faq) first. If it doesn't help,
+[report a bug](https://github.com/namidanokisetsu/wordcel/issues/new).
 
 ## Get started
 
@@ -11,7 +12,6 @@ add them later in **Settings**. See [supported languages](LANGUAGES.md).
 
 Click Wordcel's tray/menu-bar icon to open **Search**. Right-click it for
 **Settings** or **Quit**. Closing Search leaves Wordcel running.
-For macOS setup problems, see [FAQ](#faq).
 
 ## Look up a word
 
