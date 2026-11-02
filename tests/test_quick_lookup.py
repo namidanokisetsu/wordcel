@@ -1202,11 +1202,6 @@ class QuickLookupTests(unittest.TestCase):
         availability.start()
         self.addCleanup(availability.stop)
         self.engine = FakeEngine()
-        from wordcel.config.inheritance import GROUPS, migrate_defaults
-        migrate_defaults(self.settings)
-        for profile in ("ja", "tr", "id"):
-            for group in GROUPS:
-                self.settings.setValue(f"profiles/{profile}/overrides/{group}", True)
         self.window = QuickLookupWindow(self.temp.name, lambda: self.engine, self.settings)
         self.settings = self.window.settings
 
