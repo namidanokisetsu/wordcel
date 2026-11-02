@@ -7,19 +7,24 @@ from wordcel.gui.action_icons import action_button
 
 
 class SettingsNavigation:
+    APP_PAGES = ("Startup", "History", "Storage")
+
     def highlight_active_profile(self, active):
         if not hasattr(self, "scope"):
             return
         for index in range(self.scope.count()):
             identity = self.scope.itemData(index)
             self.scope.setItemText(index, profile_name(self.settings, identity) + (" ✓" if identity == active else ""))
+        self.profile_group.toggle.setText("Profile settings · " + profile_name(self.settings, self.scope.currentData()))
 
     def is_active_edit(self):
         return self.parent() is not None and getattr(self.parent(), "active_profile", None) == self.profile.currentData()
 
     def build_sidebar(self, layout, tabs):
         from PyQt6.QtWidgets import QComboBox, QLineEdit, QListWidget, QVBoxLayout
+        from wordcel.gui.settings_section import SettingsSection
         self._navigation_state = {}
+        self._navigation_ready = False
         self.scope = QComboBox()
         self.scope.setAccessibleName("Editing")
         self.scope.setToolTip("Profile to edit")
@@ -42,8 +47,14 @@ class SettingsNavigation:
         sidebar = QWidget()
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        sidebar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         sidebar_layout.addWidget(self.search)
-        sidebar_layout.addWidget(self.app_navigation)
+        self.app_group = SettingsSection("App settings", self.app_navigation, collapsible=True)
+        sidebar_layout.addWidget(self.app_group)
+        profile_content = QWidget()
+        profile_layout = QVBoxLayout(profile_content)
+        profile_layout.setContentsMargins(0, 0, 0, 0)
+        profile_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         row = QHBoxLayout()
         self.scope_label = QLabel("Editing")
         row.addWidget(self.scope_label)
@@ -70,9 +81,25 @@ class SettingsNavigation:
         manage.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         row.addWidget(manage)
         row.addStretch()
-        sidebar_layout.addLayout(row)
-        sidebar_layout.addWidget(self.navigation, 1)
-        sidebar_layout.addWidget(self.search_results, 1)
+        profile_layout.addLayout(row)
+        profile_layout.addWidget(self.navigation)
+        self.profile_group = SettingsSection("Profile settings", profile_content, collapsible=True)
+        sidebar_layout.addWidget(self.profile_group)
+        for name, group in (("app", self.app_group), ("profile", self.profile_group)):
+            group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+            group.toggle.setAutoRaise(True)
+            group.toggle.setStyleSheet("""
+                QToolButton {background:transparent;border:0;padding:3px;text-align:left;}
+                QToolButton:hover {background:palette(midlight);}
+                QToolButton:focus {border:1px solid palette(highlight);}
+            """)
+            group.toggle.setChecked(self.settings.value(f"settings/{name}_expanded", True, bool))
+            group.toggle.toggled.connect(lambda opened, name=name: self.settings.setValue(
+                f"settings/{name}_expanded", opened))
+        sidebar_layout.addWidget(self.search_results)
+        sidebar_layout.addStretch()
+        sidebar.setMinimumWidth(max(sidebar.sizeHint().width(), self.navigation.sizeHint().width(),
+                                    self.app_navigation.sizeHint().width()))
         tabs.tabBar().hide()
         layout.removeWidget(tabs)
         layout.removeWidget(self.profile_header)
@@ -120,24 +147,26 @@ class SettingsNavigation:
     def populate_navigation(self):
         page = self.tabs.currentIndex()
         with QSignalBlocker(self.navigation), QSignalBlocker(self.app_navigation):
-            self.navigation.clear()
-            self.app_navigation.clear()
+            if not self.navigation.topLevelItemCount():
+                for title in (*self.APP_PAGES, "Lookup", "Dictionaries", "Shortcuts", "Appearance", "Audio", "Translation", "Anki"):
+                    index = next(i for i in range(self.tabs.count()) if self.tabs.tabText(i) == title)
+                    tree = self.app_navigation if title in self.APP_PAGES else self.navigation
+                    item = QTreeWidgetItem(tree, [title])
+                    item.setData(0, Qt.ItemDataRole.UserRole, (None, index))
             selected = None
-            for title in ("General", "Lookup", "Dictionaries", "Shortcuts", "Appearance", "Audio", "Translation", "Anki"):
-                global_page = title == "General"
-                index = next(i for i in range(self.tabs.count()) if self.tabs.tabText(i) == title)
-                identity = None if global_page else self.profile.currentData()
-                item = QTreeWidgetItem(self.app_navigation if global_page else self.navigation,
-                                      ["App settings" if global_page else title])
+            for item in self.navigation_items():
+                index = item.data(0, Qt.ItemDataRole.UserRole)[1]
+                identity = None if item.treeWidget() is self.app_navigation else self.profile.currentData()
                 item.setData(0, Qt.ItemDataRole.UserRole, (identity, index))
                 if index == page:
                     selected = item
             selected = selected or self.navigation.topLevelItem(0)
             selected.treeWidget().setCurrentItem(selected)
-            self.app_navigation.setFixedHeight(
-                self.app_navigation.sizeHintForRow(0) * self.app_navigation.topLevelItemCount()
-                + 2 * self.app_navigation.frameWidth())
-        self.navigate(selected)
+            for tree in (self.app_navigation, self.navigation):
+                tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+                tree.setFixedHeight(sum(tree.sizeHintForRow(i) for i in range(tree.topLevelItemCount()))
+                                    + 2 * tree.frameWidth())
+        self.navigate(selected, reveal=False)
         self.search_settings()
 
     def change_scope(self):
@@ -166,7 +195,7 @@ class SettingsNavigation:
         self.profile_actions["Move up"].setEnabled(editing and index > 0)
         self.profile_actions["Move down"].setEnabled(editing and 0 <= index < len(order) - 1)
 
-    def navigate(self, item, previous=None):
+    def navigate(self, item, previous=None, *, reveal=True):
         value = item.data(0, Qt.ItemDataRole.UserRole) if item else None
         if not value:
             return
@@ -176,8 +205,14 @@ class SettingsNavigation:
             other.setCurrentItem(None)
         identity, page = value
         profile_page = identity is not None
+        group = self.profile_group if profile_page else self.app_group
+        if self._navigation_ready and reveal:
+            group.toggle.setChecked(True)
         self.profile_details.setVisible(profile_page)
-        self.reset_app_shortcuts.setVisible(self.tabs.tabText(page) == "Shortcuts")
+        title = self.tabs.tabText(page)
+        self.reset_button.setText(f"Reset {title}…")
+        self.reset_button.setVisible(title != "Storage")
+        self.reset_app_shortcuts.setVisible(title == "Shortcuts")
         self.tabs.setCurrentIndex(page)
         self._editing_scope = self.scope.currentData()
         self.settings.setValue("settings/scope", self._editing_scope)
@@ -193,8 +228,8 @@ class SettingsNavigation:
         from PyQt6.QtWidgets import QAbstractButton, QLabel, QListWidgetItem
         from wordcel.gui.settings_section import SettingsSection
         query = self.search.text().strip().casefold()
-        self.navigation.setVisible(not query)
-        self.app_navigation.setVisible(not query)
+        self.profile_group.setVisible(not query)
+        self.app_group.setVisible(not query)
         self.search_results.setVisible(bool(query))
         self.search_results.clear()
         if not query:
@@ -293,9 +328,11 @@ class SettingsNavigation:
         from wordcel.config.profiles import reset_app_page, reset_page
         page = self.tabs.tabText(self.tabs.currentIndex())
         identity = self.profile.currentData()
-        scope = "the app" if page == "General" else profile_name(self.settings, identity)
-        self.confirm_restore(f"{page} for {scope}", lambda: reset_app_page(self.settings, page)
-                             if page == "General" else reset_page(self.settings, identity, page), page)
+        if page == "Storage":
+            return
+        scope = page if page in self.APP_PAGES else f"{page} for {profile_name(self.settings, identity)}"
+        self.confirm_restore(scope, lambda: reset_app_page(self.settings, page)
+                             if page in self.APP_PAGES else reset_page(self.settings, identity, page), page)
 
     def restore_profile_defaults(self):
         from wordcel.config.profiles import reset_profile
@@ -310,9 +347,8 @@ class SettingsNavigation:
 
     def confirm_restore(self, scope, reset, page):
         from PyQt6.QtWidgets import QMessageBox
-        message = (f"Restore defaults for {scope}?\n\n"
-                   "Feature and shortcut enablement, resource choices, connections and saved data will be kept.")
-        if QMessageBox.question(self, "Restore defaults", message,
+        message = f"Reset {scope}?\n\nEnabled features, connections and saved data are kept."
+        if QMessageBox.question(self, "Reset settings", message,
                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
@@ -325,10 +361,10 @@ class SettingsNavigation:
     def refresh_after_reset(self, page):
         scrolls = [self.tabs.widget(i).verticalScrollBar().value() for i in range(self.tabs.count())]
         self.appearance._preview_timer.stop()
-        if page in ("General", "Switching"):
+        if page in (*self.APP_PAGES, "Switching"):
             self._loading = True
             try:
-                if page == "General":
+                if page == "Startup":
                     for control, key, default in ((self.preload_ocr, "ocr/preload", True),
                                                    (self.hover_startup, "hover_scan/startup", False)):
                         with QSignalBlocker(control):
@@ -336,8 +372,9 @@ class SettingsNavigation:
                     with QSignalBlocker(self.initial_profile):
                         self.initial_profile.setCurrentIndex(max(0, self.initial_profile.findData(
                             self.settings.value("initial_profile", ""))))
+                elif page == "History":
                     self.history_settings.service.preferences_changed.emit()
-                else:
+                elif page == "Switching":
                     for key, editor in self.cycle_shortcuts.items():
                         preset = "Ctrl+Alt+PgDown" if key == "next_profile" else "Ctrl+Alt+PgUp"
                         editor.set_value(self.settings.value(key + "_hotkey", ""),
@@ -345,9 +382,9 @@ class SettingsNavigation:
             finally:
                 self._loading = False
             if self.parent() is not None:
-                if page == "General":
+                if page == "Startup":
                     self.parent().scan_settings_changed.emit()
-                else:
+                elif page == "Switching":
                     self.parent().restore_cycle_shortcuts()
         else:
             self._resetting = True

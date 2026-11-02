@@ -37,7 +37,7 @@ class SettingsNavigationTests(unittest.TestCase):
     def test_pages_and_single_profile_management(self):
         dialog = self.dialog()
         self.assertEqual({dialog.tabs.tabText(i) for i in range(dialog.tabs.count())},
-                         {"General", "Lookup", "Dictionaries", "Shortcuts", "Appearance", "Audio", "Translation", "Anki"})
+                         {"Startup", "History", "Storage", "Lookup", "Dictionaries", "Shortcuts", "Appearance", "Audio", "Translation", "Anki"})
         self.assertEqual(dialog.scope.count(), 1)
         self.assertFalse(dialog.scope.isHidden())
         self.assertFalse(dialog.scope_label.isHidden())
@@ -51,7 +51,9 @@ class SettingsNavigationTests(unittest.TestCase):
         dialog.tabs.setCurrentWidget(dialog.app_tab)
         self.assertFalse(dialog.scope.isHidden())
         self.assertFalse(dialog.scope_label.isHidden())
-        self.assertEqual(dialog.app_navigation.topLevelItem(0).text(0), "App settings")
+        self.assertEqual([dialog.app_navigation.topLevelItem(i).text(0)
+                          for i in range(dialog.app_navigation.topLevelItemCount())],
+                         ["Startup", "History", "Storage"])
 
     def test_duplicate_is_selected_for_editing_without_activation(self):
         dialog = self.dialog()
@@ -70,6 +72,7 @@ class SettingsNavigationTests(unittest.TestCase):
         dialog.show()
         self.app.processEvents()
         geometry = dialog.geometry()
+        dialog.profile_group.toggle.click()
         dialog.search.setText("passage size")
         self.assertGreater(dialog.search_results.count(), 0)
         dialog.open_search_result(dialog.search_results.item(0))
@@ -77,7 +80,64 @@ class SettingsNavigationTests(unittest.TestCase):
         self.assertIs(dialog.tabs.currentWidget(), dialog.translation_tab)
         self.assertFalse(dialog.translation_chunk_size.isHidden())
         self.assertTrue(dialog.translation_chunk_size.isVisibleTo(dialog.translation_tab))
+        self.assertTrue(dialog.profile_group.toggle.isChecked())
         self.assertEqual(dialog.geometry(), geometry)
+
+    def test_groups_collapse_independently_and_preserve_page_and_geometry(self):
+        self.settings.setValue("settings/page", "General")
+        dialog = self.dialog()
+        dialog.show()
+        self.app.processEvents()
+        self.assertIs(dialog.tabs.currentWidget(), dialog.app_tab)
+        geometry = dialog.geometry()
+        profile_layout = dialog.scope.parentWidget().layout()
+        row = profile_layout.itemAt(0).geometry()
+        self.assertEqual(dialog.navigation.geometry().top() - row.bottom() - 1, profile_layout.spacing())
+        sidebar_width = dialog.scope.parentWidget().parentWidget().width()
+        dialog.app_group.toggle.click()
+        self.assertTrue(dialog.profile_group.toggle.isChecked())
+        dialog.profile_group.toggle.click()
+        self.app.processEvents()
+        self.assertIs(dialog.tabs.currentWidget(), dialog.app_tab)
+        self.assertEqual(dialog.geometry(), geometry)
+        self.assertEqual(dialog.scope.parentWidget().parentWidget().width(), sidebar_width)
+        dialog.rebuild_profiles()
+        self.assertFalse(dialog.app_group.toggle.isChecked())
+        self.assertFalse(dialog.profile_group.toggle.isChecked())
+        reopened = self.dialog()
+        self.assertIs(reopened.tabs.currentWidget(), reopened.app_tab)
+        self.assertFalse(reopened.app_group.toggle.isChecked())
+        self.assertFalse(reopened.profile_group.toggle.isChecked())
+
+    def test_app_resets_only_change_the_selected_section(self):
+        other = create_profile(self.settings, "ja", "Other")
+        self.settings.setValue("initial_profile", other)
+        self.settings.setValue("history/enabled", True)
+        self.settings.setValue("history/delay", 3.0)
+        self.settings.setValue("history/retention", 90)
+        dialog = self.dialog()
+        dialog.tabs.setCurrentWidget(dialog.app_tab)
+        self.assertEqual(dialog.reset_button.text(), "Reset Startup…")
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes) as question:
+            dialog.restore_page_defaults()
+        self.assertEqual(question.call_args.args[2],
+                         "Reset Startup?\n\nEnabled features, connections and saved data are kept.")
+        self.assertEqual(dialog.initial_profile.currentData(), "")
+        self.assertEqual(self.settings.value("history/delay", 0, float), 3.0)
+        self.settings.setValue("initial_profile", other)
+        dialog.tabs.setCurrentWidget(dialog.history_tab)
+        self.assertEqual(dialog.reset_button.text(), "Reset History…")
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            dialog.restore_page_defaults()
+        self.assertEqual(self.settings.value("initial_profile"), other)
+        self.assertEqual(dialog.history_settings.delay.value(), 0.5)
+        self.assertEqual(dialog.history_settings.retention.currentData(), 0)
+        self.assertTrue(dialog.history_settings.checks["enabled"].isChecked())
+        dialog.tabs.setCurrentWidget(dialog.data_tab)
+        self.assertTrue(dialog.reset_button.isHidden())
+        with patch.object(QMessageBox, "question") as question:
+            dialog.restore_page_defaults()
+        question.assert_not_called()
 
     def test_page_reset_confirmation_is_scoped_and_cancel_does_nothing(self):
         dialog = self.dialog()

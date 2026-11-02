@@ -40,14 +40,19 @@ Release to copy; **Escape** or right-click cancels. Its optional shortcut is in
 
 ## Settings
 
-In **Settings**, choose a profile under **Editing** to change its settings.
-This does not switch the active profile. Startup, history and storage are in
-**App settings**.
+Expand **App settings** for Startup, History and Storage. Expand **Profile settings**
+and choose a profile under **Editing** to change its settings without activating it.
 
-Use **Restore defaults…** for one page or **Reset profile settings…** for a profile.
+Use **Reset [section]…** for the open section or **Reset profile settings…** for a profile.
 Resets keep your profiles, enabled features, connections, credentials, downloaded
 resources, history and Anki notes. Profile switching shortcuts apply across all
 profiles and have a separate reset.
+
+Reinstalling keeps settings and resources unless you remove them. On Windows,
+choose to remove user data in the uninstaller. On macOS, quit Wordcel, delete
+the app, and remove `~/Library/Application Support/wordcel`, `~/Library/Caches/wordcel`
+and the `com.wordcel.wordcel` preferences domain (`defaults delete com.wordcel.wordcel`).
+Files linked from other folders stay untouched.
 
 In **Dictionaries**, use **Import ZIPs** to add Yomitan dictionaries. If a ZIP
 contains other ZIPs, extract it first. Removing a dictionary removes it from

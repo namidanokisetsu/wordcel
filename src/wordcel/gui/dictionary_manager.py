@@ -470,10 +470,10 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self.status)
         footer = QHBoxLayout()
-        self.reset_button = QPushButton("Restore defaults…")
+        self.reset_button = QPushButton("Reset settings…")
         self.reset_button.clicked.connect(self.restore_page_defaults)
         footer.addWidget(self.reset_button)
-        self.reset_app_shortcuts = QPushButton("Restore switching keys…")
+        self.reset_app_shortcuts = QPushButton("Reset switching keys…")
         self.reset_app_shortcuts.clicked.connect(self.restore_switching_defaults)
         self.reset_app_shortcuts.hide()
         footer.addWidget(self.reset_app_shortcuts)
@@ -598,13 +598,13 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.history_settings = HistorySettings(history)
         from wordcel.gui.data_manager import DataPanel
         self.data = DataPanel(self)
-        general = QWidget()
-        general_layout = QVBoxLayout(general)
-        general_layout.addWidget(SettingsSection("Startup", app_page))
-        general_layout.addWidget(SettingsSection("History", self.history_settings))
-        general_layout.addWidget(SettingsSection("Storage", self.data, collapsible=True))
-        general_layout.addStretch()
-        self.app_tab = self.data_tab = self.history_tab = add_page(general, "General")
+        for title, content in (("Startup", app_page), ("History", self.history_settings), ("Storage", self.data)):
+            page = QWidget()
+            page_layout = QVBoxLayout(page)
+            page_layout.addWidget(SettingsSection(title, content))
+            page_layout.addStretch()
+            scroll = add_page(page, title)
+            setattr(self, {"Startup": "app_tab", "History": "history_tab", "Storage": "data_tab"}[title], scroll)
         self.initial_profile = QComboBox()
         app_layout.addRow("Start with profile", self.initial_profile)
         self.initial_profile.currentIndexChanged.connect(lambda: self.settings.setValue("initial_profile", self.initial_profile.currentData()) if not self._loading else None)
@@ -625,11 +625,14 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.build_sidebar(layout, tabs)
         self.appearance.translation_hint.linkActivated.connect(lambda _: self.tabs.setCurrentWidget(self.translation_tab))
         saved_page = settings.value("settings/page", "Lookup")
+        if saved_page == "General":
+            saved_page = "Startup"
         self.rebuild_profiles()
         for index in range(tabs.count()):
             if tabs.tabText(index) == saved_page:
                 tabs.setCurrentIndex(index)
                 break
+        self._navigation_ready = True
         tabs.currentChanged.connect(lambda: self.resources.refresh())
         if translation_error:
             self.status.setText(translation_error)
@@ -1237,12 +1240,13 @@ class SetupDialog(SettingsNavigation, QDialog):
         if hasattr(self, "navigation"):
             with QSignalBlocker(self.scope):
                 self.scope.setCurrentIndex(self.scope.findData(code))
+            self.update_active_label()
             for index in range(self.navigation.topLevelItemCount()):
                 item = self.navigation.topLevelItem(index)
                 value = item.data(0, Qt.ItemDataRole.UserRole)
                 if value:
                     item.setData(0, Qt.ItemDataRole.UserRole, (code, value[1]))
-            self.navigate(self.app_navigation.currentItem() or self.navigation.currentItem())
+            self.navigate(self.app_navigation.currentItem() or self.navigation.currentItem(), reveal=False)
 
     def apply_appearance(self):
         window = self.parent()
