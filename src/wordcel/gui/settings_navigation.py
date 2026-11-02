@@ -3,6 +3,7 @@ from PyQt6.QtCore import QSignalBlocker, Qt
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMenu, QSizePolicy, QToolButton, QTreeWidget, QTreeWidgetItem, QWidget
 
 from wordcel.config.profiles import profile_ids, profile_name
+from wordcel.gui.action_icons import action_button
 
 
 class SettingsNavigation:
@@ -58,10 +59,14 @@ class SettingsNavigation:
                                 ("Move down", lambda: self.reorder_profile(1)), ("Delete", self.remove_profile)):
             self.profile_actions[title] = self.profile_menu.addAction(title, callback)
         self.profile_menu.aboutToShow.connect(self.update_profile_actions)
-        manage = QToolButton()
-        manage.setText("⋯")
-        manage.setToolTip("Manage profiles")
-        manage.setAccessibleName("Manage profiles")
+        manage = action_button("settings", "Manage profiles")
+        manage.setAutoRaise(True)
+        manage.setStyleSheet("""
+            QToolButton {background:transparent;border:0;border-radius:4px;padding:0;}
+            QToolButton:hover,QToolButton:pressed {background:palette(midlight);}
+            QToolButton:focus {border:1px solid palette(highlight);}
+            QToolButton::menu-indicator {image:none;width:0;height:0;}
+        """)
         manage.setMenu(self.profile_menu)
         manage.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         manage.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
