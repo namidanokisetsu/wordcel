@@ -11,7 +11,7 @@ license = "GPL-3.0"
 authors = [
     {name = "rtr46"}
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "PyQt6>=6.9.1",
     "winrt-Windows.Foundation==3.2.1; sys_platform == 'win32'",
@@ -30,7 +30,7 @@ dependencies = [
     # macOS uses its built-in Vision engine; no OCR model download is needed.
     "meikiocr>=0.3.5; sys_platform != 'darwin'",
     # Keep the established runtime where its wheels exist (through Python 3.13).
-    "onnxruntime==1.20.1; sys_platform == 'win32' and python_version < '3.14'",
+    "onnxruntime==1.31.1; sys_platform == 'win32' and python_version < '3.14'",
     "python-xlib~=0.33; sys_platform == 'linux'",
     "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
     "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
@@ -50,9 +50,10 @@ wordcel-search = "wordcel.scripts.quick_lookup:main"
 wordcel-translation = "wordcel.scripts.translation_server:main"
 
 [project.optional-dependencies]
-morphology = ["stanza==1.14.0", "torch==2.8.0"]
+morphology = ["stanza==1.15.0", "torch==2.8.0"]
 # MeikiOCR and PaddleX install cv2 under two distribution names. Keep their
-# wheels on the same release so Python wrappers match the native extension.
+# wheels on the same release so Python wrappers match the native extension;
+# packaging keeps the shared core with MeikiOCR and isolates Paddle's extras.
 # Paddle 3.3.x has a PIR/oneDNN regression; 3.2.2 accelerates the same v6 models.
 turkish-ocr = ["paddleocr==3.7.0", "paddlex[ocr-core]==3.7.2", "paddlepaddle==3.2.2", "opencv-python-headless==4.10.0.84"]
 

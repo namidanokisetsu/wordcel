@@ -36,7 +36,7 @@ class DataAssetTests(unittest.TestCase):
         from wordcel.scripts.translation_server import MODELS
         model = self.write(self.data / "translation/models" / MODELS["lightweight"]["file"])
         self.write(self.data / "languages/tr/paddle/3.7.0/model.bin")
-        self.write(self.data / "languages/ru/stanza/1.14.0/model.pt")
+        self.write(self.data / "languages/ru/stanza/1.15.0/model.pt")
         self.pack("en")
         assets = {asset.key: asset for asset in inventory(self.library, ("ja",), **self.roots)}
         self.assertEqual(assets["translation:lightweight"].paths, (model.resolve(),))
@@ -49,7 +49,7 @@ class DataAssetTests(unittest.TestCase):
 
     def test_removing_language_deletes_its_packs_and_models_but_keeps_shared_data(self):
         russian, japanese = self.pack("ru"), self.pack("ja")
-        stanza = self.write(self.data / "languages/ru/stanza/1.14.0/model.pt")
+        stanza = self.write(self.data / "languages/ru/stanza/1.15.0/model.pt")
         shared = self.write(self.data / "languages/tr/paddle/3.7.0/model.bin")
         external = self.write(self.root / "external-model.pt")
         remove_language_data("ru", self.library, Mock(), threading.Event(), **self.roots)

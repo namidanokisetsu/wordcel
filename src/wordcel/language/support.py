@@ -5,7 +5,7 @@ https://yomidevs.github.io/wiktionary-to-yomitan/release_metadata_yomitan.json
 https://huggingface.co/tencent/Hy-MT2-7B#supported-languages
 https://www.paddleocr.ai/latest/en/version3.x/algorithm/PP-OCRv6/PP-OCRv6.html
 https://github.com/PaddlePaddle/PaddleOCR/blob/release/3.7/paddleocr/_utils/langs.py
-https://raw.githubusercontent.com/stanfordnlp/stanza-resources/main/resources_1.14.0.json
+https://raw.githubusercontent.com/stanfordnlp/stanza-resources/main/resources_1.15.0.json
 """
 from wordcel.dictionary.translation import (
     MANAGED_LANGUAGES, managed_translation_languages, translation_language,

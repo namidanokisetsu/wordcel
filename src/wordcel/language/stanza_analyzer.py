@@ -5,8 +5,8 @@ from pathlib import Path
 
 from .analyzer import Token, WordAnalysis
 
-STANZA_VERSION = "1.14.0"
-RESOURCES_VERSION = "1.14.0"
+STANZA_VERSION = "1.15.0"
+RESOURCES_VERSION = "1.15.0"
 
 
 def processors_for(language):

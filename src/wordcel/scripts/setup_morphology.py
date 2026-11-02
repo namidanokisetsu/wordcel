@@ -44,6 +44,7 @@ def _run(arguments, cancelled=None):
 
 def install(language, progress=None, cancelled=None):
     from wordcel.language.stanza_analyzer import STANZA_VERSION
+    from wordcel.language.morphology import torch_version
     from wordcel.language.support import STANZA_LANGUAGES
     if language == "ja" or language not in STANZA_LANGUAGES:
         raise ValueError("Choose a language with base-form model support.")
@@ -59,15 +60,16 @@ def install(language, progress=None, cancelled=None):
             return version(package).split("+")[0]
         except PackageNotFoundError:
             return None
-    if installed("stanza") != STANZA_VERSION or installed("torch") != "2.8.0":
+    required_torch = torch_version()
+    if installed("stanza") != STANZA_VERSION or installed("torch") != required_torch:
         if progress:
             progress("Installing base-form support…")
         if not installed("pip"):
             _run(["-m", "ensurepip"], cancelled)
         pip = ["-m", "pip", "install", "--disable-pip-version-check"]
-        if installed("torch") != "2.8.0":
+        if installed("torch") != required_torch:
             cpu = ["--index-url", "https://download.pytorch.org/whl/cpu"] if sys.platform != "darwin" else []
-            _run([*pip, "torch==2.8.0", *cpu], cancelled)
+            _run([*pip, f"torch=={required_torch}", *cpu], cancelled)
         _run([*pip, f"stanza=={STANZA_VERSION}"], cancelled)
     if progress:
         progress("Downloading base-form model…")

@@ -40,6 +40,12 @@ class MorphologyTests(unittest.TestCase):
         self.assertEqual(analyzer.analyze("في والكتاب"), result)
         analyzer.pipeline.assert_called_once()
 
+    def test_source_torch_pin_uses_the_available_intel_mac_wheel(self):
+        from wordcel.language.morphology import torch_version
+        self.assertEqual(torch_version("darwin", "x86_64"), "2.2.2")
+        self.assertEqual(torch_version("darwin", "arm64"), "2.8.0")
+        self.assertEqual(torch_version("win32", "AMD64"), "2.8.0")
+
     def test_multiword_expansions_find_later_lemmas_without_replacing_exact_forms(self):
         for language, surface, words, expected in (
             ("ar", "والكتاب", ("و", "كتاب"), "كتاب"),
@@ -152,7 +158,7 @@ class MorphologyTests(unittest.TestCase):
             self.assertTrue(self.engine.search("Bücher", source="de", morphology=True).entries)
 
     def test_shared_stanza_setup_keeps_downloads_explicit(self):
-        stanza = SimpleNamespace(__version__="1.14.0", download=Mock(), Pipeline=Mock())
+        stanza = SimpleNamespace(__version__="1.15.0", download=Mock(), Pipeline=Mock())
         with patch.dict("sys.modules", {"stanza": stanza}):
             setup_models(self.root, language="de")
             StanzaAnalyzer(self.root, language="de")
@@ -174,7 +180,7 @@ class MorphologyTests(unittest.TestCase):
             folder = self.root / "ru" / name
             folder.mkdir(parents=True)
             (folder / f"{package}.pt").write_bytes(b"fixture")
-        with patch("wordcel.language.stanza_analyzer.version", return_value="1.14.0"):
+        with patch("wordcel.language.stanza_analyzer.version", return_value="1.15.0"):
             self.assertEqual(model_status("ru", self.root), "Model needed")
             folder = self.root / "ru/pretrain"
             folder.mkdir()
@@ -191,7 +197,7 @@ class MorphologyTests(unittest.TestCase):
         commands = [call.args[0] for call in run.call_args_list]
         self.assertEqual(commands[0], ["-m", "ensurepip"])
         self.assertIn("https://download.pytorch.org/whl/cpu", commands[1])
-        self.assertIn("stanza==1.14.0", commands[2])
+        self.assertIn("stanza==1.15.0", commands[2])
         self.assertEqual(commands[-1], ["-m", "wordcel.scripts.setup_morphology", "ru"])
 
     def test_installer_cancellation_finishes_current_step_without_launching_next(self):

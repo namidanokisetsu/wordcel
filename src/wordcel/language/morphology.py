@@ -1,5 +1,20 @@
 """Lightweight readiness checks for shared lookup."""
 
+import platform
+
+
+TORCH_DEFAULT_VERSION = "2.8.0"
+TORCH_INTEL_MAC_VERSION = "2.2.2"
+
+
+def torch_version(system=None, machine=None):
+    """Return the pinned source morphology wheel for a supported platform."""
+    system = system or platform.system().lower()
+    machine = (machine or platform.machine()).lower()
+    if system == "darwin" and machine in {"x86_64", "amd64"}:
+        return TORCH_INTEL_MAC_VERSION
+    return TORCH_DEFAULT_VERSION
+
 
 def model_available(language):
     if language == "tr":

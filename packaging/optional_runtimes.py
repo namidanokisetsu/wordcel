@@ -34,6 +34,30 @@ def dependencies(requirements):
     return found
 
 
+def _package_files(package, prefix):
+    return {PurePosixPath(str(path)) for path in (package.files or ())
+            if path.parts and path.parts[0] == prefix and ".." not in path.parts}
+
+
+def validate_cv2_ownership(core, optional):
+    """Validate the supported headless/contrib cv2 split before freezing.
+
+    The distributions intentionally overlap on cv2's loader and native core.
+    MeikiOCR owns those shared files in the base bundle; PaddleX keeps its
+    contrib-only modules and distribution metadata in its optional runtime.
+    """
+    headless = core.get("opencv-python-headless")
+    contrib = optional.get("opencv-contrib-python")
+    if headless is None or contrib is None:
+        return
+    overlap = _package_files(headless, "cv2") & _package_files(contrib, "cv2")
+    required = {PurePosixPath("cv2/__init__.py"), PurePosixPath("cv2/version.py")}
+    if not required <= overlap or not any(path.name.startswith("cv2.") for path in overlap):
+        raise ValueError("OpenCV headless/contrib wheels do not share a complete cv2 core.")
+    if headless.version != contrib.version:
+        raise ValueError("OpenCV headless and contrib wheels must use the same release.")
+
+
 def prepare(root):
     import tomllib
     project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
@@ -44,6 +68,8 @@ def prepare(root):
         groups["paddle"] = ["paddleocr", "paddlex[ocr-core]", "paddlepaddle"]
     optional = {key: {name: package for name, package in dependencies(values).items() if name not in core}
                 for key, values in groups.items()}
+    validate_cv2_ownership(core, {name: package for group in optional.values()
+                                  for name, package in group.items()})
     packages = {name: package for group in optional.values() for name, package in group.items()}
     folder = root / "build" / "optional-runtimes"
     folder.mkdir(parents=True, exist_ok=True)

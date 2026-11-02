@@ -29,10 +29,8 @@ jobs:
         include:
           - runner: macos-15
             arch: arm64
-            torch: '2.8.0'
           - runner: macos-15-intel
             arch: x86_64
-            torch: '2.2.2'
 
     runs-on: ${{ matrix.runner }}
 
@@ -60,7 +58,8 @@ jobs:
       - name: install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install 'numpy<2' 'torch==${{ matrix.torch }}' stanza==1.14.0
+          python -c "import sys; sys.path.insert(0, 'src'); from wordcel.language.morphology import torch_version; print('TORCH_VERSION=' + torch_version())" >> "$GITHUB_ENV"
+          pip install 'numpy<2' "torch==${TORCH_VERSION}" stanza==1.15.0
           pip install -e .
           pip install pyinstaller==6.22.3
 

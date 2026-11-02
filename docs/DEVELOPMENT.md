@@ -284,6 +284,10 @@ Setup verifies source/export hashes and loads both models before activation.
 Normal setup restores native Paddle. Conversion dependencies are not needed
 at runtime.
 
+Source morphology setup selects Torch 2.2.2 on Intel macOS, where that is the
+available wheel, and Torch 2.8.0 on Apple silicon, Windows and Linux. The
+macOS build workflow uses the same platform selector.
+
 ## Packaging
 
 Routine reinstalls are local Windows test builds with source commits pushed to
@@ -302,6 +306,12 @@ verifies downloads and native imports before publishing an immutable directory;
 inference only activates installed packages. Windows upgrades
 preserve settings/data; uninstall offers removal, also available unattended
 through `/REMOVEUSERDATA=1`.
+
+MeikiOCR's core dependency owns the headless OpenCV `cv2` loader. PaddleX's
+`ocr-core` dependency retains the matching contrib distribution and its
+contrib-only modules in the optional Paddle runtime. The packaging check
+requires both distributions to use the same OpenCV release and keeps their
+distribution metadata available for PaddleX's extras check.
 
 Storage exports/imports installed resources without settings or download caches.
 Archives are platform-specific; optional engines also require the same build's
