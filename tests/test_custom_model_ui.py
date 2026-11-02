@@ -96,3 +96,18 @@ class CustomModelUITests(unittest.TestCase):
         DataPanel._download(panel, asset)
         panel.owner.import_translation_model.assert_called_once_with()
         panel.owner.begin_operation.assert_not_called()
+
+    def test_late_capabilities_ignore_a_removed_settings_profile(self):
+        from wordcel.config.profiles import create_profile
+        from wordcel.gui.dictionary_manager import SetupDialog
+        from wordcel.translation_hardware import Capabilities
+        with tempfile.TemporaryDirectory() as directory:
+            settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
+            identity = create_profile(settings, "ja")
+            settings.setValue("profile", identity)
+            dialog = SetupDialog(directory, settings, Mock())
+            self.addCleanup(dialog.deleteLater)
+            settings.clear()
+            with patch.object(dialog, "update_translation_languages") as refresh:
+                dialog.prepared_translation(Capabilities(memory=8 * 1024**3), set())
+                refresh.assert_not_called()

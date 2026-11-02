@@ -1299,9 +1299,13 @@ class SetupDialog(SettingsNavigation, QDialog):
         if sip.isdeleted(self.translation_mode):
             return
         self.translation_capabilities, self.translation_verified = capabilities, verified
-        self.update_translation_controls()
+        if self.profile.currentData() not in profile_ids(self.settings):
+            return
+        self.update_translation_capabilities()
+        if hasattr(self, "resources"):
+            self.resources.refresh()
 
-    def update_translation_controls(self, *_args, load=False):
+    def update_translation_capabilities(self):
         custom = self.translation_mode.currentData() == "custom"
         self.translation_form.setRowVisible(self.translation_backend, not custom and sys.platform == "win32")
         self.translation_form.setRowVisible(self.translation_fit, not custom)
@@ -1318,6 +1322,10 @@ class SetupDialog(SettingsNavigation, QDialog):
                     available = caps is not None and getattr(caps, backend)
                     item.setEnabled(available)
                     item.setToolTip("Checking hardware…" if caps is None else "" if available else getattr(caps, backend + "_reason"))
+
+    def update_translation_controls(self, *_args, load=False):
+        custom = self.translation_mode.currentData() == "custom"
+        self.update_translation_capabilities()
         self.update_translation_languages(load=load)
         self.translation_advanced_form.setRowVisible(self.translation_endpoint, custom)
         self.translation_advanced_form.setRowVisible(self.translation_model, custom)
