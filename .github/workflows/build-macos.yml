@@ -58,8 +58,8 @@ jobs:
       - name: install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -c "import sys; sys.path.insert(0, 'src'); from wordcel.language.morphology import torch_version; print('TORCH_VERSION=' + torch_version())" >> "$GITHUB_ENV"
-          pip install "numpy<2; platform_machine == 'x86_64'" "torch==${TORCH_VERSION}" stanza==1.15.0
+          wordcel_torch_version=$(python -c "import sys; sys.path.insert(0, 'src'); from wordcel.language.morphology import torch_version; print(torch_version())")
+          pip install "numpy<2; platform_machine == 'x86_64'" "torch==${wordcel_torch_version}" stanza==1.15.0
           pip install -e .
           pip install pyinstaller==6.22.3
 
