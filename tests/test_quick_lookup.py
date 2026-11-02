@@ -3826,6 +3826,24 @@ class QuickLookupTests(unittest.TestCase):
         self.assertTrue(self.window._kanji_view)
         self.assertEqual(self.window._kanji_origin, "敷島")
 
+    def test_breadcrumb_ink_is_centered_with_navigation_icons(self):
+        from wordcel.config.config import config
+        with patch.object(config, "color_foreground", "#FFFFFF"), patch.object(config, "color_background", "#000000"):
+            self.window.apply_style()
+            self.window.show_entries((entry("敷嶋てとらch."),), "敷嶋てとらch.",
+                                     kanji=(KanjiEntry("敷"),))
+            self.window._select_kanji("敷")
+            self.app.processEvents()
+            centers = []
+            for widget in (self.window.title, self.window.back, self.window.dismiss_button):
+                pixmap = widget.grab()
+                image = pixmap.toImage()
+                rows = [y for y in range(image.height()) for x in range(image.width())
+                        if min(image.pixelColor(x, y).getRgb()[:3]) > 200]
+                self.assertTrue(rows)
+                centers.append(widget.y() + (min(rows) + max(rows)) / (2 * pixmap.devicePixelRatio()))
+            self.assertLessEqual(max(centers) - min(centers), 2)
+
     def test_kanji_view_hides_automatic_translation_and_copies_visible_text(self):
         self.window.show_entries((entry("猫"),), "猫", kanji=(KanjiEntry("猫", meanings=("cat",)),))
         self.window.automatic_output.set_content("translation")

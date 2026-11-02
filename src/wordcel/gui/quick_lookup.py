@@ -617,6 +617,9 @@ class QuickLookupWindow(QDialog):
         self.translation_browser.setFont(document_font(config.font_family, config.font_size_sentence, self.preferred_foreign))
         self.automatic_output.setFont(self.translation_browser.font())
         self.translation_panel.source.setFont(self.translation_browser.font())
+        self.title.ensurePolished()
+        # QLabel puts Japanese font leading below the text; balance its visible ink with the icons.
+        self.title.setContentsMargins(0, max(0, self.title.fontMetrics().leading()), 0, 0)
         self.translation_panel.set_side_by_side(self.settings.value(f"profiles/{self.active_profile}/translation_side_by_side", False, bool))
         self.search.setFont(font)
         for button in self.findChildren(QToolButton):
