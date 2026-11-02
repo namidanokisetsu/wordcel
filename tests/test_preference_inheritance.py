@@ -10,8 +10,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QSettings
 
 from wordcel.config.inheritance import migrate_defaults
-from wordcel.config.profiles import (create_profile, ensure_private_connection, reset_app_page,
-                                     reset_page, reset_profile)
+from wordcel.config.profiles import (APP_SHORTCUT_DEFAULTS, create_profile, ensure_private_connection,
+                                     reset_app_page, reset_page, reset_profile)
 
 
 class IndependentProfileSettingsTests(unittest.TestCase):
@@ -158,6 +158,9 @@ class IndependentProfileSettingsTests(unittest.TestCase):
         self.assertEqual(self.settings.value(f"profiles/{profile}/translation_connection"), "translation")
         self.assertEqual(self.settings.value(f"profiles/{profile}/audio_database"), "/tmp/audio.db")
 
+        self.settings.setValue("next_profile_hotkey", "<alt>+x")
+        reset_app_page(self.settings, "Shortcuts")
+        self.assertEqual(self.settings.value("next_profile_hotkey"), APP_SHORTCUT_DEFAULTS["next_profile_hotkey"])
         reset_app_page(self.settings, "General")
         self.assertTrue(self.settings.value("history/enabled", False, bool))
         self.assertFalse(self.settings.contains("history/delay"))

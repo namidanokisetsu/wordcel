@@ -296,11 +296,18 @@ SHORTCUT_DEFAULTS = {
     "popup/replay_shortcut": "R", "popup/anki_shortcut": "Shift+A", "popup/copy_shortcut": "Shift+C",
     "popup/back_shortcut": "Alt+Left", "popup/history_shortcut": "Shift+H", "anki/shortcut": "Shift+A",
 }
+APP_SHORTCUT_DEFAULTS = {
+    "next_profile_hotkey": ("<cmd>+<alt>+<page_down>" if sys.platform == "darwin"
+                             else "<ctrl>+<alt>+<page_down>"),
+    "previous_profile_hotkey": ("<cmd>+<alt>+<page_up>" if sys.platform == "darwin"
+                                 else "<ctrl>+<alt>+<page_up>"),
+}
 SHORTCUT_PRESETS = {
     "hotkey": "Ctrl+Shift+D", "translation_hotkey": "Ctrl+Shift+T", "copy_hotkey": "Ctrl+Shift+X",
     "hover_hotkey": "Ctrl+Shift+H", "pin_shortcut": "C", "popup/copy_text_shortcut": "Ctrl+C",
     "popup/replay_shortcut": "R", "popup/anki_shortcut": "Shift+A", "popup/copy_shortcut": "Shift+C",
     "popup/back_shortcut": "Alt+Left", "popup/history_shortcut": "Shift+H", "anki/shortcut": "Shift+A",
+    "next_profile_hotkey": "Ctrl+Alt+PgDown", "previous_profile_hotkey": "Ctrl+Alt+PgUp",
 }
 
 
@@ -446,8 +453,7 @@ def reset_app_page(settings, page):
                  "history/button_manual", "history/button_ocr", "hover_scan/startup"}
     if page == "Shortcuts":
         removed = []
-        for key, default in (("next_profile_hotkey", "Ctrl+Alt+PgDown"),
-                             ("previous_profile_hotkey", "Ctrl+Alt+PgUp")):
+        for key, default in APP_SHORTCUT_DEFAULTS.items():
             removed.extend(_reset_binding(settings, key, default))
     else:
         removed = _remove_scoped(settings, "", APP_PAGE_KEYS[page], preserve=preserved)
