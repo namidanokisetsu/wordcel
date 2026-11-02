@@ -75,12 +75,12 @@ def _sanitize_translation_manifest(value):
     if not isinstance(value, dict):
         raise ValueError("Invalid translation installation metadata.")
     result = {}
-    for key in ("release", "platform", "backend", "executable", "profile"):
+    for key in ("release", "platform", "backend", "automatic_backend", "executable", "profile"):
         if key not in value:
             continue
         if key == "executable":
             result[key] = _translation_relative(value[key], "executable")
-        elif key == "backend":
+        elif key in {"backend", "automatic_backend"}:
             if value[key] not in _TRANSLATION_BACKENDS:
                 raise ValueError("Invalid translation backend.")
             result[key] = value[key]
@@ -240,7 +240,7 @@ def _reconstruct_translation_manifest(data_root):
 def _merge_translation_manifests(existing, incoming):
     merged = dict(existing or {})
     incoming = incoming or {}
-    for key in ("release", "platform", "backend", "executable", "profile"):
+    for key in ("release", "platform", "backend", "automatic_backend", "executable", "profile"):
         if key not in merged and key in incoming:
             merged[key] = incoming[key]
     for key in ("runtimes", "models"):

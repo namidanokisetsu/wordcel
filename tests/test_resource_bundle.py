@@ -148,6 +148,7 @@ class TranslationBundleTests(unittest.TestCase):
         model_path.parent.mkdir(parents=True, exist_ok=True)
         model_path.write_bytes(b"model")
         manifest = dict(release="b11146", platform="win-x64", backend=backend,
+                        automatic_backend=backend,
                         executable=selected_metadata["executable"],
                         models={"lightweight": dict(path="models/model.gguf",
                                                       sha256=self.model["sha256"], size=5,
@@ -189,6 +190,7 @@ class TranslationBundleTests(unittest.TestCase):
                 self.import_archive()
                 installed = json.loads((self.destination / "data/translation/installation.json").read_text())
                 self.assertEqual(installed["backend"], backend)
+                self.assertEqual(installed["automatic_backend"], backend)
                 self.assertEqual(installed["runtimes"][backend]["backend"], backend)
                 self.assertEqual(installed["models"]["lightweight"]["path"], "models/model.gguf")
                 self.assertEqual((self.destination / "data/translation/models/model.gguf").read_bytes(), b"model")

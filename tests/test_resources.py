@@ -1,5 +1,6 @@
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -98,13 +99,18 @@ class ResourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             (root / "server.exe").write_bytes(b"runtime")
-            (root / "model.gguf").write_bytes(b"model")
+            (root / "models/model.gguf").parent.mkdir()
+            (root / "models/model.gguf").write_bytes(b"model")
+            digest = hashlib.sha256(b"model").hexdigest()
             (root / "installation.json").write_text(json.dumps({
-                "executable": "server.exe", "models": {"lightweight": {"path": "model.gguf", "size": 5}}}))
-            with patch("wordcel.scripts.translation_server.translation_path", return_value=root):
+                "executable": "server.exe", "models": {"lightweight": {
+                    "path": "models/model.gguf", "size": 5, "sha256": digest}}}))
+            catalog = {"lightweight": dict(name="Fixture model", file="model.gguf", size=5, sha256=digest)}
+            with patch("wordcel.scripts.translation_server.MODELS", catalog), \
+                    patch("wordcel.scripts.translation_server.translation_path", return_value=root):
                 self.assertTrue(translation_ready("lightweight"))
                 self.assertFalse(translation_ready("quality"))
-                (root / "model.gguf").write_bytes(b"partial")
+                (root / "models/model.gguf").write_bytes(b"partial")
                 self.assertFalse(translation_ready("lightweight"))
 
     def test_setup_completion_restores_controls_after_success_cancel_or_failure(self):

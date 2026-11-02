@@ -270,9 +270,11 @@ def install_model(profile="quality", directory=None, progress=None, cancelled=No
     root, platform_key = translation_path(directory), _platform_key()
     if platform_key.startswith("win-"):
         from wordcel.translation_hardware import detect_capabilities
-        backend = (capabilities or detect_capabilities()).select(backend)
+        capabilities = capabilities or detect_capabilities()
+        backend = capabilities.select(backend)
+        automatic_backend = capabilities.select()
     else:
-        backend = "native"
+        backend = automatic_backend = "native"
     runtime_key = platform_key + "-" + backend if backend != "native" else platform_key
     root.mkdir(parents=True, exist_ok=True)
     with _install_lock:
@@ -360,26 +362,45 @@ def _ready():
 
 def _installed_paths(profile, directory, backend="automatic"):
     root, registry = translation_path(directory), installation(directory)
-    name = MODELS.get(profile, {}).get("name", profile)
+    model_spec = MODELS.get(profile)
+    name = model_spec.get("name", profile) if isinstance(model_spec, dict) else profile
     runtime = registry
-    if registry.get("platform", "").startswith("mac-"):
-        backend = "automatic"
-    if backend != "automatic":
+    platform_name = registry.get("platform", "")
+    if backend == "automatic":
+        # A saved Windows preference identifies the runtime to reuse. macOS has
+        # one native runtime; its persisted Windows backend choice must not
+        # disable Metal or select a nonexistent CPU runtime.
+        preference = "native" if platform_name.startswith("mac-") else registry.get("automatic_backend")
+        runtimes = registry.get("runtimes", {})
+        runtime = runtimes.get(preference, {}) if isinstance(runtimes, dict) and preference else {}
+        if not runtime and isinstance(runtimes, dict):
+            runtime = runtimes.get("cpu", {})
+        if not runtime:
+            runtime = registry
+    elif backend != "automatic":
         runtimes = registry.get("runtimes", {})
         runtime = runtimes.get(backend, {}) if isinstance(runtimes, dict) else {}
         if not runtime:
-            legacy_backend = registry.get("backend", "cuda" if registry.get("platform", "").startswith("win-") else "native")
+            legacy_backend = registry.get("backend", "cuda" if platform_name.startswith("win-") else "native")
             runtime = registry if backend == legacy_backend else {}
     try:
         models = registry.get("models", {})
         model = models.get(profile, {}) if isinstance(models, dict) else {}
+        if not isinstance(model_spec, dict):
+            raise ValueError("Unknown managed translation model.")
+        expected_path = "models/" + model_spec["file"]
+        model_path_value = model["path"].replace("\\", "/")
+        if (model_path_value != expected_path or
+                model.get("size") != model_spec["size"] or
+                str(model.get("sha256", "")).lower() != model_spec["sha256"]):
+            raise ValueError("Managed translation model metadata does not match the pinned catalog.")
         # Older Windows installs used native separators. Normalize only local
         # manifest fields; archive member names remain strictly validated.
         executable = _archive_target(root, runtime["executable"].replace("\\", "/"))
         model_path = _archive_target(root, model["path"].replace("\\", "/"))
     except (KeyError, TypeError, ValueError) as error:
         raise RuntimeError(f"Download {name} in Settings → Translation.") from error
-    if not executable.is_file() or not model_path.is_file() or model_path.stat().st_size != model.get("size"):
+    if not executable.is_file() or not model_path.is_file() or model_path.stat().st_size != model_spec["size"]:
         raise RuntimeError(f"Download {name} in Settings → Translation.")
     return executable, model_path
 
@@ -437,7 +458,13 @@ def ensure_server(endpoint=DEFAULT_ENDPOINT, profile="quality", timeout=120, dir
     if profile not in MODELS:
         raise ValueError("Choose a translation model in Settings.")
     executable, model = _installed_paths(profile, directory, backend)
-    selected_backend = installation(directory).get("backend", "automatic") if backend == "automatic" else backend
+    registry = installation(directory)
+    relative_executable = executable.relative_to(translation_path(directory)).as_posix()
+    selected_backend = next((name for name, value in registry.get("runtimes", {}).items()
+                             if str(value.get("executable", "")).replace("\\", "/") == relative_executable),
+                            registry.get("backend", backend))
+    if registry.get("platform", "").startswith("mac-"):
+        selected_backend = "native"
     with request_lock(cancelled):
         if cancelled is not None and cancelled.is_set():
             raise RuntimeError("Translation startup cancelled.")
