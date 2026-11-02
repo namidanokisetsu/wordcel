@@ -40,7 +40,7 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
 | Profiles and resources | `config/profiles.py`, `gui/dictionary_manager.py`, `gui/data_manager.py`, `data_assets.py` |
 | History | `history.py`, `gui/lookup_history.py` |
 | Translation | `dictionary/translation.py` |
-| Audio and Anki | `audio/`, `gui/lookup_audio.py`, `anki.py`, `gui/anki.py` |
+| Audio and Anki | `audio/`, `gui/lookup_audio.py`, `anki.py`, `gui/anki.py`, `gui/lookup_anki.py` |
 
 ## Contracts
 
@@ -112,9 +112,11 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   or selection.
 - **Audio and Anki:** preserve explicit audio source order, URLs and attribution;
   do not add hidden fallback providers. Support Yomitan placeholders, JSON and
-  local sources. Each Anki save snapshots its word group, context and settings,
-  then prepares mapped fields only. Use exact deck IDs and native `dupe:` queries,
-  check before preparation and again after uploads, and retain Anki's final guard.
+  local sources. `LookupAnki` owns popup save queues and duplicate state; the window
+  renders button states and handles layout. Each save snapshots its word group,
+  context and settings, then prepares mapped fields only. Use exact deck IDs and
+  native `dupe:` queries, check before preparation and again after uploads, and
+  retain Anki's final guard.
   Concurrent inserts remain possible. Key status by word/reading and revision;
   Anki failures must not block lookup or permanently disable saving.
 
