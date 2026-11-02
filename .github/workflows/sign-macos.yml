@@ -20,6 +20,9 @@ jobs:
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Download and verify local build
         env:
           GH_TOKEN: ${{ github.token }}
