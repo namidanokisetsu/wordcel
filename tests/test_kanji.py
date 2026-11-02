@@ -12,24 +12,33 @@ class KanjiTests(unittest.TestCase):
         for count in (1, 2, 3):
             with self.subTest(count=count):
                 html = render_kanji_details(records[:count])
-                for value in (">cat</span>", ">ビョウ</span>", ">ねこ</span>", "Strokes 11"):
+                for value in (">cat</span>", ">ビョウ</span>", ">ねこ</span>"):
                     self.assertEqual(html.count(value), 1)
+                self.assertNotIn("Strokes", html)
+                readings = html[html.index('<small>音'):html.index('ねこ')]
+                self.assertNotIn('</p>', readings)
+                self.assertNotIn('<br>', readings)
                 self.assertNotIn("halpern", html)
                 for record in records[:count]:
+                    self.assertNotIn(f'<small>{record.source}', html)
                     self.assertIn(record.source, html)
                     self.assertIn(record.source, render_kanji_extra(records[:count]))
 
-    def test_missing_fields_and_conflicting_strokes_keep_source_information(self):
+    def test_missing_fields_and_reference_stats_keep_source_information(self):
         records = (KanjiEntry("猫", "Readings", onyomi=("ビョウ",)),
                    KanjiEntry("猫", "Meanings", meanings=("cat",), stats=(("stroke_count", "11"),)),
                    KanjiEntry("猫", "Other", stats=(("strokes", "12"), ("custom", "<value>"))))
         html = render_kanji_details(records)
         self.assertIn("cat", html)
         self.assertIn("ビョウ", html)
-        self.assertIn("Strokes 11</small> <small>(Meanings)", html)
-        self.assertIn("Strokes 12</small> <small>(Other)", html)
+        self.assertNotIn("Strokes", html)
         self.assertNotIn("custom", html)
-        self.assertIn("&lt;value&gt;", render_kanji_extra(records))
+        extra = render_kanji_extra(records)
+        self.assertIn("Strokes</small> 11", extra)
+        self.assertIn("Strokes</small> 12", extra)
+        self.assertIn("<b>Meanings</b>", extra)
+        self.assertIn("<b>Other</b>", extra)
+        self.assertIn("&lt;value&gt;", extra)
         self.assertEqual(render_kanji_extra(records[:1]), "")
         self.assertEqual(render_kanji_details(()), "")
 
@@ -57,12 +66,15 @@ class KanjiTests(unittest.TestCase):
         self.assertIn("猫", compact)
         self.assertIn("ビョウ", compact)
         self.assertIn("ねこ", compact)
+        readings = compact[compact.index('<small>音'):compact.index('ねこ')]
+        self.assertNotIn('</p>', readings)
+        self.assertNotIn('<br>', readings)
         self.assertIn("cat", compact)
         self.assertIn('href="kanji:toggle"', compact)
         self.assertNotIn("Strokes", compact)
         self.assertNotIn("kitten", compact)
         expanded = render_kanji((entry,), expanded=True)
-        self.assertIn("Strokes 11", expanded)
+        self.assertIn("Strokes</small> 11", expanded)
         self.assertIn("kitten", expanded)
         self.assertIn("field", expanded)
         self.assertIn("Kanji Source", expanded)
@@ -119,7 +131,7 @@ class KanjiTests(unittest.TestCase):
         detailed = render_kanji(entries, compact_only=True, expanded_characters={"日"})
         self.assertIn('href="kanji:%E6%97%A5" title="Collapse"', detailed)
         for value in ("First", "Second", "day", "sun", "date", "ニチ", "ジツ", "ひ", "か",
-                      "Strokes 4", "Grade</small> 1", "grade1", "jlptN5", "one", "Japan"):
+                      "Strokes</small> 4", "Grade</small> 1", "grade1", "jlptN5", "one", "Japan"):
             self.assertIn(value, detailed)
         self.assertGreaterEqual(detailed.count('<table width="100%"'), 2)
 

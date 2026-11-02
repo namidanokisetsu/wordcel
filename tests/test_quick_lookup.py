@@ -3528,7 +3528,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertNotIn("Strokes", self.window.browser.toPlainText())
         self.assertIn("Fourth sense", self.window.browser.toPlainText())
 
-    def test_kanji_click_reveals_all_sources_and_back_restores_details(self):
+    def test_kanji_click_merges_meanings_and_more_reveals_reference_fields(self):
         kanji = (KanjiEntry("猫", source="Kanji A", meanings=("cat",), stats=(("strokes", 11),)),
                  KanjiEntry("猫", source="Kanji B", meanings=("feline",), stats=(("grade", 8),)),
                  KanjiEntry("犬", source="Kanji A", meanings=("dog",), stats=(("strokes", 4),)))
@@ -3536,17 +3536,22 @@ class QuickLookupTests(unittest.TestCase):
         self.assertNotIn("Strokes 11", self.window.browser.toPlainText())
         self.window._link(QUrl("kanji:%E7%8C%AB"))
         text = self.window.kanji_browser.toPlainText()
-        self.assertIn("Kanji A", text)
-        self.assertIn("Kanji B", text)
-        self.assertIn("Strokes 11", text)
+        self.assertIn("cat", text)
+        self.assertIn("feline", text)
+        self.assertNotIn("Kanji A", text)
+        self.assertNotIn("Kanji B", text)
+        self.assertNotIn("Strokes", text)
         self.assertNotIn("Grade", text)
         self.window.kanji_more.click()
-        self.assertIn("Grade", self.window.kanji_browser.toPlainText())
+        text = self.window.kanji_browser.toPlainText()
+        for value in ("Grade", "Kanji A", "Kanji B", "Strokes 11"):
+            self.assertIn(value, text)
         self.assertNotIn("Strokes 4", text)
         self.window._display(SearchResult("犬", "ja", "en", (entry("犬"),)))
         self.assertTrue(self.window.kanji_panel.isHidden())
         self.window.go_back()
-        self.assertIn("Strokes 11", self.window.kanji_browser.toPlainText())
+        self.assertIn("cat", self.window.kanji_browser.toPlainText())
+        self.assertNotIn("Strokes", self.window.kanji_browser.toPlainText())
         self.window._link(QUrl("kanji:%E7%8C%AB"))
         self.assertTrue(self.window.kanji_panel.isHidden())
 
@@ -3589,7 +3594,8 @@ class QuickLookupTests(unittest.TestCase):
         document_revision = self.window.browser.document().revision()
         self.window._link(QUrl("headkanji:0:%E7%8C%AB"))
         self.app.processEvents()
-        self.assertIn("Strokes 11", self.window.kanji_browser.toPlainText())
+        self.assertIn("cat", self.window.kanji_browser.toPlainText())
+        self.assertNotIn("Strokes", self.window.kanji_browser.toPlainText())
         self.assertNotIn("Strokes 11", self.window.browser.toPlainText())
         self.assertEqual(self.window.browser.document().revision(), document_revision)
         self.assertTrue(self.window.kanji_panel.isVisible())
@@ -3616,12 +3622,12 @@ class QuickLookupTests(unittest.TestCase):
         selection = browser.textCursor().selectedText()
         geometry = self.window.geometry()
         revision = browser.document().revision()
-        for link, strokes in (("headkanji:0:猫", 11), ("headkanji:0:犬", 4), ("kanji:猫", 11)):
+        for link, character in (("headkanji:0:猫", "猫"), ("headkanji:0:犬", "犬"), ("kanji:猫", "猫")):
             self.window._link(QUrl(link))
             self.app.processEvents()
             self.assertEqual(len(self.window._kanji_details), 1)
-            self.assertEqual(self.window.kanji_browser.toPlainText().count("Strokes"), 1)
-            self.assertIn(f"Strokes {strokes}", self.window.kanji_browser.toPlainText())
+            self.assertNotIn("Strokes", self.window.kanji_browser.toPlainText())
+            self.assertIn(character, self.window.kanji_browser.toPlainText())
             self.assertTrue(self.window.kanji_panel.isVisible())
             self.assertTrue(self.window.frame.rect().contains(self.window.kanji_panel.geometry()))
             self.assertEqual(browser.verticalScrollBar().value(), scroll)

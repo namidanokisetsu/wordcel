@@ -4,7 +4,7 @@ from dataclasses import replace
 from urllib.parse import quote
 
 
-_STAT_LABELS = {"strokes": "Strokes", "stroke_count": "Strokes", "grade": "Grade",
+_STAT_LABELS = {"strokes": "Strokes", "stroke_count": "Strokes", "stroke-count": "Strokes", "grade": "Grade",
                 "jlpt": "JLPT", "freq": "Frequency", "frequency": "Frequency",
                 "radical": "Radical", "ucs": "Unicode", "unicode": "Unicode"}
 
@@ -36,10 +36,13 @@ def _entry_html(entry, reading_color, *, full=False, show_source=False):
         parts.append(f'<p style="margin:0 0 1px"><small>{_text(entry.source)}</small></p>')
     if entry.meanings:
         parts.append(f'<p style="margin:0 0 1px">{_joined(entry.meanings, None if full else 3)}</p>')
+    reading_parts = []
     for label, readings in (("音", entry.onyomi), ("訓", entry.kunyomi)):
         if readings:
-            parts.append(f'<p style="margin:0"><small>{label}</small> '
-                         f'<span style="color:{reading_color}">{_joined(readings, None if full else 4)}</span></p>')
+            reading_parts.append(f'<small>{label}</small> '
+                                 f'<span style="color:{reading_color}">{_joined(readings, None if full else 4)}</span>')
+    if reading_parts:
+        parts.append('<p style="margin:0">' + ' &nbsp; '.join(reading_parts) + '</p>')
     if not full:
         return "".join(parts)
     stats = [f'{_text(name)} {_text(value)}' for name, value in _stats_rows(entry.stats)
@@ -118,11 +121,11 @@ def _attributed(value, sources):
 
 
 def render_kanji_extra(entries):
-    """Keep unknown fields available under their original source."""
+    """Keep reference fields available under their original source."""
     parts = []
     for entry in entries:
         stats = [(name, value) for name, value in _stats_rows(entry.stats)
-                 if name != "Strokes" and value is not None and str(value)]
+                 if value is not None and str(value)]
         if not stats and not entry.tags:
             continue
         parts.append(f'<p><small><b>{_text(entry.source or "Dictionary")}</b></small></p>')
@@ -147,26 +150,19 @@ def render_kanji_details(entries, scheme="kanji", *, more=False):
     parts = ['<table width="100%" cellspacing="0" cellpadding="1"><tr><td valign="top">',
              f'<a name="kanji-detail-{anchor}"></a><span style="{glyph_style}">'
              f'{_character_link(character, accent, True, scheme)}</span></td><td valign="top">']
-    sources = tuple(dict.fromkeys(entry.source for entry in entries if entry.source))
-    if sources:
-        parts.append(f'<p style="margin:0"><small>{_joined(sources)}</small></p>')
+    reading_parts = []
     for label, field in (("Meanings", "meanings"), ("音", "onyomi"), ("訓", "kunyomi")):
         values = _shared_values(entries, field)
         if values:
             color = reading_color if field != "meanings" else _text(config.color_foreground)
             text = " · ".join(_attributed(value, sources) for value, sources in values)
-            parts.append(f'<p style="margin:2px 0"><small>{label}</small><br>'
-                         f'<span style="color:{color}">{text}</span></p>')
-    strokes = {}
-    for entry in entries:
-        for name, value in _stats_rows(entry.stats):
-            if name == "Strokes" and value is not None and str(value):
-                sources = strokes.setdefault(str(value), [])
-                if entry.source and entry.source not in sources:
-                    sources.append(entry.source)
-    for value, sources in strokes.items():
-        source = f' <small>({_joined(sources)})</small>' if len(strokes) > 1 and sources else ""
-        parts.append(f'<p style="margin:2px 0"><small>Strokes {_text(value)}</small>{source}</p>')
+            if field == "meanings":
+                parts.append(f'<p style="margin:2px 0"><small>{label}</small><br>'
+                             f'<span style="color:{color}">{text}</span></p>')
+            else:
+                reading_parts.append(f'<small>{label}</small> <span style="color:{color}">{text}</span>')
+    if reading_parts:
+        parts.append('<p style="margin:2px 0">' + ' &nbsp; '.join(reading_parts) + '</p>')
     parts.append('</td></tr>')
     parts.append('</table>')
     for field in ("components", "examples"):
