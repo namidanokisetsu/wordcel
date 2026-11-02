@@ -748,6 +748,10 @@ class UnifiedOCR(QObject):
             enabled = (bool(bindings) or self.hover_enabled) and ocr_supported(language, self.profile_ocr_provider)
             if enabled != self.enabled:
                 self.set_enabled(enabled)
+            elif not enabled and self._permission_retry_pending:
+                # A denied attempt leaves the session disabled. Clear its
+                # recovery state if settings later disable the feature too.
+                self.set_enabled(False)
         self._sync_timer()
 
     def _reload_popup_bindings(self):

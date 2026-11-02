@@ -1063,6 +1063,19 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
             self.controller.application_state_changed(Qt.ApplicationState.ApplicationActive)
             retry.assert_not_called()
 
+    def test_disabling_scan_bindings_clears_pending_permission_retry(self):
+        settings = Mock()
+        settings.contains.return_value = False
+        settings.value.side_effect = lambda key, default=None, *args, **kwargs: (
+            "" if key.endswith("/scan_bindings") else default)
+        self.window.settings = settings
+        self.controller.enabled = False
+        self.controller._permission_retry_pending = True
+        self.controller._permission_retry_features = {"screen_recording"}
+        self.controller.reload_settings()
+        self.assertFalse(self.controller._permission_retry_pending)
+        self.assertEqual(self.controller._permission_retry_features, set())
+
     def test_startup_requests_screen_permission_only_for_enabled_scan(self):
         for bindings in ("shift", ""):
             with self.subTest(bindings=bindings):
