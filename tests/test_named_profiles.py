@@ -126,8 +126,8 @@ class NamedProfileTests(unittest.TestCase):
         self.addCleanup(dialog.deleteLater)
         self.assertEqual([dialog.app_navigation.topLevelItem(i).text(0)
                           for i in range(dialog.app_navigation.topLevelItemCount())],
-                         ["Startup", "History", "Storage"])
-        for page in (dialog.app_tab, dialog.history_tab, dialog.data_tab):
+                         ["Startup", "Profile switching", "History", "Storage"])
+        for page in (dialog.app_tab, dialog.switching_tab, dialog.history_tab, dialog.data_tab):
             for identity in ("ja", duplicate):
                 with self.subTest(page=dialog.tabs.indexOf(page), profile=identity):
                     item = next(item for item in dialog.navigation_items()

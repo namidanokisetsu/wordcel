@@ -94,7 +94,7 @@ class ProfilePreferenceTests(unittest.TestCase):
         self.assertEqual(self.settings.value(f"profiles/{profile}/audio_database"), "/tmp/audio.db")
 
         self.settings.setValue("next_profile_hotkey", "<alt>+x")
-        reset_app_page(self.settings, "Shortcuts")
+        reset_app_page(self.settings, "Profile switching")
         self.assertEqual(self.settings.value("next_profile_hotkey"), APP_SHORTCUT_DEFAULTS["next_profile_hotkey"])
         reset_app_page(self.settings, "General")
         self.assertTrue(self.settings.value("history/enabled", False, bool))

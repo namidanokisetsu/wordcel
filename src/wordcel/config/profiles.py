@@ -280,8 +280,8 @@ APP_PAGE_KEYS = {
     "Startup": ("initial_profile", "ocr/preload"),
     "History": ("history/delay", "history/retention"),
     "Storage": (),
-    "Shortcuts": ("next_profile_hotkey", "next_profile_hotkey_preset", "previous_profile_hotkey",
-                  "previous_profile_hotkey_preset"),
+    "Profile switching": ("next_profile_hotkey", "next_profile_hotkey_preset", "previous_profile_hotkey",
+                          "previous_profile_hotkey_preset"),
 }
 SHORTCUT_DEFAULTS = {
     "hotkey": ("<cmd>+<shift>+d" if sys.platform == "darwin" else "<ctrl>+<shift>+d"),
@@ -444,12 +444,12 @@ def reset_profile(settings, profile_id):
 
 
 def reset_app_page(settings, page):
-    """Restore app-wide settings, including profile-switching keys separately."""
+    """Restore the selected app settings page."""
     if page not in APP_PAGE_KEYS:
         raise ValueError("Unknown app settings page.")
     preserved = {"history/enabled", "history/pinned", "history/manual", "history/hover",
                  "history/button_manual", "history/button_ocr", "hover_scan/startup"}
-    if page == "Shortcuts":
+    if page == "Profile switching":
         removed = []
         for key, default in APP_SHORTCUT_DEFAULTS.items():
             removed.extend(_reset_binding(settings, key, default))

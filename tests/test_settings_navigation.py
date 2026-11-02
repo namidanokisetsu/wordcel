@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QSettings, Qt
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from wordcel.config.profiles import create_profile, migrate
+from wordcel.config.profiles import APP_SHORTCUT_DEFAULTS, create_profile, migrate
 from wordcel.gui.dictionary_manager import SetupDialog
 
 
@@ -37,12 +37,13 @@ class SettingsNavigationTests(unittest.TestCase):
     def test_pages_and_single_profile_management(self):
         dialog = self.dialog()
         self.assertEqual({dialog.tabs.tabText(i) for i in range(dialog.tabs.count())},
-                         {"Startup", "History", "Storage", "Lookup", "Dictionaries", "Shortcuts", "Popup", "Audio", "Translation", "Anki"})
+                         {"Startup", "Profile switching", "History", "Storage", "Lookup", "Dictionaries", "Shortcuts", "Popup", "Audio", "Translation", "Anki"})
         self.assertEqual(dialog.scope.count(), 1)
         self.assertFalse(dialog.scope.isHidden())
         self.assertFalse(dialog.scope_label.isHidden())
         self.assertFalse(dialog.profile_details.isHidden())
         self.assertEqual(dialog.scope.currentText(), "日本語 ✓")
+        self.assertEqual(dialog.profile_group.toggle.text(), "Profile settings")
         self.assertEqual(dialog.profile_language_label.text(), "日本語")
         self.assertEqual(dialog.editing_status.text(), "Active profile")
         self.assertIn("Rename…", [action.text() for action in dialog.profile_menu.actions()])
@@ -53,7 +54,7 @@ class SettingsNavigationTests(unittest.TestCase):
         self.assertFalse(dialog.scope_label.isHidden())
         self.assertEqual([dialog.app_navigation.topLevelItem(i).text(0)
                           for i in range(dialog.app_navigation.topLevelItemCount())],
-                         ["Startup", "History", "Storage"])
+                         ["Startup", "Profile switching", "History", "Storage"])
 
     def test_duplicate_is_selected_for_editing_without_activation(self):
         dialog = self.dialog()
@@ -171,20 +172,49 @@ class SettingsNavigationTests(unittest.TestCase):
         self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 35)
         self.assertEqual(self.settings.value("profile"), "ja")
 
-    def test_mixed_shortcuts_have_separate_app_reset(self):
+    def test_profile_switching_is_an_app_page_with_scoped_reset(self):
+        self.settings.setValue("next_profile_hotkey", "<alt>+x")
+        self.settings.setValue("previous_profile_hotkey", "")
+        self.settings.setValue("profiles/ja/hotkey", "<alt>+d")
         dialog = self.dialog()
         dialog.tabs.setCurrentWidget(dialog.shortcuts_tab)
-        self.assertFalse(dialog.reset_app_shortcuts.isHidden())
-        self.settings.setValue("next_profile_hotkey", "")
-        self.settings.setValue("profiles/ja/hotkey", "<alt>+d")
+        for editor in dialog.cycle_shortcuts.values():
+            self.assertFalse(dialog.shortcuts_tab.isAncestorOf(editor))
+            self.assertTrue(dialog.switching_tab.isAncestorOf(editor))
+        dialog.tabs.setCurrentWidget(dialog.switching_tab)
+        self.assertEqual(dialog.app_navigation.currentItem().text(0), "Profile switching")
+        self.assertIsNone(dialog.app_navigation.currentItem().data(0, Qt.ItemDataRole.UserRole)[0])
+        self.assertTrue(dialog.profile_details.isHidden())
+        self.assertEqual(dialog.reset_button.text(), "Reset Profile switching…")
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes) as question:
-            dialog.restore_switching_defaults()
-        self.assertIn("all profiles", question.call_args.args[2])
+            dialog.reset_button.click()
+        self.assertEqual(question.call_args.args[2],
+                         "Reset Profile switching?\n\nEnabled features, connections and saved data are kept.")
         self.assertEqual(self.settings.value("profiles/ja/hotkey"), "<alt>+d")
-        self.assertEqual(self.settings.value("next_profile_hotkey", ""), "")
-        dialog.tabs.setCurrentWidget(dialog.app_tab)
-        self.assertTrue(dialog.reset_app_shortcuts.isHidden())
-        self.assertFalse(dialog.scope.isHidden())
+        self.assertEqual(self.settings.value("next_profile_hotkey"), APP_SHORTCUT_DEFAULTS["next_profile_hotkey"])
+        self.assertEqual(dialog.cycle_shortcuts["next_profile"].text(), APP_SHORTCUT_DEFAULTS["next_profile_hotkey"])
+        self.assertFalse(dialog.cycle_shortcuts["previous_profile"].enabled.isChecked())
+        reopened = self.dialog()
+        self.assertIs(reopened.tabs.currentWidget(), reopened.switching_tab)
+
+    def test_switching_shortcuts_stay_global_when_editing_another_profile(self):
+        other = create_profile(self.settings, "ja", "Other")
+        dialog = self.dialog()
+        dialog.search.setText("next profile")
+        self.assertEqual(dialog.search_results.count(), 1)
+        dialog.open_search_result(dialog.search_results.item(0))
+        self.assertIs(dialog.tabs.currentWidget(), dialog.switching_tab)
+        dialog.scope.setCurrentIndex(dialog.scope.findData(other))
+        self.assertIs(dialog.tabs.currentWidget(), dialog.switching_tab)
+        self.assertEqual(dialog.profile_group.toggle.text(), "Profile settings")
+        editor = dialog.cycle_shortcuts["next_profile"]
+        editor.enabled.setChecked(True)
+        self.assertEqual(self.settings.value("next_profile_hotkey"), editor.text())
+        self.assertFalse(self.settings.contains(f"profiles/{other}/next_profile_hotkey"))
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            dialog.restore_profile_defaults()
+        self.assertEqual(self.settings.value("next_profile_hotkey"), editor.text())
+        self.assertEqual(self.settings.value("profile"), "ja")
 
     def test_translation_disable_preserves_options_and_availability(self):
         from wordcel.gui.resources import profile_translation_available

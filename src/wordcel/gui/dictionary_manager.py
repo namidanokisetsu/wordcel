@@ -473,10 +473,6 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.reset_button = QPushButton("Reset settings…")
         self.reset_button.clicked.connect(self.restore_page_defaults)
         footer.addWidget(self.reset_button)
-        self.reset_app_shortcuts = QPushButton("Reset switching keys…")
-        self.reset_app_shortcuts.clicked.connect(self.restore_switching_defaults)
-        self.reset_app_shortcuts.hide()
-        footer.addWidget(self.reset_app_shortcuts)
         footer.addStretch()
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setVisible(False)
@@ -564,19 +560,14 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.lookup_tab = add_page(lookup, "Lookup")
         shortcut_page = QWidget()
         shortcut_page_layout = QVBoxLayout(shortcut_page)
-        shortcut_page_layout.setContentsMargins(0, 0, 0, 0)
         for title, content in (("Lookup", shortcuts), ("Popup", popup_shortcuts)):
             section = SettingsSection(title, content)
             section.toggle.setChecked(True)
             shortcut_page_layout.addWidget(section)
         shortcut_page_layout.addStretch()
-        shortcut_container = QWidget()
-        shortcut_container_layout = QVBoxLayout(shortcut_container)
-        shortcut_container_layout.addWidget(shortcut_page)
+        self.shortcuts_tab = add_page(shortcut_page, "Shortcuts")
         cycle_controls = QWidget()
         cycle_layout = QFormLayout(cycle_controls)
-        shortcut_container_layout.addWidget(SettingsSection("Profile switching (all profiles)", cycle_controls))
-        self.shortcuts_tab = add_page(shortcut_container, "Shortcuts")
         align_form_columns(shortcut_layout, popup_form)
         add_page(dictionaries, "Dictionaries")
         popup_page = QWidget()
@@ -598,13 +589,15 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.history_settings = HistorySettings(history)
         from wordcel.gui.data_manager import DataPanel
         self.data = DataPanel(self)
-        for title, content in (("Startup", app_page), ("History", self.history_settings), ("Storage", self.data)):
+        for title, content in (("Startup", app_page), ("Profile switching", cycle_controls),
+                               ("History", self.history_settings), ("Storage", self.data)):
             page = QWidget()
             page_layout = QVBoxLayout(page)
             page_layout.addWidget(SettingsSection(title, content))
             page_layout.addStretch()
             scroll = add_page(page, title)
-            setattr(self, {"Startup": "app_tab", "History": "history_tab", "Storage": "data_tab"}[title], scroll)
+            setattr(self, {"Startup": "app_tab", "Profile switching": "switching_tab",
+                           "History": "history_tab", "Storage": "data_tab"}[title], scroll)
         self.initial_profile = QComboBox()
         app_layout.addRow("Start with profile", self.initial_profile)
         self.initial_profile.currentIndexChanged.connect(lambda: self.settings.setValue("initial_profile", self.initial_profile.currentData()) if not self._loading else None)
@@ -616,7 +609,6 @@ class SetupDialog(SettingsNavigation, QDialog):
             self.cycle_shortcuts[key] = editor
             editor.enabled.toggled.connect(lambda _, key=key, editor=editor: self.save_cycle_shortcut(key, editor))
             editor.recorder.editingFinished.connect(lambda key=key, editor=editor: self.save_cycle_shortcut(key, editor))
-        align_form_columns(shortcut_layout, popup_form, cycle_layout)
         self.anki.connection_section.toggle.setChecked(True)
         for control in (self.close_on_cursor_leave, self.appearance.snap_scrolling, self.translation_split):
             control.toggled.connect(lambda _: self.autosave(lambda: self.apply_popup_preferences()))

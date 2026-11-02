@@ -40,13 +40,13 @@ Release to copy; **Escape** or right-click cancels. Its optional shortcut is in
 
 ## Settings
 
-Expand **App settings** for Startup, History and Storage. Expand **Profile settings**
+Expand **App settings** for Startup, Profile switching, History and Storage. Expand **Profile settings**
 and choose a profile under **Editing** to change its settings without activating it.
 
 Use **Reset [section]…** for the open section or **Reset profile settings…** for a profile.
 Resets keep your profiles, enabled features, connections, credentials, downloaded
-resources, history and Anki notes. Profile switching shortcuts apply across all
-profiles and have a separate reset.
+resources, history and Anki notes. **App settings > Profile switching** contains
+the Next profile and Previous profile shortcuts, which apply across all profiles.
 
 Reinstalling keeps settings and resources unless you remove them. On Windows,
 choose to remove user data in the uninstaller. On macOS, quit Wordcel, delete

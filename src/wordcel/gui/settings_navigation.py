@@ -7,7 +7,7 @@ from wordcel.gui.action_icons import action_button
 
 
 class SettingsNavigation:
-    APP_PAGES = ("Startup", "History", "Storage")
+    APP_PAGES = ("Startup", "Profile switching", "History", "Storage")
 
     def highlight_active_profile(self, active):
         if not hasattr(self, "scope"):
@@ -15,7 +15,6 @@ class SettingsNavigation:
         for index in range(self.scope.count()):
             identity = self.scope.itemData(index)
             self.scope.setItemText(index, profile_name(self.settings, identity) + (" ✓" if identity == active else ""))
-        self.profile_group.toggle.setText("Profile settings · " + profile_name(self.settings, self.scope.currentData()))
 
     def is_active_edit(self):
         return self.parent() is not None and getattr(self.parent(), "active_profile", None) == self.profile.currentData()
@@ -212,7 +211,6 @@ class SettingsNavigation:
         title = self.tabs.tabText(page)
         self.reset_button.setText(f"Reset {title}…")
         self.reset_button.setVisible(title != "Storage")
-        self.reset_app_shortcuts.setVisible(title == "Shortcuts")
         self.tabs.setCurrentIndex(page)
         self._editing_scope = self.scope.currentData()
         self.settings.setValue("settings/scope", self._editing_scope)
@@ -340,11 +338,6 @@ class SettingsNavigation:
         self.confirm_restore("profile settings for " + profile_name(self.settings, identity),
                              lambda: reset_profile(self.settings, identity), "Profile")
 
-    def restore_switching_defaults(self):
-        from wordcel.config.profiles import reset_app_page
-        self.confirm_restore("profile-switching shortcuts for all profiles",
-                             lambda: reset_app_page(self.settings, "Shortcuts"), "Switching")
-
     def confirm_restore(self, scope, reset, page):
         from PyQt6.QtWidgets import QMessageBox
         message = f"Reset {scope}?\n\nEnabled features, connections and saved data are kept."
@@ -361,7 +354,7 @@ class SettingsNavigation:
     def refresh_after_reset(self, page):
         scrolls = [self.tabs.widget(i).verticalScrollBar().value() for i in range(self.tabs.count())]
         self.appearance._preview_timer.stop()
-        if page in (*self.APP_PAGES, "Switching"):
+        if page in self.APP_PAGES:
             self._loading = True
             try:
                 if page == "Startup":
@@ -374,7 +367,7 @@ class SettingsNavigation:
                             self.settings.value("initial_profile", ""))))
                 elif page == "History":
                     self.history_settings.service.preferences_changed.emit()
-                elif page == "Switching":
+                elif page == "Profile switching":
                     for key, editor in self.cycle_shortcuts.items():
                         preset = "Ctrl+Alt+PgDown" if key == "next_profile" else "Ctrl+Alt+PgUp"
                         editor.set_value(self.settings.value(key + "_hotkey", ""),
@@ -384,7 +377,7 @@ class SettingsNavigation:
             if self.parent() is not None:
                 if page == "Startup":
                     self.parent().scan_settings_changed.emit()
-                elif page == "Switching":
+                elif page == "Profile switching":
                     self.parent().restore_cycle_shortcuts()
         else:
             self._resetting = True
