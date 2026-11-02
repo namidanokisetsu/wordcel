@@ -3066,9 +3066,41 @@ class QuickLookupTests(unittest.TestCase):
             QTest.keyClick(widget, Qt.Key.Key_Escape)
             self.assertFalse(self.window.isVisible())
 
+    def test_failed_shortcuts_retry_after_access_and_request_restart_if_still_unavailable(self):
+        self.window._shortcuts_restored = True
+        self.window._failed_shortcuts = {"_keys"}
+        with patch("wordcel.gui.quick_lookup.sys.platform", "darwin"), \
+                patch("wordcel.utils.macos.privacy_permission_granted", return_value=False) as granted, \
+                patch.object(self.window, "restore_shortcut") as retry, \
+                patch.object(self.window, "show_message") as message:
+            self.window._application_state_changed(Qt.ApplicationState.ApplicationActive)
+            retry.assert_not_called()
+            message.assert_not_called()
+            granted.return_value = True
+            self.window._application_state_changed(Qt.ApplicationState.ApplicationActive)
+            retry.assert_called_once_with()
+            message.assert_called_once_with("Restart Wordcel to enable global shortcuts.")
+            retry.reset_mock()
+            self.window._shutting_down = True
+            try:
+                self.window._application_state_changed(Qt.ApplicationState.ApplicationActive)
+            finally:
+                self.window._shutting_down = False
+            retry.assert_not_called()
+
+    def test_shutdown_cancels_automatic_selection_permission_retry(self):
+        from wordcel.gui.text_triggers import TextTriggers
+        triggers = TextTriggers(self.window)
+        self.addCleanup(triggers.deleteLater)
+        triggers._permission_blocked = True
+        triggers.shutdown()
+        with patch.object(triggers, "reload") as retry:
+            triggers.application_state_changed(Qt.ApplicationState.ApplicationActive)
+        retry.assert_not_called()
+
     def test_permission_message_links_to_relevant_macos_settings(self):
         self.window.show_message(
-            "Allow Wordcel in System Settings > Privacy & Security > Accessibility, then reopen Wordcel."
+            "Allow Wordcel in System Settings > Privacy & Security > Accessibility."
         )
         self.assertIn("Open Settings", self.window.status.text())
         with patch("wordcel.utils.macos.open_privacy_settings") as open_settings:

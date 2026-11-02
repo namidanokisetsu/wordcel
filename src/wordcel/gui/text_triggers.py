@@ -102,6 +102,7 @@ class TextTriggers(QObject):
             self.window.selection.start()
 
     def shutdown(self):
+        self._permission_blocked = False
         self.capture_timer.stop()
         self.press = self.last_click = None
         if self.listener:

@@ -3698,11 +3698,13 @@ class QuickLookupWindow(QDialog):
 
     def _application_state_changed(self, state):
         if (state == Qt.ApplicationState.ApplicationActive and self._shortcuts_restored
-                and self._failed_shortcuts):
+                and not self._shutting_down and self._failed_shortcuts):
             from wordcel.utils.macos import privacy_permission_granted
             if sys.platform == "darwin" and not privacy_permission_granted("input_monitoring"):
                 return
             self.restore_shortcut()
+            if self._failed_shortcuts:
+                self.show_message("Restart Wordcel to enable global shortcuts.")
 
     def shutdown(self):
         if self._shutting_down:
