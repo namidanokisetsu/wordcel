@@ -329,9 +329,9 @@ class ResourceTests(unittest.TestCase):
 
     def test_recommended_batch_keeps_successful_imports_after_a_failure(self):
         from wordcel.dictionary.catalog import recommendations
-        from wordcel.gui.dictionary_manager import SetupOperation
+        from wordcel.gui.dictionary_manager import SetupOperation, SetupRequest
         dictionaries = recommendations("ja")
-        operation = SetupOperation([], "/unused", recommended=dictionaries)
+        operation = SetupOperation(SetupRequest.from_options(recommended=dictionaries), "/unused")
         results = []
         operation.finished.connect(lambda status, changed: results.append((status, changed)))
         with patch("wordcel.dictionary.import_job.background_import", side_effect=[
@@ -342,8 +342,8 @@ class ResourceTests(unittest.TestCase):
 
     def test_cancelling_recommended_batch_stops_before_next_dictionary(self):
         from wordcel.dictionary.catalog import recommendations
-        from wordcel.gui.dictionary_manager import SetupOperation
-        operation = SetupOperation([], "/unused", recommended=recommendations("ja"))
+        from wordcel.gui.dictionary_manager import SetupOperation, SetupRequest
+        operation = SetupOperation(SetupRequest.from_options(recommended=recommendations("ja")), "/unused")
         results = []
         operation.finished.connect(lambda status, changed: results.append((status, changed)))
 
@@ -381,8 +381,8 @@ class ResourceTests(unittest.TestCase):
                 finally:
                     dialog.deleteLater()
                     self.app.processEvents()
-        from wordcel.gui.dictionary_manager import SetupOperation
-        operation = SetupOperation([], "/unused", fonts=True)
+        from wordcel.gui.dictionary_manager import SetupOperation, SetupRequest
+        operation = SetupOperation(SetupRequest("fonts", True), "/unused")
         results = []
         operation.finished.connect(lambda status, changed: results.append((status, changed)))
         with patch("wordcel.scripts.setup_stroke_order_font.install") as install:
@@ -391,7 +391,7 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(results, [("Stroke-order font installed.", True)])
 
     def test_font_install_completion_redraws_current_kanji_without_preference_change(self):
-        from wordcel.gui.dictionary_manager import SetupOperation
+        from wordcel.gui.dictionary_manager import SetupOperation, SetupRequest
         with tempfile.TemporaryDirectory() as directory:
             settings = QSettings(str(Path(directory) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/ja/target", "en")
@@ -406,7 +406,7 @@ class ResourceTests(unittest.TestCase):
                 dialog = SetupDialog(Path(directory) / "library", settings, Mock(), parent)
                 try:
                     parent.reload_appearance.reset_mock()
-                    dialog.operation = SetupOperation([], directory, fonts=True)
+                    dialog.operation = SetupOperation(SetupRequest("fonts", True), directory)
                     dialog._finished("Stroke-order font installed.", True)
                     self.assertIsNone(parent._render_identity)
                     parent.reload_appearance.assert_called_once_with()
@@ -414,6 +414,27 @@ class ResourceTests(unittest.TestCase):
                 finally:
                     dialog.deleteLater(); parent.deleteLater()
                     self.app.processEvents()
+
+
+class SetupRequestTests(unittest.TestCase):
+    def test_conflicting_requests_are_rejected_before_starting_a_job(self):
+        from wordcel.gui.setup_operation import SetupRequest
+        for options in ({"fonts": True, "profile": "compact"}, {"ocr": "paddle", "remove": "dictionary"}):
+            with self.subTest(options=options), self.assertRaisesRegex(ValueError, "one setup operation"):
+                SetupRequest.from_options(**options)
+        with self.assertRaisesRegex(ValueError, "one setup operation"):
+            SetupRequest.from_options(["dictionary.zip"], ocr="paddle")
+        with self.assertRaisesRegex(ValueError, "translation model"):
+            SetupRequest("translation", "unknown")
+
+    def test_resource_and_job_identity_are_derived_from_one_payload(self):
+        from wordcel.gui.setup_operation import SetupRequest
+        from wordcel.dictionary.catalog import recommendations
+        request = SetupRequest.from_options(recommended=recommendations("ja"))
+        self.assertEqual(request.resource, "dictionaries")
+        self.assertEqual(request.job_keys, tuple("dictionary:" + item.identity for item in recommendations("ja")))
+        self.assertEqual(SetupRequest("engine", "paddle").resource, "ocr")
+        self.assertEqual(SetupRequest("fonts", True).job_keys, ("font:ja",))
 
 
 class TransferEstimateTests(unittest.TestCase):

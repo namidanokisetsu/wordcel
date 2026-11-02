@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import threading
 
-from PyQt6.QtCore import QObject, QSignalBlocker, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QSignalBlocker, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QListWidget,
     QInputDialog, QLineEdit, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSpinBox, QTabWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
@@ -19,183 +19,7 @@ from wordcel.config.profiles import (profile_ids, profile_language, profile_name
                                      dictionary_preferences, languages as profile_languages)
 
 
-def setup_resource(key):
-    if key.startswith("engine:"):
-        return "ocr" if key == "engine:paddle" else "morphology"
-    kind = key.split(":", 1)[0]
-    return {"dictionary": "dictionaries", "recommended": "dictionaries", "runtime": "translation",
-            "stanza": "morphology", "font": "fonts", "cache": "all"}.get(kind, kind)
-
-
-class SetupOperation(QObject):
-    progress = pyqtSignal(str)
-    finished = pyqtSignal(str, bool)
-    refresh = pyqtSignal()
-
-    def __init__(self, paths, directory, language=None, profile=None, recommended=None, remove=None, morphology=None, ocr=None, fonts=False,
-                 asset=None, remove_language=None, update=None, bundle=None, engine=None, backend="automatic"):
-        super().__init__()
-        self.paths = paths
-        self.directory = directory
-        self.language = language
-        self.profile = profile
-        self.backend = backend
-        self.recommended = recommended
-        self.remove = remove
-        self.morphology = morphology
-        self.ocr = ocr
-        self.fonts = fonts
-        self.asset, self.remove_language = asset, remove_language
-        self.update = update
-        self.bundle, self.engine = bundle, engine
-        self.resource = ("all" if remove_language or bundle else setup_resource("engine:" + engine) if engine else setup_resource(asset) if asset else
-                         "translation" if profile else "ocr" if ocr else "morphology" if morphology else
-                         "fonts" if fonts else "dictionaries")
-        self.installed_component = ""
-        self.cancelled = threading.Event()
-        self.thread = threading.Thread(target=self._run, name="dictionary-setup", daemon=True)
-        from wordcel.gui.resource_jobs import jobs
-        self.jobs = jobs
-        self.job_keys = ((asset,) if asset else ("translation:" + profile,) if profile else
-                         ("ocr:" + ocr,) if ocr else ("stanza:" + morphology,) if morphology else
-                         ("font:ja",) if fonts else ("dictionary:" + remove,) if remove else
-                         tuple("dictionary:" + item.identity for item in recommended) if isinstance(recommended, tuple) else
-                         ("dictionary:" + recommended.identity,) if recommended else
-                         tuple("dictionary:" + item.identity for item in update) if isinstance(update, list) else
-                         ("dictionary:" + update[1],) if update else ("dictionary-import",))
-        if self.resource == "all":
-            self.job_keys = ("all",)
-        elif engine:
-            self.job_keys = ("engine:" + engine,)
-
-    def start(self):
-        if not self.jobs.claim(self.job_keys, self, self.cancelled, "Preparing download…"):
-            self.finished.emit("Resource already downloading.", False)
-            return
-        self.thread.start()
-
-    def _emit(self, signal, *args):
-        if signal == self.progress:
-            self.jobs.progress(self, args[0])
-        elif signal == self.finished:
-            self.jobs.finish(self)
-        try:
-            signal.emit(*args)
-        except RuntimeError:
-            pass
-
-    def _run(self):
-        if self.bundle or self.engine:
-            try:
-                progress = lambda text: self._emit(self.progress, text)
-                if self.engine:
-                    from wordcel.optional_runtimes import install
-                    install(self.engine, progress, self.cancelled)
-                    status, changed = "Engine installed.", True
-                    from wordcel.optional_runtimes import restart_needed
-                    if self.engine == "stanza" and restart_needed():
-                        status = "Engine installed. Restart Wordcel to use it."
-                else:
-                    from wordcel.resource_bundle import export_bundle, import_bundle
-                    mode, path = self.bundle
-                    operation = export_bundle if mode == "export" else import_bundle
-                    operation(path, self.directory, progress, self.cancelled)
-                    status, changed = ("Resources exported.", False) if mode == "export" else ("Resources imported. Restart Wordcel to use new engines.", True)
-                self._emit(self.finished, status, changed)
-            except Exception as error:
-                self._emit(self.finished, str(error), False)
-            return
-        if self.update is not None:
-            try:
-                from wordcel.dictionary.import_job import background_import
-                result = background_import([], self.directory, None, None,
-                                           lambda text: self._emit(self.progress, text), self.cancelled, update=self.update)
-                self._emit(self.finished, *result)
-            except Exception as error:
-                self._emit(self.finished, str(error), False)
-            return
-        if self.asset or self.remove_language:
-            try:
-                from wordcel.data_assets import remove_asset, remove_language_data
-                remove = remove_language_data if self.remove_language else remove_asset
-                remove(self.remove_language or self.asset, self.directory, lambda: self._emit(self.refresh), self.cancelled)
-                self._emit(self.finished, "Data removed.", True)
-            except Exception as error:
-                self._emit(self.finished, str(error), False)
-            return
-        if self.fonts:
-            try:
-                from wordcel.scripts.setup_stroke_order_font import install
-                install(lambda text: self._emit(self.progress, text), self.cancelled)
-                self._emit(self.finished, "Stroke-order font installed.", True)
-            except Exception as error:
-                self._emit(self.finished, str(error), False)
-            return
-        if isinstance(self.recommended, tuple):
-            from wordcel.dictionary.import_job import background_import
-            changed, errors = False, []
-            for dictionary in self.recommended:
-                if self.cancelled.is_set():
-                    break
-                try:
-                    status, installed = background_import([], self.directory, dictionary.language, dictionary,
-                                                         lambda text: self._emit(self.progress, text), self.cancelled)
-                    changed |= installed
-                    if not installed:
-                        errors.append(f"{dictionary.title}: {status}")
-                except Exception as error:
-                    errors.append(f"{dictionary.title}: {error}")
-            status = "Download cancelled." if self.cancelled.is_set() else "Dictionaries installed."
-            self._emit(self.finished, "\n".join(errors) or status, changed)
-            return
-        if self.paths or self.recommended:
-            try:
-                from wordcel.dictionary.import_job import background_import
-                result = background_import(self.paths, self.directory, self.language, self.recommended,
-                                           lambda text: self._emit(self.progress, text), self.cancelled)
-                self._emit(self.finished, *result)
-            except Exception as error:
-                self._emit(self.finished, str(error), False)
-            return
-        if self.ocr:
-            try:
-                from wordcel.scripts.setup_ocr import install
-                self.installed_component = install(self.ocr, lambda text: self._emit(self.progress, text), self.cancelled)
-                self._emit(self.finished, "OCR ready. Scan with your selected shortcut.", True)
-            except Exception as error:
-                self._emit(self.finished, str(error), False)
-            return
-        if self.morphology:
-            try:
-                from wordcel.scripts.setup_morphology import install
-                install(self.morphology, lambda text: self._emit(self.progress, text), self.cancelled)
-                from wordcel.optional_runtimes import restart_needed
-                status = "Word-form support installed. Restart Wordcel to use it." if restart_needed() else "Base-form model installed."
-                self._emit(self.finished, status, True)
-            except Exception as error:
-                self._emit(self.finished, str(error), False)
-            return
-        if self.remove:
-            try:
-                from wordcel.dictionary.library import remove_dictionary
-                remove_dictionary(self.directory, self.remove, lambda: self._emit(self.refresh), self.cancelled)
-                status = "Dictionary removed."
-                self._emit(self.finished, status, True)
-            except Exception as error:
-                self._emit(self.finished, str(error), False)
-            return
-        if self.profile:
-            try:
-                from wordcel.scripts.translation_server import install_model
-                options = dict(runtime_only=True) if self.profile == "runtime" else dict(profile=self.profile)
-                install_model(backend=self.backend, progress=lambda value: self._emit(self.progress, value), cancelled=self.cancelled, **options)
-                self._emit(self.finished, "Model installed. Translate when ready.", True)
-            except InterruptedError:
-                self._emit(self.finished, "Download cancelled.", False)
-            except Exception as error:
-                self._emit(self.finished, str(error), False)
-            return
-        self._emit(self.finished, "No dictionaries selected.", False)
+from wordcel.gui.setup_operation import SetupOperation, SetupRequest, setup_resource
 
 
 from wordcel.gui.settings_navigation import SettingsNavigation
@@ -1559,9 +1383,11 @@ class SetupDialog(SettingsNavigation, QDialog):
 
     def begin_operation(self, paths, language=None, profile=None, recommended=None, remove=None, morphology=None, ocr=None, fonts=False,
                         asset=None, remove_language=None, update=None, bundle=None, engine=None):
-        operation = SetupOperation(paths, self.directory, language, profile, recommended, remove, morphology, ocr, fonts,
-                                   asset, remove_language, update, bundle, engine,
-                                   backend=self.translation_backend.currentData())
+        request = SetupRequest.from_options(paths, language, self.translation_backend.currentData(), profile=profile,
+                                            recommended=recommended, remove=remove, morphology=morphology, ocr=ocr,
+                                            fonts=fonts, asset=asset, remove_language=remove_language, update=update,
+                                            bundle=bundle, engine=engine)
+        operation = SetupOperation(request, self.directory)
         if self.operation_busy(operation.resource):
             operation.deleteLater()
             return
@@ -1600,10 +1426,11 @@ class SetupDialog(SettingsNavigation, QDialog):
 
     def _finished(self, status, changed, operation=None):
         operation = operation or self.operation
-        removed_language = operation.remove_language if operation is not None else None
+        request = operation.request if operation is not None else None
+        removed_language = request.value if request is not None and request.kind == "remove_language" else None
         ocr_changed = changed and operation is not None and (
-            operation.ocr or operation.bundle or operation.engine or operation.asset and operation.asset.startswith(("ocr:", "engine:")))
-        font_installed = changed and operation is not None and (operation.fonts or operation.bundle)
+            request.kind in {"ocr", "bundle", "engine"} or request.kind == "asset" and request.value.startswith(("ocr:", "engine:")))
+        font_installed = changed and operation is not None and request.kind in {"fonts", "bundle"}
         component = operation.installed_component if operation is not None else ""
         if component:
             self.screenai_directory.setText(component)

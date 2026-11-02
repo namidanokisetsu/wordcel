@@ -4365,7 +4365,7 @@ class DictionaryManagerTests(unittest.TestCase):
 
     def test_cancelled_operation_keeps_completed_imports(self):
         first, second = self.archive("A", "tr"), self.archive("B", "tr")
-        operation = SetupOperation([first, second], self.directory)
+        operation = SetupOperation(SetupRequest("import", (first, second)), self.directory)
         from wordcel.dictionary.library import import_yomitan
 
         def import_then_cancel(*args, **kwargs):
