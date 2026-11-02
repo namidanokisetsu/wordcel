@@ -9,7 +9,7 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QSettings
 
-from wordcel.config.inheritance import PreferenceSettings, migrate_defaults
+from wordcel.config.inheritance import migrate_defaults
 from wordcel.config.profiles import (create_profile, reset_app_page, reset_page, reset_profile)
 
 
@@ -25,6 +25,7 @@ class IndependentProfileSettingsTests(unittest.TestCase):
         self.settings.setValue("profiles/tr/language", "tr")
 
     def test_migration_materializes_effective_values_and_removes_legacy_scope(self):
+        self.settings.setValue("defaults_version", 1)
         self.settings.setValue("defaults/appearance/font_size_header", 22)
         self.settings.setValue("defaults/appearance/custom/highlight", "")
         self.settings.setValue("defaults/shortcuts/popup/copy_shortcut", "")
@@ -52,25 +53,32 @@ class IndependentProfileSettingsTests(unittest.TestCase):
         self.assertTrue((self.path.parent / "settings.ini.inheritance-backup.ini").exists())
 
     def test_migration_failure_does_not_mark_completion_and_keeps_backup(self):
+        self.settings.setValue("defaults_version", 1)
         self.settings.setValue("defaults/appearance/font_size_header", 22)
         self.settings.setValue("profiles/ja/overrides/appearance", False)
         with patch("wordcel.config.inheritance._sync", side_effect=OSError("disk full")):
             with self.assertRaises(OSError):
                 migrate_defaults(self.settings)
-        self.assertFalse(self.settings.contains("defaults_version"))
+        self.assertEqual(self.settings.value("defaults_version", 0, int), 1)
         backup = QSettings(str(self.path) + ".inheritance-backup.ini", QSettings.Format.IniFormat)
         self.assertEqual(backup.value("defaults/appearance/font_size_header", 0, int), 22)
         migrate_defaults(self.settings)
         self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 22)
 
-    def test_preference_wrapper_is_transparent_after_migration(self):
+    def test_profile_settings_are_direct_after_migration(self):
+        self.settings.setValue("defaults_version", 1)
         self.settings.setValue("defaults/appearance/font_size_header", 22)
         self.settings.setValue("profiles/ja/overrides/appearance", False)
         migrate_defaults(self.settings)
-        view = PreferenceSettings(self.settings)
-        view.setValue("profiles/ja/font_size_header", 29)
-        self.assertEqual(view.value("profiles/ja/font_size_header", 0, int), 29)
+        self.settings.setValue("profiles/ja/font_size_header", 29)
+        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 29)
         self.assertFalse(self.settings.contains("defaults/appearance/font_size_header"))
+
+    def test_unversioned_defaults_do_not_override_local_values(self):
+        self.settings.setValue("defaults/appearance/font_size_header", 22)
+        self.settings.setValue("profiles/ja/font_size_header", 29)
+        migrate_defaults(self.settings)
+        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 29)
 
     def test_duplicate_clones_values_and_mutable_connection_records(self):
         self.settings.setValue("profiles/ja/theme_name", "Light")
@@ -117,8 +125,8 @@ class IndependentProfileSettingsTests(unittest.TestCase):
         self.assertEqual(self.settings.value(f"profiles/{profile}/hotkey_preset"), expected_preset)
         reset_page(self.settings, profile, "Translation")
         translation = json.loads(self.settings.value(f"profiles/{profile}/translation"))
-        self.assertEqual((translation["provider"], translation["endpoint"], translation["model"]),
-                         ("custom", "http://127.0.0.1:9999/v1", "local"))
+        self.assertEqual((translation["provider"], translation["profile"], translation["endpoint"], translation["model"]),
+                         ("custom", "lightweight", "http://127.0.0.1:9999/v1", "local"))
         self.assertEqual(translation["chunk_size"], 2000)
 
         reset_profile(self.settings, profile)

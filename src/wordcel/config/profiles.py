@@ -210,8 +210,6 @@ def _copy_profile_values(settings, source, destination):
 
 
 def create_profile(settings, language, name=None, duplicate=None):
-    from wordcel.config.inheritance import raw_settings
-    settings = raw_settings(settings)
     from wordcel.dictionary.library import language_code
     from wordcel.language.profiles import default_partner
 
@@ -277,10 +275,10 @@ PROFILE_PAGE_KEYS = {
              "anki/notifications"),
 }
 APP_PAGE_KEYS = {
-    "General": ("start_with_windows", "initial_profile", "hover_scan/startup", "ocr/preload", "history/", "storage/"),
-    "Startup": ("start_with_windows", "initial_profile", "hover_scan/startup", "ocr/preload"),
-    "History": ("history/",),
-    "Storage": ("storage/",),
+    "General": ("initial_profile", "ocr/preload", "history/delay", "history/retention"),
+    "Startup": ("initial_profile", "ocr/preload"),
+    "History": ("history/delay", "history/retention"),
+    "Storage": (),
     "Shortcuts": ("next_profile_hotkey", "next_profile_hotkey_preset", "previous_profile_hotkey",
                   "previous_profile_hotkey_preset"),
 }
@@ -347,8 +345,14 @@ def _reset_translation(settings, prefix):
         return []
     if not isinstance(values, dict):
         return []
-    for name, default in (("profile", "quality"), ("auto_start", True), ("stream", True),
-                          ("keep_warm", False), ("chunk_size", 2000)):
+    from wordcel.dictionary.translation import TranslationSettings
+    try:
+        TranslationSettings(**values).validated()
+    except (TypeError, ValueError):
+        return []
+    defaults = TranslationSettings()
+    for name in ("auto_start", "stream", "keep_warm", "chunk_size"):
+        default = getattr(defaults, name)
         values[name] = default
     settings.setValue(key, json.dumps(values, ensure_ascii=False))
     return [key]
@@ -356,8 +360,6 @@ def _reset_translation(settings, prefix):
 
 def reset_page(settings, profile_id, page):
     """Restore one profile page while preserving identity, data and enablement."""
-    from wordcel.config.inheritance import raw_settings
-    settings = raw_settings(settings)
     if profile_id not in profile_ids(settings):
         raise ValueError("Unknown profile.")
     if page not in PROFILE_PAGE_KEYS:
@@ -384,8 +386,6 @@ def reset_page(settings, profile_id, page):
     return tuple(dict.fromkeys(removed))
 def reset_profile(settings, profile_id):
     """Restore all profile preferences without changing its identity or data."""
-    from wordcel.config.inheritance import raw_settings
-    settings = raw_settings(settings)
     if profile_id not in profile_ids(settings):
         raise ValueError("Unknown profile.")
     changed = []
@@ -410,8 +410,6 @@ def reset_profile(settings, profile_id):
 
 def reset_app_page(settings, page):
     """Restore app-wide settings, including profile-switching keys separately."""
-    from wordcel.config.inheritance import raw_settings
-    settings = raw_settings(settings)
     if page not in APP_PAGE_KEYS:
         raise ValueError("Unknown app settings page.")
     preserved = {"history/enabled", "history/pinned", "history/manual", "history/hover",

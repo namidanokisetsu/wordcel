@@ -1,10 +1,9 @@
-"""Compatibility helpers for the one-time shared-preferences migration.
+"""One-time migration from shared profile defaults.
 
 Profiles used to resolve a group of values from ``defaults/`` unless an
 ``overrides/<group>`` flag was set. The current settings format stores the
-effective value in every profile. ``PreferenceSettings`` remains as a thin
-adapter for callers that still accept the old wrapper while migration code can
-be removed independently of the GUI cleanup.
+effective value in every profile; this module only handles the snapshot
+migration.
 """
 
 from copy import deepcopy
@@ -33,57 +32,6 @@ def group_for(key):
     """Return the old shared-preference group for a profile-relative key."""
     return next((group for group, keys in GROUPS.items()
                  if any(key.startswith(item) if item.endswith("/") else key == item for item in keys)), None)
-
-
-def raw_settings(settings):
-    """Return the underlying QSettings object for either settings API."""
-    return settings.raw if isinstance(settings, PreferenceSettings) else settings
-
-
-class PreferenceSettings:
-    """Transparent QSettings compatibility view.
-
-    The old class redirected profile reads and writes to shared defaults. It
-    deliberately no longer does that: every profile is independent after the
-    migration. ``editing_global`` is retained as a harmless compatibility
-    attribute until the settings UI stops assigning it.
-    """
-
-    def __init__(self, settings):
-        self.raw = raw_settings(settings)
-        self.editing_global = None
-
-    def __getattr__(self, name):
-        return getattr(self.raw, name)
-
-    def resolve(self, key):
-        return key
-
-    def value(self, key, *args, **kwargs):
-        return self.raw.value(key, *args, **kwargs)
-
-    def contains(self, key):
-        return self.raw.contains(key)
-
-    def setValue(self, key, value):
-        self.raw.setValue(key, value)
-
-    def remove(self, key):
-        self.raw.remove(key)
-
-
-def overridden(settings, profile, group):
-    """Read legacy metadata for compatibility with older callers.
-
-    This value has no effect on reads after migration and is removed by
-    :func:`migrate_defaults`.
-    """
-    return raw_settings(settings).value(f"profiles/{profile}/overrides/{group}", False, bool)
-
-
-def set_override(settings, profile, group, enabled):
-    """Write legacy metadata for old callers without changing runtime reads."""
-    raw_settings(settings).setValue(f"profiles/{profile}/overrides/{group}", bool(enabled))
 
 
 def _profile_ids(settings):
@@ -135,10 +83,9 @@ def _legacy_snapshot(settings, identity, group):
     defaults = {key[len(defaults_prefix):]: settings.value(key)
                 for key in settings.allKeys() if key.startswith(defaults_prefix)}
     marker = f"profiles/{identity}/overrides/{group}"
-    # With no shared-defaults data, profile values were already independent.
-    # When the marker is absent, retain explicit profile values as well; only
-    # an explicit false marker means that stale local values are inactive.
-    inheritance_present = settings.value("defaults_version", 0, int) >= 1 or bool(defaults)
+    # Version 1 is the marker written by the old resolver. A settings file
+    # without that marker predates inheritance and its local values are live.
+    inheritance_present = settings.value("defaults_version", 0, int) >= 1
     if not inheritance_present:
         return own
     if settings.value(marker, False, bool):
@@ -161,7 +108,6 @@ def migrate_defaults(settings):
     is written only as part of a successful sync; a backup remains in local
     storage for recovery.
     """
-    settings = raw_settings(settings)
     if settings.value("defaults_version", 0, int) >= MIGRATION_VERSION:
         return False
     _backup(settings)
