@@ -668,31 +668,31 @@ class QuickLookupTests(unittest.TestCase):
         self.assertFalse(self.window.translation_debounce.isActive())
 
     def test_copy_shortcut_is_opt_in_and_checks_collisions(self):
-        self.assertIsNone(self.window._copy_keys)
+        self.assertIsNone(self.window.lookup_shortcuts._listeners["copy"])
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
             self.window.apply_copy_shortcut("<ctrl>+<shift>+x", "Ctrl+Shift+X")
             with self.assertRaises(ValueError):
                 self.window.apply_hover_shortcut("<shift>+<ctrl>+x")
             self.window.apply_copy_shortcut("")
             hotkeys.return_value.stop.assert_called_once()
-            self.assertIsNone(self.window._copy_keys)
+            self.assertIsNone(self.window.lookup_shortcuts._listeners["copy"])
 
     def test_hover_shortcut_is_independent_and_checks_collisions(self):
-        self.assertIsNone(self.window._hover_keys)
+        self.assertIsNone(self.window.lookup_shortcuts._listeners["hover"])
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
             self.window.apply_hover_shortcut("<ctrl>+<shift>+h", "Ctrl+Shift+H")
             with self.assertRaises(ValueError):
                 self.window.apply_translation_shortcut("<shift>+<ctrl>+h")
             self.window.apply_hover_shortcut("")
             hotkeys.return_value.stop.assert_called_once()
-            self.assertIsNone(self.window._hover_keys)
+            self.assertIsNone(self.window.lookup_shortcuts._listeners["hover"])
 
     def test_profile_shortcut_updates_reuse_listener_without_waiting(self):
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as factory:
             self.window.apply_shortcut("<ctrl>+<shift>+d")
-            listener = self.window._keys
+            listener = self.window.lookup_shortcuts._listeners["hotkey"]
             self.window.apply_shortcut("<ctrl>+<shift>+s")
-            self.assertIs(self.window._keys, listener)
+            self.assertIs(self.window.lookup_shortcuts._listeners["hotkey"], listener)
             factory.assert_called_once()
             listener.start.assert_called_once()
             self.assertEqual(tuple(listener.update_bindings.call_args.args[0]), ("<ctrl>+<shift>+s",))
@@ -711,16 +711,16 @@ class QuickLookupTests(unittest.TestCase):
         dialog.hide()
 
     def test_translation_shortcut_is_independent_recordable_and_disabled_by_default(self):
-        self.assertIsNone(self.window._translation_keys)
+        self.assertIsNone(self.window.lookup_shortcuts._listeners["translation"])
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
             self.window.apply_translation_shortcut("<ctrl>+<shift>+t", "Ctrl+Shift+T")
-            self.assertIsNone(self.window._keys)
+            self.assertIsNone(self.window.lookup_shortcuts._listeners["hotkey"])
             self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/translation_hotkey"), "<ctrl>+<shift>+t")
             with self.assertRaises(ValueError):
                 self.window.apply_shortcut("<shift>+<ctrl>+t")
             self.window.apply_translation_shortcut("")
             hotkeys.return_value.stop.assert_called_once()
-            self.assertIsNone(self.window._translation_keys)
+            self.assertIsNone(self.window.lookup_shortcuts._listeners["translation"])
 
     def test_translation_settings_round_trip_and_shortcut_do_not_enable_ocr(self):
         dialog = SetupDialog(self.temp.name, self.settings, self.window.apply_shortcut, self.window)
@@ -732,7 +732,7 @@ class QuickLookupTests(unittest.TestCase):
             import sys
             self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/translation_hotkey"),
                              "<cmd>+<shift>+t" if sys.platform == "darwin" else "<ctrl>+<shift>+t")
-            self.assertIsNone(self.window._keys)
+            self.assertIsNone(self.window.lookup_shortcuts._listeners["hotkey"])
             dialog.translation_shortcut.enabled.setChecked(False)
             listener.return_value.stop.assert_called_once()
         dialog.translation_chunk_size.setValue(512)
@@ -3067,11 +3067,11 @@ class QuickLookupTests(unittest.TestCase):
             self.assertFalse(self.window.isVisible())
 
     def test_failed_shortcuts_retry_after_access_and_request_restart_if_still_unavailable(self):
-        self.window._shortcuts_restored = True
-        self.window._failed_shortcuts = {"_keys"}
+        self.window.lookup_shortcuts.restored = True
+        self.window.lookup_shortcuts.failed = {"hotkey"}
         with patch("wordcel.gui.quick_lookup.sys.platform", "darwin"), \
                 patch("wordcel.utils.macos.privacy_permission_granted", return_value=False) as granted, \
-                patch.object(self.window, "restore_shortcut") as retry, \
+                patch.object(self.window.lookup_shortcuts, "restore") as retry, \
                 patch.object(self.window, "show_message") as message:
             self.window._application_state_changed(Qt.ApplicationState.ApplicationActive)
             retry.assert_not_called()
@@ -3948,10 +3948,10 @@ class QuickLookupTests(unittest.TestCase):
                 block = block.next()
 
     def test_search_shortcut_defaults_on_and_restores_explicit_choice(self):
-        self.assertIsNone(self.window._keys)
+        self.assertIsNone(self.window.lookup_shortcuts._listeners["hotkey"])
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as hotkeys:
             self.window.restore_shortcut()
-            from wordcel.gui.quick_lookup import default_text_shortcut
+            from wordcel.gui.profile_preferences import default_text_shortcut
             hotkeys.return_value.start.assert_called_once()
             self.assertEqual(self.settings.value(f"profiles/{self.window.active_profile}/hotkey"), default_text_shortcut())
             hotkeys.reset_mock()
@@ -3966,9 +3966,9 @@ class QuickLookupTests(unittest.TestCase):
             hotkeys.reset_mock()
             self.window.apply_shortcut("")
             hotkeys.return_value.stop.assert_called_once()
-            self.assertIsNone(self.window._keys)
+            self.assertIsNone(self.window.lookup_shortcuts._listeners["hotkey"])
             self.window.restore_shortcut()
-            self.assertIsNone(self.window._keys)
+            self.assertIsNone(self.window.lookup_shortcuts._listeners["hotkey"])
 
     def test_lookup_shortcut_opens_empty_input_without_selection(self):
         with patch.object(QApplication, "activeWindow", return_value=None), \

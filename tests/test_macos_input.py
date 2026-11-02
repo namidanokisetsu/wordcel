@@ -79,20 +79,21 @@ class InputPermissionTests(unittest.TestCase):
 
     def test_denied_permission_keeps_configured_shortcut_for_next_launch(self):
         from types import SimpleNamespace
-        from wordcel.gui.quick_lookup import QuickLookupWindow
+        from wordcel.gui.lookup_shortcuts import LookupShortcuts
         from wordcel.utils.macos import InputMonitoringPermissionError
         settings = Mock()
         settings.value.return_value = ""
-        window = SimpleNamespace(settings=settings, active_profile="ja", _keys=None, hotkey_requested=Mock(), show_message=Mock())
-        window._shortcut_callbacks = {"hotkey": window.hotkey_requested.emit}
-        window._update_shortcut_listener = lambda *args: QuickLookupWindow._update_shortcut_listener(window, *args)
+        window = SimpleNamespace(settings=settings, active_profile="ja", show_message=Mock(),
+                                 **{name + "_requested": Mock() for name in
+                                    ("hotkey", "translation", "hover_toggle", "copy", "next_profile", "previous_profile")})
+        shortcuts = LookupShortcuts(window)
         with patch("wordcel.gui.text_shortcuts.TextHotKeys") as listener:
             listener.return_value.start.side_effect = InputMonitoringPermissionError("Input Monitoring denied")
-            warning = QuickLookupWindow.apply_shortcut(window, "<cmd>+d", "Ctrl+D")
+            warning = shortcuts.apply("hotkey", "<cmd>+d", "Ctrl+D")
         self.assertEqual(warning, "Input Monitoring denied")
         settings.setValue.assert_any_call("profiles/ja/hotkey", "<cmd>+d")
         settings.setValue.assert_any_call("profiles/ja/hotkey_preset", "Ctrl+D")
-        self.assertIsNone(window._keys)
+        self.assertIsNone(shortcuts._listeners["hotkey"])
 
     def test_denied_monitoring_is_actionable_and_never_starts_thread(self):
         modules = {"Quartz": Mock(CGPreflightListenEventAccess=Mock(return_value=False),

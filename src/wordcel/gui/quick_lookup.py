@@ -22,7 +22,7 @@ from wordcel.gui.ruby import RubyBrowser
 from wordcel.gui.language_names import LANGUAGE_NAMES, language_name
 from wordcel.gui.lookup_render import (_compact_context, _dictionary_section_key, render_result)
 from wordcel.gui.lookup_worker import LookupWorker
-from wordcel.gui.profile_preferences import audio_autoplay_mode, default_text_shortcut
+from wordcel.gui.profile_preferences import audio_autoplay_mode
 from wordcel.language.profiles import default_partner
 from wordcel.config.profiles import (profile_ids, profile_language, profile_name, languages as profile_languages,
                                      dictionary_preferences)
@@ -248,7 +248,6 @@ class QuickLookupWindow(QDialog):
         self._details_expanded = set()
         self._kanji_details = set()
         self._pin_anchor_click = False
-        self._keys = None
         self._shutting_down = False
         self._drag_position = None
         self._drag_start = None
@@ -538,14 +537,8 @@ class QuickLookupWindow(QDialog):
         self.worker.start()
         self.hotkey_requested.connect(self.toggle_lookup)
         self.translation_requested.connect(self.open_translation)
-        self._translation_keys = None
-        self._copy_keys = None
-        self._hover_keys = None
-        self._cycle_keys = None
-        self._shortcut_callbacks = {name: getattr(self, name + "_requested").emit
-                                    for name in ("hotkey", "translation", "hover_toggle", "copy", "next_profile", "previous_profile")}
-        self._shortcuts_restored = False
-        self._failed_shortcuts = set()
+        from wordcel.gui.lookup_shortcuts import LookupShortcuts
+        self.lookup_shortcuts = LookupShortcuts(self)
         QApplication.instance().applicationStateChanged.connect(self._application_state_changed)
         self.next_profile_requested.connect(lambda: self.cycle_profile(1))
         self.previous_profile_requested.connect(lambda: self.cycle_profile(-1))
@@ -759,7 +752,7 @@ class QuickLookupWindow(QDialog):
             self.audio.cancel()
         self.mode_changed.emit(self.preferred_foreign)
         self.reload_appearance()
-        if self._shortcuts_restored:
+        if self.lookup_shortcuts.restored:
             try:
                 self.restore_shortcut()
             except (ValueError, OSError, RuntimeError) as error:
@@ -2779,101 +2772,34 @@ class QuickLookupWindow(QDialog):
         self.dictionaries_changed.emit()
 
     def apply_shortcut(self, value, preset=None):
-        from wordcel.gui.text_shortcuts import validate_shortcuts
-        bindings = {value: self._shortcut_callbacks["hotkey"]} if value else {}
-        validate_shortcuts([value, self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""), self.settings.value(f"profiles/{self.active_profile}/hover_hotkey", ""), self.settings.value(f"profiles/{self.active_profile}/copy_hotkey", "")])
-        warning = self._update_shortcut_listener("_keys", bindings)
-        self.settings.setValue(f"profiles/{self.active_profile}/hotkey", value)
-        if preset is not None:
-            self.settings.setValue(f"profiles/{self.active_profile}/hotkey_preset", preset)
-        return warning
+        return self.lookup_shortcuts.apply("hotkey", value, preset)
 
     def restore_shortcut(self, explicit=None):
-        self._shortcuts_restored = True
-        binding = explicit if explicit is not None else self.settings.value(f"profiles/{self.active_profile}/hotkey", default_text_shortcut())
-        self.apply_shortcut(binding)
-        self.apply_translation_shortcut(self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""))
-        self.apply_hover_shortcut(self.settings.value(f"profiles/{self.active_profile}/hover_hotkey", ""))
-        self.apply_copy_shortcut(self.settings.value(f"profiles/{self.active_profile}/copy_hotkey", ""))
-        self.restore_cycle_shortcuts()
+        self.lookup_shortcuts.restore(explicit)
 
     def restore_cycle_shortcuts(self):
-        from wordcel.gui.text_shortcuts import validate_shortcuts
-        values = [self.settings.value(name + "_hotkey", "") for name in ("next_profile", "previous_profile")]
-        validate_shortcuts([*values, *(self.settings.value(f"profiles/{self.active_profile}/" + key, "")
-                                      for key in ("hotkey", "translation_hotkey", "hover_hotkey", "copy_hotkey"))])
-        bindings = {value: self._shortcut_callbacks[name] for value, name in
-                    zip(values, ("next_profile", "previous_profile")) if value}
-        self._update_shortcut_listener("_cycle_keys", bindings)
+        self.lookup_shortcuts.restore_cycle()
 
     def refresh_translation_availability(self):
         from wordcel.gui.resources import managed_translation_available
         managed_translation_available.cache_clear()
         self._place_actions()
         self.reload_popup_shortcuts()
-        if self._shortcuts_restored:
+        if self.lookup_shortcuts.restored:
             self.apply_translation_shortcut(self.settings.value(f"profiles/{self.active_profile}/translation_hotkey", ""))
         self.scan_settings_changed.emit()
 
     def apply_translation_shortcut(self, value, preset=None):
-        return self._apply_auxiliary_shortcut("translation", value, preset)
+        return self.lookup_shortcuts.apply("translation", value, preset)
 
     def apply_copy_shortcut(self, value, preset=None):
-        return self._apply_auxiliary_shortcut("copy", value, preset)
+        return self.lookup_shortcuts.apply("copy", value, preset)
 
     def apply_hover_shortcut(self, value, preset=None):
-        return self._apply_auxiliary_shortcut("hover", value, preset)
-
-    def _apply_auxiliary_shortcut(self, name, value, preset):
-        from wordcel.gui.text_shortcuts import validate_shortcuts
-        key = f"profiles/{self.active_profile}/" + name + "_hotkey"
-        validate_shortcuts([value, *(self.settings.value(f"profiles/{self.active_profile}/" + other, default_text_shortcut() if other == "hotkey" else "") for other in
-                                   ("hotkey", "translation_hotkey", "hover_hotkey", "copy_hotkey") if not key.endswith("/" + other))])
-        callback = self._shortcut_callbacks["hover_toggle" if name == "hover" else name]
-        available = name != "translation" or self.translation_available()
-        bindings = {value: callback} if value and available else {}
-        warning = self._update_shortcut_listener("_" + name + "_keys", bindings)
-        self.settings.setValue(key, value)
-        if preset is not None:
-            self.settings.setValue(key + "_preset", preset)
-        return warning
-
-    def _update_shortcut_listener(self, attribute, bindings):
-        from wordcel.gui.text_shortcuts import TextHotKeys
-        from wordcel.utils.macos import AccessibilityPermissionError, InputMonitoringPermissionError
-        if not hasattr(self, "_failed_shortcuts"):
-            self._failed_shortcuts = set()
-        previous = getattr(self, attribute)
-        if previous is not None:
-            if bindings:
-                previous.update_bindings(bindings)
-            else:
-                previous.update_bindings({})
-                previous.stop()
-                setattr(self, attribute, None)
-            self._failed_shortcuts.discard(attribute)
-            return ""
-        if bindings:
-            listener = TextHotKeys(bindings)
-            try:
-                listener.start()
-            except (InputMonitoringPermissionError, AccessibilityPermissionError, OSError) as error:
-                self._failed_shortcuts.add(attribute)
-                self.show_message(str(error))
-                return str(error)
-            setattr(self, attribute, listener)
-            self._failed_shortcuts.discard(attribute)
-        return ""
+        return self.lookup_shortcuts.apply("hover", value, preset)
 
     def _application_state_changed(self, state):
-        if (state == Qt.ApplicationState.ApplicationActive and self._shortcuts_restored
-                and not self._shutting_down and self._failed_shortcuts):
-            from wordcel.utils.macos import privacy_permission_granted
-            if sys.platform == "darwin" and not privacy_permission_granted("input_monitoring"):
-                return
-            self.restore_shortcut()
-            if self._failed_shortcuts:
-                self.show_message("Restart Wordcel to enable global shortcuts.")
+        self.lookup_shortcuts.application_state_changed(state)
 
     def shutdown(self):
         if self._shutting_down:
@@ -2897,17 +2823,4 @@ class QuickLookupWindow(QDialog):
         if self._setup is not None:
             self._setup.cancel_operation()
             self._setup.audio_sources.shutdown()
-        if self._cycle_keys:
-            self._cycle_keys.stop()
-        if self._keys:
-            self._keys.stop()
-            self._keys = None
-        if self._copy_keys:
-            self._copy_keys.stop()
-            self._copy_keys = None
-        if self._hover_keys:
-            self._hover_keys.stop()
-            self._hover_keys = None
-        if self._translation_keys:
-            self._translation_keys.stop()
-            self._translation_keys = None
+        self.lookup_shortcuts.shutdown()

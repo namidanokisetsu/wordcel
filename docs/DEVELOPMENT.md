@@ -37,6 +37,7 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
 | Language support and analysis | `language/` |
 | Popup and result state | `gui/quick_lookup.py`, `gui/lookup_session.py`, `gui/dictionary_browser.py` |
 | Capture and OCR | `gui/desktop_input.py`, `gui/unified_ocr.py`, `ocr/` |
+| Global shortcuts | `gui/lookup_shortcuts.py`, `gui/text_shortcuts.py` |
 | Profiles and resources | `config/profiles.py`, `gui/dictionary_manager.py`, `gui/data_manager.py`, `data_assets.py` |
 | History | `history.py`, `gui/lookup_history.py` |
 | Translation | `dictionary/translation.py` |
@@ -67,7 +68,8 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   Unhandled `nativeEvent` must return `(False, 0)` directly because the PyQt base
   call can crash. macOS uses a narrow Cocoa tray adapter; listeners confirm
   readiness and retry after permission changes. Navigation must not request
-  permissions. Keep text shortcuts independently disableable. Passage capture
+  permissions. `LookupShortcuts` owns global listener bindings, retries and shutdown.
+  Keep text shortcuts independently disableable. Passage capture
   uses frozen per-display images and a separate OCR mailbox; profile/provider
   changes discard pending clipboard results.
 - **Translation:** edits invalidate pending work; dismissal cancels it. Respect
