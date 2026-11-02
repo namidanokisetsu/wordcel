@@ -7,6 +7,7 @@ from PyQt6.QtGui import QTextDocument
 
 from wordcel.config.config import config
 from wordcel.dictionary.structured_content import StructuredContentConverter
+from wordcel.gui.action_icons import disclosure_html
 from wordcel.gui.popup_style import surface_colors
 from wordcel.gui.ruby import TAG_PREFIX, ruby_html
 
@@ -106,7 +107,8 @@ class _GlossConverter(StructuredContentConverter):
             self.expanded, self.remaining = expanded, remaining
         return (f'<div><a name="details-{key}"></a><a href="details:{key}" '
                 f'title="{"Collapse" if opened else "Expand"}"><small>'
-                f'{"▾" if opened else "▸"} {label}</small></a></div>{body}')
+                f'{disclosure_html(opened, self.colors["muted"], round(config.font_size_definitions * .6))} '
+                f'{label}</small></a></div>{body}')
 
     def _ruby_to_html(self, content):
         parts, base = [], []

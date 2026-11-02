@@ -1,4 +1,5 @@
 """Small monochrome action icons drawn locally for the shared popup."""
+from base64 import b64encode
 from functools import lru_cache
 from PyQt6.QtCore import QByteArray, QRectF, QSize, Qt
 from PyQt6.QtGui import QIcon, QIconEngine, QPainter, QPixmap
@@ -8,6 +9,16 @@ from PyQt6.QtWidgets import QToolButton
 POPUP_ACTIONS = (("anki", "Add to Anki"), ("audio_sentence", "Sentence audio"),
                  ("audio", "Word audio"), ("translate", "Translate"),
                  ("copy", "Copy"), ("close", "Close"), ("back", "Back"))
+
+
+@lru_cache(maxsize=128)
+def disclosure_html(opened, color, size):
+    # Both orientations occupy the same square, independent of font glyph widths.
+    path = "m2 4 4 5 4-5z" if opened else "m4 2 5 4-5 4z"
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12">'
+           f'<path fill="{color}" d="{path}"/></svg>')
+    data = b64encode(svg.encode()).decode()
+    return f'<img src="data:image/svg+xml;base64,{data}" width="{size}" height="{size}">'
 
 
 _SHAPES = {

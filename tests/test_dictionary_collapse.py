@@ -64,6 +64,31 @@ class DictionaryCollapseTests(unittest.TestCase):
         self.window._link(QUrl("collapse:0:0"))
         self.assertIn("Meaning 3", self.window.browser.toPlainText())
 
+    def test_disclosure_labels_keep_their_position(self):
+        details = {"type": "structured-content", "content": {
+            "tag": "details", "content": [
+                {"tag": "summary", "content": "Examples"},
+                {"tag": "div", "content": "An example"}]}}
+        self.window.show_entries((_entry("JMdict", ("house", details)),), "ie")
+        self.window.show()
+        self.app.processEvents()
+
+        def label_rect(label):
+            cursor = self.window.browser.document().find(label)
+            self.assertFalse(cursor.isNull())
+            cursor.setPosition(cursor.selectionStart())
+            return self.window.browser.cursorRect(cursor)
+
+        for label, link in (("JMdict", "collapse:0:0"), ("Examples", "details:0:0:0")):
+            with self.subTest(label=label):
+                before = label_rect(label)
+                geometry = self.window.geometry()
+                for _ in range(2):
+                    self.window._link(QUrl(link))
+                    self.app.processEvents()
+                    self.assertEqual(label_rect(label), before)
+                    self.assertEqual(self.window.geometry(), geometry)
+
 
 if __name__ == "__main__":
     unittest.main()

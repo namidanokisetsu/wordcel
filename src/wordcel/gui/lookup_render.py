@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFontMetricsF, QTextLayout, QTextOption
 
 from wordcel.config.config import config
+from wordcel.gui.action_icons import disclosure_html
 from wordcel.gui.gloss_content import _GlossConverter, normalize_definitions
 from wordcel.gui.popup_style import surface_colors
 from wordcel.gui.ruby import TAG_PREFIX, ruby_html
@@ -217,7 +218,8 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                            if source != first_source else "")
                 parts.append(f'<p class="source">{section}<a href="collapse:{group_index}:{index}" '
                              f'title="{"Expand" if hidden else "Collapse"}" style="color:{muted}">'
-                             f'<small>{"▸" if hidden else "▾"}  {escape(label)}</small></a></p>')
+                             f'<small>{disclosure_html(not hidden, muted, round(config.font_size_definitions * .6))} '
+                             f'{escape(label)}</small></a></p>')
             if len(definitions) > 1:
                 opening = '<ol style="margin-left:20px">' if len(definitions) > 9 else "<ol>"
                 parts.append(opening + "".join(f"<li>{gloss}</li>" for gloss in definitions) + "</ol>")
