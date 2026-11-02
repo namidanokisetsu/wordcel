@@ -102,19 +102,13 @@ def _backup(settings):
     backup_path = path.with_name(path.name + ".inheritance-backup.ini")
     if backup_path.exists():
         return backup_path
-    try:
-        backup_path.parent.mkdir(parents=True, exist_ok=True)
-        backup = QSettings(str(backup_path), QSettings.Format.IniFormat)
-        for key in settings.allKeys():
-            backup.setValue(key, deepcopy(settings.value(key)))
-        backup.sync()
-        if backup.status() != QSettings.Status.NoError:
-            raise OSError("Could not back up settings.")
-    except (OSError, RuntimeError):
-        # The profile migration has a second backup path. Do not make an
-        # otherwise valid in-memory migration unusable for registry-backed or
-        # test settings that cannot expose a file.
-        return None
+    backup_path.parent.mkdir(parents=True, exist_ok=True)
+    backup = QSettings(str(backup_path), QSettings.Format.IniFormat)
+    for key in settings.allKeys():
+        backup.setValue(key, deepcopy(settings.value(key)))
+    backup.sync()
+    if backup.status() != QSettings.Status.NoError:
+        raise OSError("Could not back up settings.")
     return backup_path
 
 
