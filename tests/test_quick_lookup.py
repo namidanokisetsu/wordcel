@@ -3572,10 +3572,14 @@ class QuickLookupTests(unittest.TestCase):
                 self.assertTrue(points)
                 point = QPoint((min(p.x() for p in points) + max(p.x() for p in points)) // 2,
                                (min(p.y() for p in points) + max(p.y() for p in points)) // 2)
+                anchor = self.window._headword_anchor(header, header.document().begin())
                 QTest.mouseClick(header.viewport(), Qt.MouseButton.LeftButton, pos=point)
                 self.app.processEvents()
                 self.assertIn("犬", self.window.kanji_browser.toPlainText())
                 self.assertTrue(self.window.kanji_panel.isVisible())
+                self.assertEqual(self.window._headword_anchor(
+                    self.window.kanji_browser, self.window.kanji_browser.document().begin()), anchor)
+                self.window.go_back()
 
     def test_headword_kanji_opens_full_view_without_rebuilding_or_resizing(self):
         kanji = (KanjiEntry("猫", source="Kanji A", meanings=("cat",), stats=(("strokes", 11),)),)
@@ -3600,6 +3604,8 @@ class QuickLookupTests(unittest.TestCase):
         self.assertIs(self.window._result, result)
         self.assertEqual(self.window.revision, revision)
         self.window._link(QUrl("headkanji:0:%E7%8C%AB"))
+        self.assertTrue(self.window._kanji_view)
+        self.window.go_back()
         self.assertTrue(self.window.kanji_panel.isHidden())
 
     def test_kanji_links_share_one_view_and_preserve_dictionary_selection(self):
@@ -3634,6 +3640,64 @@ class QuickLookupTests(unittest.TestCase):
         self.assertTrue(self.window.kanji_panel.isHidden())
         self.assertEqual(browser.verticalScrollBar().value(), scroll)
         self.assertEqual(browser.textCursor().selectedText(), selection)
+
+    def test_kanji_preserves_headword_baseline_without_pitch_or_frequency(self):
+        from wordcel.dictionary.pitch import Pitch, PITCH_OBJECT
+        from wordcel.gui.ruby import ACTIVE_KANJI, RUBY
+        for preview in (False, True):
+            for ruby in (False, True):
+                with self.subTest(preview=preview, ruby=ruby):
+                    self.settings.setValue("profiles/ja/headword_furigana", ruby)
+                    self.settings.setValue("profiles/ja/pinned_sentence", True)
+                    self.window.reload_appearance()
+                    word = replace(entry("敷島"), reading="しきしま",
+                                   frequencies=(Frequency("Corpus", 98765, "98765"),),
+                                   pitches=(Pitch("Pitch", "しきしま", 2),))
+                    self.window.show_entries((word,), "敷島", peek=preview,
+                                             kanji=(KanjiEntry("敷", meanings=("spread",)),))
+                    if preview:
+                        self.window.pin.setChecked(True)
+                    self.window.set_context("故郷は敷島です。", 3, 5)
+                    self.app.processEvents()
+                    before = self.window._headword_anchor(self.window.browser, self.window._headword_blocks[0])
+                    revision = self.window.browser.document().revision()
+                    self.window._link(QUrl("headkanji:0:敷"))
+                    self.app.processEvents()
+                    browser = self.window.kanji_browser
+                    self.assertEqual(self.window._headword_anchor(browser, browser.document().begin()), before)
+                    self.assertNotIn("98765", browser.toPlainText())
+                    iterator = browser.document().begin().begin()
+                    while not iterator.atEnd():
+                        fmt = iterator.fragment().charFormat()
+                        self.assertNotEqual(fmt.objectType(), PITCH_OBJECT)
+                        if fmt.objectType() == RUBY:
+                            self.assertEqual(fmt.property(ACTIVE_KANJI), "敷")
+                        iterator += 1
+                    self.assertEqual(self.window.browser.document().revision(), revision)
+                    self.window.go_back()
+                    self.app.processEvents()
+                    self.assertEqual(self.window._headword_anchor(self.window.browser, self.window._headword_blocks[0]), before)
+
+    def test_kanji_glyph_fits_height_and_grows_with_window_up_to_cap(self):
+        from wordcel.gui.ruby import GLYPH_FONT, MAX_GLYPH_SIZE
+        self.window.show_entries((entry("敷島"),), "敷島",
+                                 kanji=(KanjiEntry("敷", meanings=("spread",)),))
+        self.app.processEvents()
+        self.window._link(QUrl("headkanji:0:敷"))
+        sizes = []
+        for width, height in ((360, 220), (900, 700), (360, 220)):
+            self.window.resize(width, height)
+            self.app.processEvents()
+            browser = self.window.kanji_browser
+            cursor, _ = browser._glyphs[0]
+            bounds = browser._glyph_object.bounds(cursor.charFormat())
+            top = browser.document().documentLayout().frameBoundingRect(cursor.currentTable()).top()
+            self.assertLessEqual(top + bounds.height(), browser.viewport().height())
+            self.assertLessEqual(bounds.width(), browser.viewport().width() / 2)
+            self.assertLessEqual(cursor.charFormat().property(GLYPH_FONT).pixelSize(), MAX_GLYPH_SIZE)
+            sizes.append(bounds.height())
+        self.assertGreater(sizes[1], sizes[0])
+        self.assertAlmostEqual(sizes[0], sizes[2], delta=1)
 
     def test_kanji_source_tooltips_and_render_preserve_selection(self):
         from PyQt6.QtGui import QHelpEvent
@@ -3795,12 +3859,12 @@ class QuickLookupTests(unittest.TestCase):
             self.assertIn("敷島", browser.toPlainText())
             header_bottom = browser.cursorRect(browser.document().find("敷島")).bottom()
             meanings_top = browser.cursorRect(browser.document().find("island")).top()
-            self.assertGreaterEqual(meanings_top - header_bottom, browser.fontMetrics().height() / 2)
+            self.assertGreater(meanings_top, header_bottom)
             self.assertTrue(browser.document().find("島").charFormat().fontUnderline())
             cursor = browser.document().find("敷")
             cursor.setPosition(cursor.selectionStart())
             point = browser.cursorRect(cursor).center() + QPoint(2, 0)
-            self.assertEqual(QUrl(browser.anchorAt(point)).scheme(), "kanjiselect")
+            self.assertEqual(QUrl(browser.anchorAt(point)).scheme(), "headkanji")
             QTest.mouseClick(browser.viewport(), Qt.MouseButton.LeftButton, pos=point)
             self.app.processEvents()
             self.assertEqual(self.window._kanji_details, {"敷"})

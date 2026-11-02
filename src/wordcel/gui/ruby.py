@@ -3,6 +3,7 @@ from urllib.parse import quote, unquote
 from itertools import count
 from functools import lru_cache
 from html import escape
+import math
 
 from PyQt6.QtCore import QEvent, QMimeData, QObject, QPointF, QSizeF, Qt, QUrl
 from PyQt6.QtGui import (QColor, QFont, QFontMetricsF, QTextCharFormat, QTextCursor,
@@ -25,6 +26,8 @@ TAG_PREFIX = "wordcel-tag:"
 GLYPH_PREFIX = "wordcel-glyph:"
 GLYPH = QTextFormat.ObjectTypes.UserObject.value + 3
 GLYPH_FONT = KANJI_GROUP + 1
+ACTIVE_KANJI = GLYPH_FONT + 1
+MAX_GLYPH_SIZE = 256
 _ruby_ids = count()
 
 
@@ -91,6 +94,15 @@ class RubyObject(QObject, QTextObjectInterface):
         text = fmt.property(BASE)
         painter.drawText(QPointF(rect.x() + (rect.width() - base.horizontalAdvance(text)) / 2,
                                  rect.bottom()), text)
+        active = fmt.property(ACTIVE_KANJI)
+        if active:
+            left = rect.x() + (rect.width() - base.horizontalAdvance(text)) / 2
+            for index, character in enumerate(text):
+                if character == active:
+                    start = left + base.horizontalAdvance(text[:index])
+                    end = left + base.horizontalAdvance(text[:index + 1])
+                    y = rect.bottom() + base.underlinePos()
+                    painter.drawLine(QPointF(start, y), QPointF(end, y))
         painter.restore()
 
 
@@ -118,6 +130,9 @@ class RubyBrowser(DictionaryBrowser):
         self._glyph_object = GlyphObject(self)
         self._pitch_object = None
         self._pressed_kanji = ""
+        self.adaptive_glyphs = False
+        self._glyphs = []
+        self._fitting_glyphs = False
         self.document().documentLayout().registerHandler(RUBY, self._ruby_object)
         self.document().documentLayout().registerHandler(GLYPH, self._glyph_object)
 
@@ -141,7 +156,8 @@ class RubyBrowser(DictionaryBrowser):
             return True
         return super().viewportEvent(event)
 
-    def setHtml(self, html):
+    def setHtml(self, html, *, heading=None, selected=""):
+        self._glyphs = []
         super().setHtml(html)
         document = self.document()
         runs, tags = [], []
@@ -217,6 +233,78 @@ class RubyBrowser(DictionaryBrowser):
                 cursor.insertText("\ufffc", fmt)
         finally:
             cursor.endEditBlock()
+        if heading is not None:
+            cursor = QTextCursor(document)
+            cursor.insertFragment(heading)
+            cursor.insertBlock()
+            block = document.begin()
+            iterator = block.begin()
+            while not iterator.atEnd():
+                fragment = iterator.fragment()
+                fmt = QTextCharFormat(fragment.charFormat())
+                cursor.setPosition(fragment.position())
+                cursor.setPosition(fragment.position() + fragment.length(), QTextCursor.MoveMode.KeepAnchor)
+                if fmt.objectType() == RUBY:
+                    fmt.setProperty(ACTIVE_KANJI, selected)
+                    cursor.setCharFormat(fmt)
+                elif fmt.anchorHref().startswith("headkanji:"):
+                    fmt.setFontUnderline(unquote(fmt.anchorHref().rpartition(":")[2]) == selected)
+                    cursor.setCharFormat(fmt)
+                iterator += 1
+        self._glyphs = []
+        block = document.begin() if self.adaptive_glyphs else document.end()
+        while block.isValid():
+            iterator = block.begin()
+            while not iterator.atEnd():
+                fragment = iterator.fragment()
+                if fragment.charFormat().objectType() == GLYPH:
+                    cursor = QTextCursor(document)
+                    cursor.setPosition(fragment.position())
+                    cursor.setPosition(fragment.position() + 1, QTextCursor.MoveMode.KeepAnchor)
+                    self._glyphs.append((cursor, QFont(fragment.charFormat().property(GLYPH_FONT))))
+                iterator += 1
+            block = block.next()
+        self.fit_glyphs()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.fit_glyphs()
+
+    def fit_glyphs(self):
+        if not self.adaptive_glyphs or not self._glyphs or self._fitting_glyphs:
+            return
+        self._fitting_glyphs = True
+        try:
+            document = self.document()
+            for cursor, original in self._glyphs:
+                table = cursor.currentTable()
+                if table is None:
+                    continue
+                top = document.documentLayout().frameBoundingRect(table).top()
+                available_height = max(1, self.viewport().height() - top - QFontMetricsF(document.defaultFont()).height())
+                cell = table.cellAt(cursor).format().toTableCellFormat()
+                padding = cell.leftPadding() + cell.rightPadding()
+                available_width = max(1, self.viewport().width() / 2 - padding)
+                fmt = QTextCharFormat(cursor.charFormat())
+                bounds = QFontMetricsF(original).tightBoundingRect(fmt.property(BASE))
+                scale = min(MAX_GLYPH_SIZE / original.pixelSize(), available_width / max(1, bounds.width()),
+                            available_height / max(1, bounds.height()))
+                font = QFont(original)
+                font.setPixelSize(max(1, math.floor(original.pixelSize() * scale)))
+                if font == fmt.property(GLYPH_FONT):
+                    continue
+                cursor.beginEditBlock()
+                fmt.setProperty(GLYPH_FONT, font)
+                cursor.setCharFormat(fmt)
+                width = self._glyph_object.bounds(fmt).width() + padding
+                table_format = table.format()
+                table_format.setColumnWidthConstraints([
+                    QTextLength(QTextLength.Type.FixedLength, width),
+                    QTextLength(QTextLength.Type.VariableLength, 1)])
+                table.setFormat(table_format)
+                cursor.endEditBlock()
+        finally:
+            self._fitting_glyphs = False
 
     def _plain_selection(self, cursor):
         start, end = cursor.selectionStart(), cursor.selectionEnd()

@@ -257,6 +257,8 @@ class QuickLookupWindow(QDialog):
         self._kanji_details = set()
         self._kanji_origin = ""
         self._kanji_return_position = None
+        self._kanji_heading = None
+        self._kanji_heading_anchor = None
         self._pin_anchor_click = False
         self._shutting_down = False
         self._drag_position = None
@@ -460,10 +462,10 @@ class QuickLookupWindow(QDialog):
         self.content_stack.setMinimumHeight(self.browser.fontMetrics().height())
         self.kanji_panel = QWidget()
         kanji_layout = QVBoxLayout(self.kanji_panel)
-        padding = 2 * PANE_PADDING
-        kanji_layout.setContentsMargins(padding, padding, padding, padding)
+        kanji_layout.setContentsMargins(0, 0, 0, 0)
         self.kanji_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         self.kanji_browser = RubyBrowser()
+        self.kanji_browser.adaptive_glyphs = True
         self.kanji_browser.setAccessibleName("Kanji details")
         self.kanji_browser.setOpenLinks(False)
         self.kanji_browser.setOpenExternalLinks(False)
@@ -485,6 +487,7 @@ class QuickLookupWindow(QDialog):
         self.content_stack.setCurrentWidget(self.lookup_splitter)
         layout.addWidget(self.content_stack, 1)
         self._kanji_html = ""
+        self._kanji_heading_identity = None
         self.status = QLabel()
         self.status.setWordWrap(True)
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
@@ -1328,6 +1331,9 @@ class QuickLookupWindow(QDialog):
         elif self._new_chain or not same:
             self._kanji_details.clear()
             self._kanji_origin = ""
+        if self._new_chain or not same:
+            self._kanji_heading = None
+            self._kanji_heading_anchor = None
         if expanded is not None:
             self._expanded = set(expanded)
         elif self._new_chain or not same:
@@ -1620,6 +1626,8 @@ class QuickLookupWindow(QDialog):
         self._kanji_details.clear()
         self._kanji_origin = ""
         self._render_kanji_panel()
+        self._kanji_heading = None
+        self._kanji_heading_anchor = None
 
     @property
     def _kanji_view(self):
@@ -1642,6 +1650,9 @@ class QuickLookupWindow(QDialog):
         self._update_trail()
         self._place_actions()
         self.layout().activate()
+        self.frame.layout().activate()
+        if visible:
+            self._align_kanji_heading()
         if not visible:
             if self._kanji_return_position is not None:
                 self._kanji_return_position.restore(self.browser, preserve_scroll=True)
@@ -1653,8 +1664,54 @@ class QuickLookupWindow(QDialog):
         return next((entry.term for entry in self._result.entries if character in entry.term),
                     self._result.text or character)
 
+    def _capture_kanji_heading(self):
+        if self._result is None or getattr(self, "_rendered_result_key", None) != (
+                self._result.text, self._result.source, self._result.target):
+            return
+        groups = list(self._headword_groups())
+        index = next((index for index, (term, _) in enumerate(groups) if term == self._kanji_origin), None)
+        if index is None or index >= len(self._headword_blocks):
+            return
+        block = self._headword_blocks[index]
+        source = self.browser
+        sticky = source.section_scroll.header
+        if not sticky.isHidden() and source.section_scroll._heading == block.position():
+            source = sticky
+            block = source.document().begin()
+        cursor = QTextCursor(block)
+        self._kanji_heading_anchor = self._headword_anchor(source, block)
+        from wordcel.gui.ruby import RUBY
+        fragment = block.begin().fragment()
+        length = 1 if fragment.charFormat().objectType() == RUBY else len(self._kanji_origin.encode("utf-16-le")) // 2
+        cursor.setPosition(block.position() + length, QTextCursor.MoveMode.KeepAnchor)
+        self._kanji_heading = cursor.selection()
+
+    def _headword_anchor(self, browser, block):
+        rect = browser.document().documentLayout().blockBoundingRect(block)
+        caret = browser.cursorRect(QTextCursor(block))
+        if not block.layout().lineCount():
+            return browser.viewport().mapTo(self, caret.topLeft())
+        line = block.layout().lineAt(0)
+        x = caret.x()
+        y = rect.top() + line.y() + line.ascent() - browser.verticalScrollBar().value()
+        return browser.viewport().mapTo(self, QPoint(x, round(y)))
+
+    def _align_kanji_heading(self):
+        if not self._kanji_view or self._kanji_heading_anchor is None:
+            return
+        current = self._headword_anchor(self.kanji_browser, self.kanji_browser.document().begin())
+        margins = self.kanji_panel.layout().contentsMargins()
+        left = max(0, margins.left() + self._kanji_heading_anchor.x() - current.x())
+        top = max(0, margins.top() + self._kanji_heading_anchor.y() - current.y())
+        self.kanji_panel.layout().setContentsMargins(left, top, 0, 0)
+        self.kanji_panel.layout().activate()
+        self.kanji_browser.fit_glyphs()
+
     def _select_kanji(self, character, *, origin=None, toggle=True):
+        previous_origin = self._kanji_origin
         self._kanji_origin = origin or (self._kanji_origin if self._kanji_details else self._kanji_word(character))
+        if not self._kanji_view or self._kanji_origin != previous_origin:
+            self._capture_kanji_heading()
         self._kanji_details = set() if toggle and character in self._kanji_details else {character}
         self.fit_timer.stop()
         self._render_kanji_panel()
@@ -1665,12 +1722,18 @@ class QuickLookupWindow(QDialog):
         visible = bool(entries) and not self._translation_view and not (self._peek and not self.is_pinned)
         if visible and not self._kanji_origin:
             self._kanji_origin = self._kanji_word(entries[0].character)
-        html = render_kanji_details(entries, origin=self._kanji_origin,
+        if visible and self._kanji_heading is None:
+            self._capture_kanji_heading()
+        html = render_kanji_details(entries, origin="" if self._kanji_heading is not None else self._kanji_origin,
                                    available_characters={entry.character for entry in self._result.kanji}) if visible else ""
-        if html != self._kanji_html:
-            self.kanji_browser.setHtml(html)
+        heading_identity = id(self._kanji_heading) if visible else None
+        if html != self._kanji_html or heading_identity != self._kanji_heading_identity:
+            self.kanji_browser.setHtml(html, heading=self._kanji_heading if visible else None,
+                                       selected=entries[0].character if visible else "")
             self._kanji_html = html
+            self._kanji_heading_identity = heading_identity
         self._set_kanji_visible(visible)
+        self._align_kanji_heading()
         self._update_trail()
 
     def _link(self, url):
@@ -1691,7 +1754,7 @@ class QuickLookupWindow(QDialog):
             if (not group.isdigit() or int(group) >= len(groups) or character not in groups[int(group)][0]
                     or character not in {entry.character for entry in self._result.kanji}):
                 return
-            self._select_kanji(character, origin=groups[int(group)][0])
+            self._select_kanji(character, origin=groups[int(group)][0], toggle=not self._kanji_view)
             return
         if url.scheme() == "kanjiselect":
             character = url.path()
@@ -1954,7 +2017,7 @@ class QuickLookupWindow(QDialog):
             self.audio_actions.setParent(container)
             if not inline:
                 self.header.layout().addWidget(self.audio_actions, 0, Qt.AlignmentFlag.AlignRight)
-        self.search.setVisible(not self._peek and not self._translation_view and not kanji_view)
+        self.search.setVisible(not self._peek and not self._translation_view)
         show_history = (not self._translation_view and self.lookup_history.value(
             "button_ocr" if self._peek else "button_manual", False))
         self.history_button.setVisible(show_history)
