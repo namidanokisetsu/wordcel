@@ -334,6 +334,29 @@ def _reset_binding(settings, key, default):
     return [key, preset]
 
 
+def _reset_scan_bindings(settings, key):
+    """Reset the scan key and mouse defaults without enabling either one."""
+    if not settings.contains(key):
+        return []
+    value = settings.value(key)
+    if not isinstance(value, str):
+        return []
+    from wordcel.gui.activation import KEYBOARD_TOKENS, MOUSE_TOKENS, parse_activation_bindings
+    if not value:
+        return_value = ""
+    else:
+        try:
+            bindings = parse_activation_bindings(value)
+        except ValueError:
+            return []
+        key_enabled = any(binding & KEYBOARD_TOKENS for binding in bindings)
+        mouse_enabled = any(binding & MOUSE_TOKENS for binding in bindings)
+        return_value = ",".join(filter(None, ("shift" if key_enabled else "",
+                                                "middle" if mouse_enabled else "")))
+    settings.setValue(key, return_value)
+    return [key]
+
+
 def _reset_translation(settings, prefix):
     """Reset translation behavior while retaining provider and server data."""
     key = prefix + "translation"
@@ -367,7 +390,7 @@ def reset_page(settings, profile_id, page):
     prefix = f"profiles/{profile_id}/"
     specifications = PROFILE_PAGE_KEYS[page]
     if page == "Shortcuts":
-        binding_keys = set(SHORTCUT_DEFAULTS)
+        binding_keys = set(SHORTCUT_DEFAULTS) | {"scan_bindings"}
         non_binding = tuple(specification for specification in specifications
                             if specification not in binding_keys and not specification.endswith("/"))
         removed = _remove_scoped(settings, prefix, non_binding)
@@ -382,6 +405,7 @@ def reset_page(settings, profile_id, page):
                 # The normal key map includes the profile prefix; popup and
                 # Anki bindings remain independently disableable.
                 removed.extend(_reset_binding(settings, prefix + relative, default))
+        removed.extend(_reset_scan_bindings(settings, prefix + "scan_bindings"))
     _sync(settings)
     return tuple(dict.fromkeys(removed))
 def reset_profile(settings, profile_id):
@@ -394,12 +418,13 @@ def reset_profile(settings, profile_id):
             # Do this page once without syncing; the final sync below keeps a
             # profile reset atomic from the UI's perspective.
             prefix = f"profiles/{profile_id}/"
-            binding_keys = set(SHORTCUT_DEFAULTS)
+            binding_keys = set(SHORTCUT_DEFAULTS) | {"scan_bindings"}
             non_binding = tuple(specification for specification in PROFILE_PAGE_KEYS[page]
                                 if specification not in binding_keys and not specification.endswith("/"))
             changed.extend(_remove_scoped(settings, prefix, non_binding))
             for relative, default in SHORTCUT_DEFAULTS.items():
                 changed.extend(_reset_binding(settings, prefix + relative, default))
+            changed.extend(_reset_scan_bindings(settings, prefix + "scan_bindings"))
         else:
             changed.extend(_remove_scoped(settings, f"profiles/{profile_id}/", PROFILE_PAGE_KEYS[page]))
             if page == "Translation":

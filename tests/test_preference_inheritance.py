@@ -140,6 +140,9 @@ class IndependentProfileSettingsTests(unittest.TestCase):
         self.assertEqual(self.settings.value(f"profiles/{profile}/hotkey"), "")
         expected_preset = "Ctrl+Shift+D"
         self.assertEqual(self.settings.value(f"profiles/{profile}/hotkey_preset"), expected_preset)
+        self.settings.setValue(f"profiles/{profile}/scan_bindings", "middle")
+        reset_page(self.settings, profile, "Shortcuts")
+        self.assertEqual(self.settings.value(f"profiles/{profile}/scan_bindings"), "middle")
         reset_page(self.settings, profile, "Translation")
         translation = json.loads(self.settings.value(f"profiles/{profile}/translation"))
         self.assertEqual((translation["provider"], translation["profile"], translation["endpoint"], translation["model"]),
