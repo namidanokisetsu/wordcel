@@ -212,7 +212,7 @@ def _publish_download(temporary, metadata, destination, digest, size, cancelled)
     return destination
 
 
-def download_verified(url, destination, digest, progress=None, cancelled=None, size=None, label=None):
+def download_verified(url, destination, digest, progress=None, cancelled=None, size=None, label=None, opener=None):
     """Download a pinned artifact, retaining a validator-bound partial for resume.
 
     Only a complete file whose expected size and SHA256 match is published. Network
@@ -222,6 +222,7 @@ def download_verified(url, destination, digest, progress=None, cancelled=None, s
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     label = label or destination.name
+    opener = opener or urlopen
     _cancel(cancelled)
     if destination.is_file():
         try:
@@ -249,7 +250,7 @@ def download_verified(url, destination, digest, progress=None, cancelled=None, s
             if validator:
                 headers["If-Range"] = validator
         try:
-            response = urlopen(Request(url, headers=headers), timeout=30)
+            response = opener(Request(url, headers=headers), timeout=30)
         except HTTPError as error:
             if error.code != 416 or not offset:
                 raise

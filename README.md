@@ -2,7 +2,7 @@
 
 Multilingual OCR popup dictionary for Windows and macOS. Look up screen or selected text, hear pronunciations, translate sentences and save words to Anki with context, screenshots and audio. Works fully offline after setup, with optional online recordings.
 
-[Download](https://github.com/namidanokisetsu/wordcel/releases) · [Supported languages](docs/LANGUAGES.md) · [User guide](docs/USER_GUIDE.md)
+[Download](https://github.com/namidanokisetsu/wordcel/releases) · [Supported languages](docs/LANGUAGES.md) · [User guide](docs/USER_GUIDE.md) · [FAQ](docs/USER_GUIDE.md#faq) · [Report a bug](https://github.com/namidanokisetsu/wordcel/issues/new)
 
 ![Japanese lookup demo](docs/images/lookup-demo.gif)
 
