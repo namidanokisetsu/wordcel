@@ -1,8 +1,12 @@
 # Supported languages
 
-✅ Available after setup; ❌ No built-in option listed. These marks show feature coverage, not accuracy ratings.
+✅ Available after setup. ❌ No built-in option.
 
-**Word forms** means finding a base word from an inflected form. Dictionary checks mean a download is listed in Settings; pack size and quality vary. OCR marks cover Wordcel's downloadable models; Windows OCR and Apple Vision depend on your system. Imported dictionaries can add coverage.
+Treat this table as a starting point. Quality and coverage vary by language, so download and test what you need.
+
+**Word forms** means recognizing the base word when you look up an inflected form, like finding “run” from “running.”
+
+Most **dictionary downloads** come from Wiktionary.
 
 | Language | OCR models | Word forms | Dictionary downloads |
 | --- | :---: | :---: | :---: |
