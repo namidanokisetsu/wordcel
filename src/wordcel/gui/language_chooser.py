@@ -1,6 +1,6 @@
 """Language search accepts native names, English names and language codes."""
 from PyQt6.QtCore import QLocale, QSortFilterProxyModel, Qt
-from PyQt6.QtWidgets import QComboBox, QCompleter, QDialog, QDialogButtonBox, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout
+from PyQt6.QtWidgets import QComboBox, QCompleter, QDialog, QDialogButtonBox, QFrame, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout
 
 
 def language_search_text(code, label):
@@ -37,28 +37,26 @@ class LanguageComboBox(QComboBox):
         return self.currentData() if self.currentText() == self.itemText(self.currentIndex()) else None
 
 
-class LanguageChooser(QDialog):
-    def __init__(self, parent, languages, selected=None, title="Language"):
+class LanguageList(QFrame):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(title)
         layout = QVBoxLayout(self)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Language or code")
         layout.addWidget(self.search)
         self.languages = QListWidget()
+        layout.addWidget(self.languages)
+        self.search.textChanged.connect(self.filter)
+
+    def set_languages(self, languages, selected=None):
+        self.search.clear()
+        self.languages.clear()
         for code, label in sorted(languages.items(), key=lambda item: item[1].casefold()):
             item = QListWidgetItem(f"{label} ({code})", self.languages)
             item.setData(Qt.ItemDataRole.UserRole, code)
             item.setData(Qt.ItemDataRole.UserRole + 1, language_search_text(code, label))
             if code == selected:
                 self.languages.setCurrentItem(item)
-        layout.addWidget(self.languages)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-        self.languages.itemDoubleClicked.connect(self.accept)
-        self.search.textChanged.connect(self.filter)
 
     def filter(self, text):
         first = None
@@ -72,6 +70,26 @@ class LanguageChooser(QDialog):
     def selected_code(self):
         item = self.languages.currentItem()
         return item.data(Qt.ItemDataRole.UserRole) if item is not None and not item.isHidden() else None
+
+
+class LanguageChooser(QDialog):
+    def __init__(self, parent, languages, selected=None, title="Language"):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        layout = QVBoxLayout(self)
+        self.picker = LanguageList(self)
+        self.picker.layout().setContentsMargins(0, 0, 0, 0)
+        self.picker.set_languages(languages, selected)
+        self.search, self.languages = self.picker.search, self.picker.languages
+        layout.addWidget(self.picker)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.languages.itemDoubleClicked.connect(self.accept)
+
+    def selected_code(self):
+        return self.picker.selected_code()
 
 
 def choose_language(parent, languages, selected=None, title="Language"):

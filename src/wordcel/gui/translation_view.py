@@ -1,7 +1,7 @@
 """A separate reading surface for the source sentence and its translation."""
 from html import escape
 
-from PyQt6.QtCore import QSignalBlocker, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QSignalBlocker, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QSplitter, QTextEdit, QToolButton, QVBoxLayout, QWidget
 
@@ -10,6 +10,7 @@ from wordcel.gui.ruby import RubyBrowser
 from wordcel.gui.section_scroll import ReadingPosition
 from wordcel.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, surface_colors
 from wordcel.gui.action_icons import action_button, action_icon
+from wordcel.gui.language_chooser import LanguageList
 
 
 class PaneSplitter(QSplitter):
@@ -138,6 +139,7 @@ class TranslationPanel(QWidget):
     source_changed = pyqtSignal(str)
     translate_requested = pyqtSignal()
     language_requested = pyqtSignal(str)
+    language_selected = pyqtSignal(str, str)
     swap_requested = pyqtSignal()
 
     def __init__(self, settings=None):
@@ -183,6 +185,85 @@ class TranslationPanel(QWidget):
         self.source.submitted.connect(self.translate_requested)
         self.translation = ""
         self.busy = False
+        self.language_picker = LanguageList(self)
+        self.language_picker.hide()
+        self._language_role = None
+        self.language_picker.languages.itemClicked.connect(self._select_language)
+        self.language_picker.languages.itemActivated.connect(self._select_language)
+        self.language_picker.search.returnPressed.connect(self._select_language)
+
+    def show_language_picker(self, role, languages, selected):
+        if self._language_role == role:
+            self.close_language_picker()
+            return
+        self._language_role = role
+        picker = self.language_picker
+        picker.set_languages(languages, selected)
+        colors = surface_colors(config.color_background, config.color_foreground)
+        picker.setStyleSheet(
+            f"LanguageList {{background:{config.color_background};color:{config.color_foreground};"
+            f"border:1px solid {colors['border']};}}"
+            f"QLineEdit, QListWidget {{background:{config.color_background};color:{config.color_foreground};}}"
+            f"QListWidget::item:selected {{background:{colors['hover']};color:{config.color_foreground};}}")
+        self._position_language_picker()
+        picker.show()
+        picker.raise_()
+        QApplication.instance().installEventFilter(self)
+        picker.search.setFocus()
+
+    def close_language_picker(self):
+        if self._language_role is not None:
+            self._language_role = None
+            self.language_picker.hide()
+            QApplication.instance().removeEventFilter(self)
+
+    def _select_language(self, *_):
+        code = self.language_picker.selected_code()
+        if code is not None and self._language_role is not None:
+            role = self._language_role
+            self.close_language_picker()
+            self.source.setFocus()
+            self.language_selected.emit(role, code)
+
+    def _position_language_picker(self):
+        if self._language_role is None:
+            return
+        anchor = self.source_label if self._language_role == "source" else self.target_label
+        rect = anchor.rect().translated(anchor.mapTo(self, anchor.rect().topLeft()))
+        picker = self.language_picker
+        bounds = self.rect()
+        below, above = bounds.bottom() - rect.bottom(), rect.top() - bounds.top()
+        height = min(picker.sizeHint().height(), max(below, above))
+        width = min(bounds.width(), max(anchor.width(), picker.sizeHint().width()))
+        x = min(rect.left(), bounds.right() + 1 - width)
+        y = rect.bottom() + 1 if below >= height else rect.top() - height
+        picker.setGeometry(x, y, width, height)
+
+    def eventFilter(self, watched, event):
+        if self._language_role is not None:
+            picker = self.language_picker
+            if event.type() == QEvent.Type.KeyPress:
+                if event.key() == Qt.Key.Key_Escape:
+                    self.close_language_picker()
+                    self.source.setFocus()
+                    return True
+                if watched is picker.search and event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down):
+                    picker.languages.setFocus()
+                    QApplication.sendEvent(picker.languages, event)
+                    return True
+            elif (event.type() == QEvent.Type.MouseButtonPress and isinstance(watched, QWidget)
+                  and watched not in (self.source_label, self.target_label)
+                  and watched is not picker and not picker.isAncestorOf(watched)):
+                self.close_language_picker()
+            elif event.type() in (QEvent.Type.Move, QEvent.Type.Resize):
+                anchor = self.source_label if self._language_role == "source" else self.target_label
+                if watched in (self, anchor, anchor.parentWidget()):
+                    self._position_language_picker()
+        return super().eventFilter(watched, event)
+
+    def hideEvent(self, event):
+        self.close_language_picker()
+        super().hideEvent(event)
 
     def _button(self, icon, tooltip, callback):
         button = action_button(icon, tooltip, config.color_foreground)

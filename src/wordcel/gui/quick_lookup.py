@@ -445,6 +445,7 @@ class QuickLookupWindow(QDialog):
         self.translation_panel = TranslationPanel(self.settings)
         self.translation_browser = self.translation_panel.output
         self.translation_panel.language_requested.connect(self._translation_language_menu)
+        self.translation_panel.language_selected.connect(self._set_translation_language)
         self.translation_panel.translate_requested.connect(self._submit_translation_source)
         self.translation_panel.source_changed.connect(self._translation_source_edited)
         self.translation_debounce = QTimer(self)
@@ -857,6 +858,7 @@ class QuickLookupWindow(QDialog):
     def _leave_translation(self):
         if not self._translation_view:
             return
+        self.translation_panel.close_language_picker()
         self.translation_debounce.stop()
         self.translation_panel.stale_output = ""
         self._translation_view = False
@@ -871,7 +873,6 @@ class QuickLookupWindow(QDialog):
         self._place_actions()
 
     def _translation_language_menu(self, role):
-        from wordcel.gui.language_chooser import choose_language
         current = getattr(self._translation_content, role)
         other = self._translation_content.target if role == "source" else self._translation_content.source
         languages = {"auto": "Automatic"} if role == "source" else {}
@@ -879,9 +880,7 @@ class QuickLookupWindow(QDialog):
             code = self.foreign.itemData(index)
             if self.foreign.model().item(index).isEnabled() and code != other:
                 languages[code] = language_name(code)
-        code = choose_language(self, languages, current)
-        if code is not None:
-            self._set_translation_language(role, code)
+        self.translation_panel.show_language_picker(role, languages, current)
 
     def _set_translation_language(self, role, code):
         if not self._translation_view or role not in ("source", "target"):

@@ -736,6 +736,71 @@ class QuickLookupTests(unittest.TestCase):
         dialog.search.setText("Turkish")
         self.assertEqual(dialog.selected_code(), "tr")
 
+    def test_translation_language_picker_stays_inside_panel_without_a_modal_window(self):
+        self.window.open_translation()
+        panel = self.window.translation_panel
+        windows = set(self.app.topLevelWidgets())
+        for role in ("source", "target", "source"):
+            self.window._translation_language_menu(role)
+            self.app.processEvents()
+            picker = panel.language_picker
+            self.assertTrue(picker.isVisible())
+            self.assertFalse(picker.isWindow())
+            self.assertIsNone(QApplication.activeModalWidget())
+            self.assertEqual(set(self.app.topLevelWidgets()), windows)
+            self.assertTrue(panel.rect().contains(picker.geometry()))
+            self.assertTrue(panel.source.isEnabled())
+        QTest.keyClick(panel.language_picker.search, Qt.Key.Key_Escape)
+        self.assertFalse(panel.language_picker.isVisible())
+        self.assertTrue(self.window.isVisible())
+
+    def test_translation_language_picker_selects_by_search_and_keyboard(self):
+        self.window.open_translation()
+        panel = self.window.translation_panel
+        panel.source.setPlainText("Hello")
+        with patch.object(self.window, "_submit_translation_source") as submit:
+            self.window._translation_language_menu("target")
+            panel.language_picker.search.setText("Turkish")
+            QTest.keyClick(panel.language_picker.search, Qt.Key.Key_Return)
+            self.assertEqual(self.window._translation_content.target, "tr")
+            self.assertEqual(self.settings.value("profiles/ja/translation_target"), "tr")
+            self.assertFalse(panel.language_picker.isVisible())
+            submit.assert_called_once()
+
+    def test_translation_language_picker_dismisses_on_outside_click_and_leaving(self):
+        self.window.open_translation()
+        panel = self.window.translation_panel
+        self.window._translation_language_menu("target")
+        QTest.mouseClick(panel.source.viewport(), Qt.MouseButton.LeftButton)
+        self.assertFalse(panel.language_picker.isVisible())
+        self.window._translation_language_menu("source")
+        QTest.mouseClick(panel.source_label, Qt.MouseButton.LeftButton)
+        self.assertFalse(panel.language_picker.isVisible())
+        self.window._translation_language_menu("target")
+        self.window._leave_translation()
+        self.assertFalse(panel.language_picker.isVisible())
+
+    def test_translation_stream_and_resize_continue_with_language_picker_open(self):
+        self.window.open_translation()
+        self.window._show_translation("Hello", "en", "ja")
+        self.window._translation_busy = True
+        panel = self.window.translation_panel
+        panel.source.selectAll()
+        self.window._translation_language_menu("target")
+        before = self.window.geometry()
+        self.window._translation_progress(self.window.revision,
+            SearchResult("Hello", "en", "ja", translation="こんにちは"))
+        self.window._flush_translation()
+        self.assertEqual(panel.output.toPlainText(), "こんにちは")
+        self.assertEqual(panel.source.selected_text(), "Hello")
+        self.assertEqual(self.window.geometry(), before)
+        self.assertTrue(panel.language_picker.isVisible())
+        for horizontal in (True, False):
+            panel.set_side_by_side(horizontal)
+            self.window.resize(480, 360)
+            self.app.processEvents()
+            self.assertTrue(panel.rect().contains(panel.language_picker.geometry()))
+
     def test_close_on_cursor_leave_respects_geometry_and_interaction(self):
         self.window.show()
         self.window._peek = True

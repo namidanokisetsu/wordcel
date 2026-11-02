@@ -89,7 +89,9 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   changes discard pending clipboard results.
 - **Translation:** edits invalidate pending work; dismissal cancels it. Respect
   IME composition, the passage-size setting and the separate 2,000-character
-  dictionary limit. Automatic translation is opt-in for submitted text only;
+  dictionary limit. Language selection uses an anchored child inside the panel,
+  without a modal window or nested event loop. Automatic translation is opt-in
+  for submitted text only;
   typing, OCR hover, positional lookup and history restoration never trigger it.
   Keep custom translation servers loopback-only.
   `translation_catalog.py` owns model IDs, revisions, hashes, sizes and memory
