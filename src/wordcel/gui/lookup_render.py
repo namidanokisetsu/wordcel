@@ -44,6 +44,8 @@ def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch=""
             by_source = OrderedDict()
             for source, label in frequencies:
                 by_source.setdefault(source, []).append(label)
+            if inline and len(frequencies) > 1:
+                parts.append("<br>")
             parts.extend(f'<a href="frequency:{quote(source + ": " + ", ".join(labels))}" '
                          f'style="{font_style}color:{muted}">'
                          f'{escape(_source_name(source))} {escape("/".join(labels))}</a>'

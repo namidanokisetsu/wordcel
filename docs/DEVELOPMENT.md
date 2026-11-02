@@ -58,6 +58,8 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   geometry during disclosure and translation. Derive layout from content bounds;
   batch updates instead of rebuilding unchanged content. Autoplay runs on new
   results or the explicit pin preference, never restoration or rendering.
+  Multiple uncombined frequency ranks occupy a separate line; pitch stays
+  inline without source labels.
 - **Input:** Windows OCR keeps source-app focus; manual search accepts focus.
   Unhandled `nativeEvent` must return `(False, 0)` directly because the PyQt base
   call can crash. macOS uses a narrow Cocoa tray adapter; listeners confirm

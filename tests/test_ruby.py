@@ -170,6 +170,51 @@ class RubyTests(unittest.TestCase):
         self.browser.setHtml(render_result(SearchResult("猫", "ja", "en", (alternate,))))
         self.assertIn("猫 [ねこ]", self.browser.toPlainText())
 
+    def test_multiple_frequency_ranks_move_below_pitch_without_source_labels(self):
+        from wordcel.dictionary.metadata import Frequency
+        from wordcel.dictionary.pitch import Pitch, PITCH_OBJECT
+        single = Frequency("Jiten", 100, "100")
+        variants = ((single,), (single, single),
+                    (single, Frequency("Jiten", 900, "900㋕")),
+                    (single, Frequency("Other frequency", 400, "400")))
+        for frequencies in variants:
+            word = Entry("1", "猫", "ねこ", "Words", "ja", ("cat",), frequencies=frequencies,
+                         pitches=(Pitch("Pitch source", "ねこ", 1),))
+            result = SearchResult("猫", "ja", "en", (word,))
+            for preview in (False, True):
+                for combined in (False, True):
+                    for furigana in (False, True):
+                        with self.subTest(frequencies=frequencies, preview=preview,
+                                          combined=combined, furigana=furigana):
+                            self.browser.resize(800, 200)
+                            self.browser.setHtml(render_result(result, preview=preview,
+                                                 combine_frequencies=combined, headword_furigana=furigana))
+                            self.browser.show()
+                            self.app.processEvents()
+                            document = self.browser.document()
+                            heading = document.begin()
+                            document.documentLayout().documentSize()
+                            pitch_position = None
+                            iterator = heading.begin()
+                            while not iterator.atEnd():
+                                fragment = iterator.fragment()
+                                if fragment.charFormat().objectType() == PITCH_OBJECT:
+                                    pitch_position = fragment.position()
+                                iterator += 1
+                            self.assertIsNotNone(pitch_position)
+                            pitch_cursor = QTextCursor(document)
+                            pitch_cursor.setPosition(pitch_position)
+                            pitch_y = self.browser.cursorRect(pitch_cursor).top()
+                            frequency = document.find("#")
+                            self.assertFalse(frequency.isNull())
+                            frequency_y = self.browser.cursorRect(frequency).top()
+                            separate = not combined and len(set(frequencies)) > 1
+                            if separate:
+                                self.assertGreater(frequency_y, pitch_y)
+                            else:
+                                self.assertEqual(frequency_y, pitch_y)
+                            self.assertNotIn("Pitch source", self.browser.toPlainText())
+
     def test_headword_ruby_links_each_kanji_and_preserves_reading_and_copy(self):
         self.browser.setHtml('<h2>' + ruby_html("祈願", "きがん", kanji="祈願") + '</h2>')
         self.browser.show()
