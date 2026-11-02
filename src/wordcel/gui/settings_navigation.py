@@ -172,9 +172,9 @@ class SettingsNavigation:
             other.setCurrentItem(None)
         identity, page = value
         profile_page = identity is not None
-        self.profile_details.setVisible(profile_page and self.scope.count() > 1)
-        self.scope.setVisible(profile_page and self.scope.count() > 1)
-        self.scope_label.setVisible(profile_page and self.scope.count() > 1)
+        self.profile_details.setVisible(profile_page)
+        self.scope.setVisible(profile_page)
+        self.scope_label.setVisible(profile_page)
         self.reset_app_shortcuts.setVisible(self.tabs.tabText(page) == "Shortcuts")
         self.tabs.setCurrentIndex(page)
         self._editing_scope = self.scope.currentData()

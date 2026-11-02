@@ -39,7 +39,12 @@ class SettingsNavigationTests(unittest.TestCase):
         self.assertEqual({dialog.tabs.tabText(i) for i in range(dialog.tabs.count())},
                          {"General", "Lookup", "Dictionaries", "Shortcuts", "Appearance", "Audio", "Translation", "Anki"})
         self.assertEqual(dialog.scope.count(), 1)
-        self.assertTrue(dialog.scope.isHidden())
+        self.assertFalse(dialog.scope.isHidden())
+        self.assertFalse(dialog.scope_label.isHidden())
+        self.assertFalse(dialog.profile_details.isHidden())
+        self.assertEqual(dialog.scope.currentText(), "日本語 ✓")
+        self.assertEqual(dialog.profile_language_label.text(), "日本語")
+        self.assertEqual(dialog.editing_status.text(), "Active profile")
         self.assertIn("Rename…", [action.text() for action in dialog.profile_menu.actions()])
         self.assertIn("Reset profile settings…", [action.text() for action in dialog.profile_menu.actions()])
         self.assertFalse(dialog.appearance.isHidden())

@@ -155,6 +155,11 @@ class FirstRunTests(unittest.TestCase):
                     self.assertEqual(configured_profiles(self.settings), (identity,))
                     self.assertEqual([popup.source.itemData(i) for i in range(popup.source.count())], [identity])
                     self.assertEqual([dialog.profile.itemData(i) for i in range(dialog.profile.count())], [identity])
+                    self.assertFalse(dialog.scope.isHidden())
+                    self.assertEqual(dialog.scope.currentData(), identity)
+                    self.assertEqual(dialog.scope.currentText(), dialog.profile.currentText() + " ✓")
+                    self.assertFalse(dialog.profile_details.isHidden())
+                    self.assertEqual(dialog.editing_status.text(), "Active profile")
                     self.assertFalse(self.settings.value(f"profiles/{code}/selection_lookup", False, bool))
                     self.assertFalse(self.settings.value(f"profiles/{code}/auto_translate_miss", False, bool))
                 finally:
