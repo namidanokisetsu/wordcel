@@ -325,7 +325,8 @@ def _reset_binding(settings, key, default):
         return []
     value = settings.value(key)
     preset = key + "_preset"
-    display = SHORTCUT_PRESETS.get(key, default)
+    relative = key.split("/", 2)[2] if key.startswith("profiles/") else key
+    display = SHORTCUT_PRESETS.get(relative, default)
     if value == "":
         settings.setValue(key, "")
         settings.setValue(preset, display)

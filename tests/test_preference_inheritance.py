@@ -1,229 +1,139 @@
+import json
 import os
 import sys
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QSettings
-from PyQt6.QtWidgets import QApplication
 
-from wordcel.config.inheritance import PreferenceSettings, migrate_defaults, overridden, set_override
-from wordcel.config.profiles import create_profile
+from wordcel.config.inheritance import PreferenceSettings, migrate_defaults
+from wordcel.config.profiles import (create_profile, reset_app_page, reset_page, reset_profile)
 
 
-class PreferenceInheritanceTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
-
+class IndependentProfileSettingsTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.raw = QSettings(str(self.root / "settings.ini"), QSettings.Format.IniFormat)
-        self.raw.setValue("profiles_version", 1)
-        self.raw.setValue("profile", "ja")
-        self.raw.setValue("profiles/ja/language", "ja")
-        self.raw.setValue("profiles/ja/font_size_header", 24)
-        self.raw.setValue("profiles/ja/hotkey", "")
-        self.raw.setValue("profiles/tr/language", "tr")
-        self.raw.setValue("profiles/tr/font_size_header", 30)
-        migrate_defaults(self.raw)
-        self.settings = PreferenceSettings(self.raw)
+        self.path = Path(self.temp.name) / "settings.ini"
+        self.settings = QSettings(str(self.path), QSettings.Format.IniFormat)
+        self.settings.setValue("profile", "ja")
+        self.settings.setValue("profile_order", ["ja", "tr"])
+        self.settings.setValue("profiles/ja/language", "ja")
+        self.settings.setValue("profiles/tr/language", "tr")
 
-    def test_conversion_preserves_differences_and_is_idempotent(self):
-        self.assertFalse(overridden(self.settings, "ja", "appearance"))
-        self.assertTrue(overridden(self.settings, "tr", "appearance"))
-        before = {key: self.raw.value(key) for key in self.raw.allKeys()}
+    def test_migration_materializes_effective_values_and_removes_legacy_scope(self):
+        self.settings.setValue("defaults/appearance/font_size_header", 22)
+        self.settings.setValue("defaults/appearance/custom/highlight", "")
+        self.settings.setValue("defaults/shortcuts/popup/copy_shortcut", "")
+        self.settings.setValue("profiles/ja/overrides/appearance", False)
+        self.settings.setValue("profiles/ja/font_size_header", 99)
+        self.settings.setValue("profiles/ja/custom/highlight", "stale")
+        self.settings.setValue("profiles/tr/overrides/appearance", True)
+        self.settings.setValue("profiles/tr/font_size_header", 31)
+        self.settings.setValue("profiles/tr/pitch_colors", False)
+        self.settings.setValue("profiles/tr/overrides/shortcuts", True)
+        self.settings.setValue("profiles/tr/hotkey", "")
+
+        self.assertTrue(migrate_defaults(self.settings))
+        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 22)
+        self.assertEqual(self.settings.value("profiles/ja/custom/highlight"), "")
+        self.assertEqual(self.settings.value("profiles/tr/font_size_header", 0, int), 31)
+        self.assertFalse(self.settings.value("profiles/tr/pitch_colors", True, bool))
+        self.assertEqual(self.settings.value("profiles/tr/hotkey"), "")
+        self.assertFalse(any(key.startswith("defaults/") for key in self.settings.allKeys()))
+        self.assertFalse(any("/overrides/" in key for key in self.settings.allKeys()))
+
+        before = {key: self.settings.value(key) for key in self.settings.allKeys()}
+        self.assertFalse(migrate_defaults(self.settings))
+        self.assertEqual(before, {key: self.settings.value(key) for key in self.settings.allKeys()})
+        self.assertTrue((self.path.parent / "settings.ini.inheritance-backup.ini").exists())
+
+    def test_migration_failure_does_not_mark_completion_and_keeps_backup(self):
+        self.settings.setValue("defaults/appearance/font_size_header", 22)
+        self.settings.setValue("profiles/ja/overrides/appearance", False)
+        with patch("wordcel.config.inheritance._sync", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                migrate_defaults(self.settings)
+        self.assertFalse(self.settings.contains("defaults_version"))
+        backup = QSettings(str(self.path) + ".inheritance-backup.ini", QSettings.Format.IniFormat)
+        self.assertEqual(backup.value("defaults/appearance/font_size_header", 0, int), 22)
         migrate_defaults(self.settings)
-        self.assertEqual(before, {key: self.raw.value(key) for key in self.raw.allKeys()})
-        self.raw.setValue("defaults/appearance/font_size_header", 28)
-        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 28)
-        self.assertEqual(self.settings.value("profiles/tr/font_size_header", 0, int), 30)
+        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 22)
 
-    def test_snapshot_and_restore_custom_values_across_restart(self):
-        self.raw.setValue("defaults/appearance/font_size_header", 28)
-        set_override(self.settings, "ja", "appearance", True)
-        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 28)
-        self.settings.setValue("profiles/ja/font_size_header", 32)
-        set_override(self.settings, "ja", "appearance", False)
-        self.raw.setValue("defaults/appearance/font_size_header", 20)
-        self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 20)
-        self.raw.sync()
-        reopened = PreferenceSettings(QSettings(self.raw.fileName(), QSettings.Format.IniFormat))
-        set_override(reopened, "ja", "appearance", True)
-        self.assertEqual(reopened.value("profiles/ja/font_size_header", 0, int), 32)
+    def test_preference_wrapper_is_transparent_after_migration(self):
+        self.settings.setValue("defaults/appearance/font_size_header", 22)
+        self.settings.setValue("profiles/ja/overrides/appearance", False)
+        migrate_defaults(self.settings)
+        view = PreferenceSettings(self.settings)
+        view.setValue("profiles/ja/font_size_header", 29)
+        self.assertEqual(view.value("profiles/ja/font_size_header", 0, int), 29)
+        self.assertFalse(self.settings.contains("defaults/appearance/font_size_header"))
 
-    def test_new_profiles_inherit_and_duplicate_preserves_overrides(self):
-        fresh = create_profile(self.settings, "ja")
-        self.assertFalse(overridden(self.settings, fresh, "appearance"))
-        self.assertEqual(self.settings.value(f"profiles/{fresh}/font_size_header", 0, int), 24)
-        duplicate = create_profile(self.settings, "tr", duplicate="tr")
-        self.assertTrue(overridden(self.settings, duplicate, "appearance"))
-        self.settings.setValue(f"profiles/{duplicate}/font_size_header", 40)
-        self.assertEqual(self.settings.value("profiles/tr/font_size_header", 0, int), 30)
+    def test_duplicate_clones_values_and_mutable_connection_records(self):
+        self.settings.setValue("profiles/ja/theme_name", "Light")
+        self.settings.setValue("profiles/ja/anki/enabled", True)
+        self.settings.setValue("connections/anki/source/endpoint", "http://127.0.0.1:8765")
+        self.settings.setValue("connections/anki/source/api_key", "secret")
+        self.settings.setValue("profiles/ja/anki/connection", "source")
 
-    def test_shortcuts_resolve_without_overwriting_retained_custom_bindings(self):
-        from wordcel.gui.popup_shortcuts import popup_bindings
-        set_override(self.settings, "ja", "shortcuts", True)
-        self.settings.setValue("profiles/ja/popup/copy_shortcut", "Alt+C")
-        set_override(self.settings, "ja", "shortcuts", False)
-        self.settings.setValue("profiles/ja/popup/copy_shortcut", "Shift+C")
-        self.assertEqual(popup_bindings(self.settings, "ja")["copy"], "Shift+C")
-        set_override(self.settings, "ja", "shortcuts", True)
-        self.assertEqual(popup_bindings(self.settings, "ja")["copy"], "Alt+C")
-        self.assertEqual(self.settings.value("profiles/ja/hotkey"), "")
+        duplicate = create_profile(self.settings, "ja", "Copy", duplicate="ja")
+        copied_connection = self.settings.value(f"profiles/{duplicate}/anki/connection")
+        self.assertNotEqual(copied_connection, "source")
+        self.assertEqual(self.settings.value(f"connections/anki/{copied_connection}/api_key"), "secret")
+        self.settings.setValue(f"profiles/{duplicate}/theme_name", "Dark")
+        self.settings.setValue(f"connections/anki/{copied_connection}/api_key", "changed")
+        self.assertEqual(self.settings.value("profiles/ja/theme_name"), "Light")
+        self.assertEqual(self.settings.value("connections/anki/source/api_key"), "secret")
+        self.assertEqual(self.settings.value("profile"), "ja")
 
-    def test_group_disclosure_and_global_navigation_reuse_panels(self):
-        from wordcel.gui.dictionary_manager import SetupDialog
-        dialog = SetupDialog(self.root / "library", self.settings, Mock())
-        self.addCleanup(dialog.deleteLater)
-        self.addCleanup(dialog.audio_sources.shutdown)
-        dialog.show()
-        self.app.processEvents()
-        inherit, content = dialog.preference_groups.controls["appearance"]
-        self.assertTrue(inherit.isChecked())
-        self.assertFalse(content.isEnabled())
-        self.assertTrue(content.isHidden())
-        size = dialog.size()
-        with patch.object(dialog, "reload") as reload_library:
-            inherit.setChecked(False)
-            self.app.processEvents()
-            reload_library.assert_not_called()
-        self.assertTrue(content.isEnabled())
-        self.assertFalse(content.isHidden())
-        dialog.appearance.controls["font_size_header"].setValue(35)
-        inherit.setChecked(True)
-        self.assertFalse(content.isEnabled())
-        self.assertTrue(content.isHidden())
-        dialog.scope.setCurrentIndex(0)
-        dialog.tabs.setCurrentWidget(dialog.popup_tab)
-        self.assertEqual(dialog.settings.editing_global, "popup_all")
-        self.assertTrue(inherit.isHidden())
-        self.assertTrue(content.isEnabled())
-        self.assertFalse(content.isHidden())
-        dialog.appearance.controls["font_size_header"].setValue(22)
-        self.assertEqual(self.raw.value("defaults/appearance/font_size_header", 0, int), 22)
-        dialog.scope.setCurrentIndex(dialog.scope.findData("ja"))
-        inherit.setChecked(False)
-        self.assertEqual(dialog.appearance.controls["font_size_header"].value(), 35)
-        self.assertEqual(dialog.size(), size)
-        self.assertEqual(self.raw.value("profile"), "ja")
+    def test_page_and_profile_resets_preserve_data_enablement_and_assignments(self):
+        profile = "ja"
+        self.settings.setValue(f"profiles/{profile}/language", "ja")
+        self.settings.setValue(f"profiles/{profile}/name", "Japanese")
+        self.settings.setValue(f"profiles/{profile}/selected_text", True)
+        self.settings.setValue(f"profiles/{profile}/anki/enabled", True)
+        self.settings.setValue(f"profiles/{profile}/anki/connection", "anki")
+        self.settings.setValue(f"profiles/{profile}/translation_connection", "translation")
+        self.settings.setValue(f"profiles/{profile}/audio_database", "/tmp/audio.db")
+        self.settings.setValue(f"profiles/{profile}/hotkey", "")
+        self.settings.setValue(f"profiles/{profile}/hotkey_preset", "Old")
+        self.settings.setValue(f"profiles/{profile}/theme_name", "Custom")
+        self.settings.setValue(f"profiles/{profile}/translation", json.dumps({
+            "provider": "custom", "profile": "lightweight", "endpoint": "http://127.0.0.1:9999/v1",
+            "model": "local", "stream": False, "keep_warm": True, "chunk_size": 300,
+        }))
+        self.settings.setValue("history/enabled", True)
+        self.settings.setValue("history/delay", 3.0)
+        self.settings.setValue("hover_scan/startup", True)
 
-    def test_global_shortcut_validation_and_reopening_preserve_scope(self):
-        from wordcel.gui.dictionary_manager import SetupDialog
-        dialog = SetupDialog(self.root / "library", self.settings, Mock())
-        self.addCleanup(dialog.deleteLater)
-        self.addCleanup(dialog.audio_sources.shutdown)
-        dialog.scope.setCurrentIndex(0)
-        dialog.tabs.setCurrentWidget(dialog.shortcuts_tab)
-        self.raw.setValue("next_profile_hotkey", "<ctrl>+<f9>")
-        with self.assertRaises(ValueError):
-            dialog.validate_text_binding("hotkey", "<ctrl>+<f9>")
-        dialog.rebuild_profiles()
-        self.assertEqual(dialog.settings.editing_global, "shortcuts")
-        self.assertTrue(dialog.profile_details.isHidden())
-        self.assertIs(dialog.tabs.currentWidget(), dialog.shortcuts_tab)
-        self.assertTrue(dialog.scan_key.isEnabled())
+        reset_page(self.settings, profile, "Appearance")
+        self.assertFalse(self.settings.contains(f"profiles/{profile}/theme_name"))
+        reset_page(self.settings, profile, "Shortcuts")
+        self.assertEqual(self.settings.value(f"profiles/{profile}/hotkey"), "")
+        expected_preset = "Ctrl+Shift+D"
+        self.assertEqual(self.settings.value(f"profiles/{profile}/hotkey_preset"), expected_preset)
+        reset_page(self.settings, profile, "Translation")
+        translation = json.loads(self.settings.value(f"profiles/{profile}/translation"))
+        self.assertEqual((translation["provider"], translation["endpoint"], translation["model"]),
+                         ("custom", "http://127.0.0.1:9999/v1", "local"))
+        self.assertEqual(translation["chunk_size"], 2000)
 
-    def test_passage_shortcut_presets_do_not_leak_between_scopes(self):
-        from wordcel.gui.dictionary_manager import SetupDialog
-        set_override(self.settings, "ja", "shortcuts", True)
-        self.raw.setValue("profiles/ja/copy_hotkey_preset", "Ctrl+Alt+X")
-        dialog = SetupDialog(self.root / "library", self.settings, Mock())
-        self.addCleanup(dialog.deleteLater)
-        self.addCleanup(dialog.audio_sources.shutdown)
-        dialog.tabs.setCurrentWidget(dialog.shortcuts_tab)
-        self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Alt+X")
-        dialog.scope.setCurrentIndex(dialog.scope.findData("tr"))
-        self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Shift+X")
-        self.assertFalse(dialog.copy_shortcut.enabled.isChecked())
-        dialog.scope.setCurrentIndex(dialog.scope.findData("ja"))
-        self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Alt+X")
-        dialog.scope.setCurrentIndex(0)
-        self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Shift+X")
-        dialog.copy_shortcut.enabled.setChecked(True)
-        modifier = "<cmd>" if sys.platform == "darwin" else "<ctrl>"
-        self.assertEqual(self.raw.value("defaults/shortcuts/copy_hotkey"), f"{modifier}+<shift>+x")
-        dialog.scope.setCurrentIndex(dialog.scope.findData("ja"))
-        self.assertFalse(dialog.copy_shortcut.enabled.isChecked())
-        self.assertEqual(dialog.copy_shortcut.recorder.keySequence().toString(), "Ctrl+Alt+X")
+        reset_profile(self.settings, profile)
+        self.assertEqual(self.settings.value(f"profiles/{profile}/language"), "ja")
+        self.assertEqual(self.settings.value(f"profiles/{profile}/name"), "Japanese")
+        self.assertTrue(self.settings.value(f"profiles/{profile}/selected_text", False, bool))
+        self.assertTrue(self.settings.value(f"profiles/{profile}/anki/enabled", False, bool))
+        self.assertEqual(self.settings.value(f"profiles/{profile}/anki/connection"), "anki")
+        self.assertEqual(self.settings.value(f"profiles/{profile}/translation_connection"), "translation")
+        self.assertEqual(self.settings.value(f"profiles/{profile}/audio_database"), "/tmp/audio.db")
 
-    def test_recent_features_keep_settings_pages_and_scope(self):
-        from wordcel.gui.dictionary_manager import SetupDialog
-        self.raw.setValue("profiles/ja/anki/enabled", True)
-        set_override(self.settings, "ja", "shortcuts", True)
-        refresh = patch("wordcel.gui.anki.AnkiSettingsPanel.refresh")
-        refresh.start()
-        self.addCleanup(refresh.stop)
-        dialog = SetupDialog(self.root / "library", self.settings, Mock())
-        self.addCleanup(dialog.deleteLater)
-        self.addCleanup(dialog.audio_sources.shutdown)
-        dialog.show()
-        for query, page in (("preload", dialog.app_tab), ("grab text from screen", dialog.shortcuts_tab),
-                            ("source priority", dialog.audio_tab), ("notifications", dialog.anki_tab),
-                            ("duplicates", dialog.anki_tab)):
-            dialog.search.setText(query)
-            self.assertGreater(dialog.search_results.count(), 0, query)
-            dialog.open_search_result(dialog.search_results.item(0))
-            self.assertIs(dialog.tabs.currentWidget(), page, query)
-        dialog.preload_ocr.setChecked(False)
-        dialog.anki.notifications.setChecked(True)
-        dialog.audio_sources.load(["tts"], "", language="ja")
-        dialog.save_audio()
-        dialog.scope.setCurrentIndex(dialog.scope.findData("tr"))
-        self.assertFalse(dialog.preload_ocr.isChecked())
-        self.assertFalse(dialog.anki.notifications.isChecked())
-        self.assertNotEqual(dialog.audio_sources.order(), ["tts"])
-        dialog.scope.setCurrentIndex(dialog.scope.findData("ja"))
-        self.assertTrue(dialog.anki.notifications.isChecked())
-        self.assertEqual(dialog.audio_sources.order(), ["tts"])
-        dialog.scope.setCurrentIndex(0)
-        dialog.tabs.setCurrentWidget(dialog.preference_groups.global_audio_page)
-        self.assertIs(dialog.tabs.currentWidget(), dialog.preference_groups.global_audio_page)
-        self.assertFalse(self.raw.value("ocr/preload", True, bool))
-        self.assertEqual(self.raw.value("profile"), "ja")
-
-    def test_popup_scope_search_and_profile_switch_keep_custom_values(self):
-        from wordcel.gui.dictionary_manager import SetupDialog
-        dialog = SetupDialog(self.root / "library", self.settings, Mock())
-        self.addCleanup(dialog.deleteLater)
-        self.addCleanup(dialog.audio_sources.shutdown)
-        dialog.show()
-        dialog.tabs.setCurrentWidget(dialog.popup_tab)
-        dialog.scope.setCurrentIndex(dialog.scope.findData("tr"))
-        self.assertIs(dialog.tabs.currentWidget(), dialog.popup_tab)
-        self.assertEqual(dialog.appearance.controls["font_size_header"].value(), 30)
-        dialog.scope.setCurrentIndex(0)
-        dialog.appearance.controls["font_size_header"].setValue(26)
-        dialog.close_on_cursor_leave.setChecked(True)
-        self.assertEqual(self.raw.value("defaults/appearance/font_size_header", 0, int), 26)
-        self.assertTrue(self.raw.value("defaults/popup/close_on_cursor_leave", False, bool))
-        self.assertEqual(self.raw.value("profiles/tr/font_size_header", 0, int), 30)
-        dialog.scope.setCurrentIndex(dialog.scope.findData("tr"))
-        self.assertEqual(dialog.appearance.controls["font_size_header"].value(), 30)
-        self.assertEqual(self.raw.value("profile"), "ja")
-        dialog.tabs.setCurrentWidget(dialog.lookup_tab)
-        self.assertFalse(dialog.screen_section.toggle.isVisible())
-        self.assertTrue(dialog.current_ocr_control().isVisible())
-        dialog.search.setText("definitions")
-        self.assertGreater(dialog.search_results.count(), 0)
-        result = dialog.search_results.item(0)
-        self.assertIn("Popup", result.text())
-        dialog.open_search_result(result)
-        self.assertIs(dialog.tabs.currentWidget(), dialog.popup_tab)
-        self.assertEqual(dialog.search.text(), "")
-        self.assertEqual(self.raw.value("settings/page"), "Popup")
-        dialog.scope.setCurrentIndex(0)
-        self.assertTrue(dialog.appearance.action_controls["translate"].isEnabled())
-        reopened = SetupDialog(self.root / "library", self.settings, Mock())
-        self.addCleanup(reopened.deleteLater)
-        self.addCleanup(reopened.audio_sources.shutdown)
-        self.assertEqual(reopened.scope.currentData(), "shared")
-        self.assertEqual(reopened.settings.editing_global, "popup_all")
-        self.assertIs(reopened.tabs.currentWidget(), reopened.popup_tab)
+        reset_app_page(self.settings, "General")
+        self.assertTrue(self.settings.value("history/enabled", False, bool))
+        self.assertFalse(self.settings.contains("history/delay"))
+        self.assertTrue(self.settings.value("hover_scan/startup", False, bool))
 
 
 if __name__ == "__main__":

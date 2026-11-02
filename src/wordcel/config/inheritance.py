@@ -99,7 +99,7 @@ def _backup(settings):
     if not filename:
         return None
     path = Path(filename)
-    backup_path = path.with_name(path.name + ".profiles-backup.ini")
+    backup_path = path.with_name(path.name + ".inheritance-backup.ini")
     if backup_path.exists():
         return backup_path
     try:
@@ -144,7 +144,8 @@ def _legacy_snapshot(settings, identity, group):
     # With no shared-defaults data, profile values were already independent.
     # When the marker is absent, retain explicit profile values as well; only
     # an explicit false marker means that stale local values are inactive.
-    if not defaults or not settings.contains(marker):
+    inheritance_present = settings.value("defaults_version", 0, int) >= 1 or bool(defaults)
+    if not inheritance_present:
         return own
     if settings.value(marker, False, bool):
         return own
@@ -173,6 +174,7 @@ def migrate_defaults(settings):
     identities = _profile_ids(settings)
     snapshots = _effective_snapshots(settings, identities)
     old_keys = set(settings.allKeys())
+    original = {key: deepcopy(settings.value(key)) for key in old_keys}
     previous_version = settings.value("defaults_version") if settings.contains("defaults_version") else None
 
     # Clear only old shared data and each profile's old group values. Profile
@@ -194,8 +196,13 @@ def migrate_defaults(settings):
     try:
         _sync(settings)
     except Exception:
-        # Keep the marker absent in the live object when a test/backend reports
-        # failure; the on-disk backup remains the recovery source.
+        # Restore the live object as well as the on-disk backup so retrying
+        # after a transient sync failure recomputes the same effective values.
+        for key in list(settings.allKeys()):
+            if key not in original:
+                settings.remove(key)
+        for key, value in original.items():
+            settings.setValue(key, deepcopy(value))
         if previous_version is None:
             settings.remove("defaults_version")
         else:
