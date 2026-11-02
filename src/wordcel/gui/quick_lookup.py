@@ -1175,6 +1175,8 @@ class QuickLookupWindow(QDialog):
         self._kanji_more_start = None
         self.status = QLabel()
         self.status.setWordWrap(True)
+        self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self.status.linkActivated.connect(self._open_permission_settings)
         self.status.hide()
         layout.addWidget(self.status)
         toolbar.addWidget(self.translate)
@@ -2231,8 +2233,21 @@ class QuickLookupWindow(QDialog):
                 self.show_message(message)
 
     def show_message(self, text):
-        self.status.setText(str(text))
+        text = str(text)
+        if "Allow Wordcel in System Settings" in text:
+            feature = ("accessibility" if "Accessibility" in text else
+                       "input_monitoring" if "Input Monitoring" in text else
+                       "screen_recording" if "Screen Recording" in text else None)
+            if feature:
+                text += f' <a href="macos-permission:{feature}">Open Settings</a>'
+        self.status.setText(text)
         self.status.setVisible(bool(text))
+
+    def _open_permission_settings(self, link):
+        prefix = "macos-permission:"
+        if link.startswith(prefix):
+            from wordcel.utils.macos import open_privacy_settings
+            open_privacy_settings(link[len(prefix):])
 
     def _queue_link(self, url):
         if self._pin_anchor_click:

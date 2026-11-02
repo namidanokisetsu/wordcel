@@ -3069,6 +3069,15 @@ class QuickLookupTests(unittest.TestCase):
             QTest.keyClick(widget, Qt.Key.Key_Escape)
             self.assertFalse(self.window.isVisible())
 
+    def test_permission_message_links_to_relevant_macos_settings(self):
+        self.window.show_message(
+            "Allow Wordcel in System Settings > Privacy & Security > Accessibility, then reopen Wordcel."
+        )
+        self.assertIn("Open Settings", self.window.status.text())
+        with patch("wordcel.utils.macos.open_privacy_settings") as open_settings:
+            self.window._open_permission_settings("macos-permission:accessibility")
+        open_settings.assert_called_once_with("accessibility")
+
     def test_reading_shows_every_dictionary_and_full_structured_glosses(self):
         definitions = ({"type": "structured-content", "content": {
             "tag": "div", "content": [{"tag": "span", "content": "Turkdict example " + "long " * 150},
