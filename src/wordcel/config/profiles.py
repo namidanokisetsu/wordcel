@@ -420,6 +420,8 @@ def reset_page(settings, profile_id, page):
         removed.extend(_reset_scan_bindings(settings, prefix + "scan_bindings"))
     _sync(settings)
     return tuple(dict.fromkeys(removed))
+
+
 def reset_profile(settings, profile_id):
     """Restore all profile preferences without changing its identity or data."""
     if profile_id not in profile_ids(settings):

@@ -219,5 +219,4 @@ class ResourcesPanel(QWidget):
         self.font_install.setEnabled(not owner.operation_busy("fonts"))
         ready = profile_translation_available(owner.settings, owner.profile.currentData())
         owner.appearance.set_translation_available(ready)
-        owner.translation_shortcut.enabled.setEnabled(ready)
-        owner.translation_shortcut.recorder.setEnabled(ready and owner.translation_shortcut.enabled.isChecked())
+        owner.translation_shortcut.setToolTip("" if ready else "Set up Translation to use this shortcut")

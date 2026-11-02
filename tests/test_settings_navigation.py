@@ -170,3 +170,11 @@ class SettingsNavigationTests(unittest.TestCase):
         reload_keys.assert_not_called()
         update_anki.assert_not_called()
         self.assertEqual(window.active_profile, "ja")
+
+    def test_unavailable_translation_shortcut_can_still_be_disabled(self):
+        self.settings.setValue("profiles/ja/translation_hotkey", "<alt>+t")
+        with patch("wordcel.gui.resources.profile_translation_available", return_value=False):
+            dialog = self.dialog()
+        self.assertTrue(dialog.translation_shortcut.enabled.isEnabled())
+        dialog.translation_shortcut.enabled.setChecked(False)
+        self.assertEqual(self.settings.value("profiles/ja/translation_hotkey"), "")
