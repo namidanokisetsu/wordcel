@@ -3061,6 +3061,14 @@ class QuickLookupTests(unittest.TestCase):
         self.window.deliver(revision, SearchResult("stale", "ja", "en", (entry("STALE"),)))
         self.assertNotIn("STALE", self.window.browser.toPlainText())
 
+    def test_escape_from_search_and_reading_children_hides_popup(self):
+        for widget in (self.window.search, self.window.browser):
+            self.window.open_search()
+            self.window.show_entries((entry(definitions=("definition",)),), "猫")
+            widget.setFocus()
+            QTest.keyClick(widget, Qt.Key.Key_Escape)
+            self.assertFalse(self.window.isVisible())
+
     def test_reading_shows_every_dictionary_and_full_structured_glosses(self):
         definitions = ({"type": "structured-content", "content": {
             "tag": "div", "content": [{"tag": "span", "content": "Turkdict example " + "long " * 150},

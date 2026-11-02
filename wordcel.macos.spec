@@ -36,6 +36,7 @@ a = Analysis(
         (str(runtime_manifest), 'wordcel/resources'),
         (str(ranking_dir / '*.json'), 'wordcel/resources/turkish'),
         ('src/wordcel/resources/icon.ico', 'wordcel/resources'),
+        ('src/wordcel/resources/tray.svg', 'wordcel/resources'),
         ('src/wordcel/scripts/deconjugator.json', 'wordcel/scripts'),
         ('src/wordcel/resources/licenses/*.txt', 'wordcel/resources/licenses'),
     ],

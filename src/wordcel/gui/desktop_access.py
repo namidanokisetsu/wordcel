@@ -43,4 +43,4 @@ class DesktopAccess(QObject):
             dialogs[0].raise_()
             dialogs[0].activateWindow()
             return
-        self.window.open_settings()
+        self.window.open_search()

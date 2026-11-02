@@ -34,9 +34,19 @@ class TextTriggers(QObject):
                 self.window.show_message(str(error))
                 return
             from pynput import mouse
-            self.listener = mouse.Listener(on_click=lambda x, y, button, down:
-                self.clicked.emit(x, y, down, button == mouse.Button.left))
-            self.listener.start()
+            listener = mouse.Listener(on_click=lambda x, y, button, down:
+                                      self.clicked.emit(x, y, down, button == mouse.Button.left))
+            try:
+                listener.start()
+            except (OSError, RuntimeError) as error:
+                listener.stop()
+                self.window.show_message(str(error))
+                return
+            if hasattr(listener, "is_alive") and not listener.is_alive():
+                listener.stop()
+                self.window.show_message("Text selection lookup could not start. Check Input Monitoring in System Settings.")
+                return
+            self.listener = listener
         elif not enabled and self.listener is not None:
             self.listener.stop()
             self.listener = None

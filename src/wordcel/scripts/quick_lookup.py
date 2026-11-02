@@ -227,7 +227,7 @@ def main(argv=None):
     menu = QMenu()
     menu.addAction("Search", lambda: window.open_search())
     translate_action = menu.addAction("Translate", window.open_translation)
-    menu.addAction("History", window.lookup_history.open)
+    history_action = menu.addAction("History", window.lookup_history.open)
     profiles = menu.addMenu(window.source.currentText())
     window.mode_changed.connect(lambda *_: profiles.setTitle(window.source.currentText()))
     profile_group = QActionGroup(profiles)
@@ -245,10 +245,20 @@ def main(argv=None):
     menu.addAction("Settings", window.open_settings)
     menu.addSeparator()
     menu.addAction("Quit", app.quit)
+    if sys.platform == "darwin":
+        # Keep the native menu-bar menu compact. OCR actions are inserted only
+        # after the provider is available below; profile selection is useful
+        # only when more than one profile exists.
+        translate_action.setVisible(False)
+        history_action.setVisible(False)
+        profiles.menuAction().setVisible(window.source.count() > 1)
+        window.mode_changed.connect(lambda *_: profiles.menuAction().setVisible(window.source.count() > 1))
     tray.setContextMenu(menu)
-    if sys.platform != "darwin":
-        tray.activated.connect(lambda reason: window.open_search()
-                               if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
+    activation_reasons = (QSystemTrayIcon.ActivationReason.Trigger,
+                          QSystemTrayIcon.ActivationReason.DoubleClick) if sys.platform == "darwin" else (
+                              QSystemTrayIcon.ActivationReason.Trigger,)
+    tray.activated.connect(lambda reason: window.open_search()
+                           if reason in activation_reasons else None)
     from wordcel.gui.profile_indicator import ProfileIndicator
     profile_indicator = ProfileIndicator()
     window.profile_activated.connect(profile_indicator.show_profile)

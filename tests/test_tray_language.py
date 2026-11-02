@@ -42,4 +42,8 @@ class TrayLanguageTests(unittest.TestCase):
         tray.setToolTip.assert_called_with("Wordcel: Study (tr)")
 
     def test_macos_icon_is_a_mask(self):
-        self.assertTrue(TrayLanguageIcons(QIcon(), True).icon("ja").isMask())
+        icons = TrayLanguageIcons(QIcon(), True)
+        japanese = icons.icon("ja")
+        self.assertTrue(japanese.isMask())
+        self.assertFalse(japanese.isNull())
+        self.assertEqual(japanese.cacheKey(), icons.icon("tr").cacheKey())

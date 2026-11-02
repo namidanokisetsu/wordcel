@@ -97,7 +97,15 @@ class DesktopInput(QObject):
         self.shortcuts = None
         self.set_shortcuts(clipboard_hotkey, search_hotkey)
         self.keys.start()
-        self.clicks.start()
+        try:
+            self.clicks.start()
+        except Exception:
+            self.keys.stop()
+            self.keys.join(timeout=2)
+            if self.shortcuts:
+                self.shortcuts.stop()
+                self.shortcuts.join(timeout=2)
+            raise
 
     def set_shortcuts(self, clipboard_hotkey, search_hotkey, selection_hotkey=""):
         validate_shortcuts((clipboard_hotkey, search_hotkey, selection_hotkey))

@@ -3267,6 +3267,16 @@ class QuickLookupWindow(QDialog):
         return False, 0
 
     def eventFilter(self, watched, event):
+        if (event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape
+                and watched in (self.search, self.browser, self.translation_browser,
+                                self.translation_panel.source)):
+            # Child editors receive Escape before QDialog.keyPressEvent. Leave
+            # menus and setup dialogs to handle their own dismissal first.
+            modal = QApplication.activeModalWidget()
+            if QApplication.activePopupWidget() is None and modal in (None, self):
+                self.hide()
+                event.accept()
+                return True
         if (event.type() == QEvent.Type.ShortcutOverride
                 and (isinstance(watched, (QLineEdit, QKeySequenceEdit))
                      or isinstance(watched, QTextEdit) and not watched.isReadOnly())):
@@ -3647,7 +3657,7 @@ class QuickLookupWindow(QDialog):
 
     def _update_shortcut_listener(self, attribute, bindings):
         from wordcel.gui.text_shortcuts import TextHotKeys
-        from wordcel.utils.macos import InputMonitoringPermissionError
+        from wordcel.utils.macos import AccessibilityPermissionError, InputMonitoringPermissionError
         previous = getattr(self, attribute)
         if previous is not None:
             if bindings:
@@ -3661,7 +3671,7 @@ class QuickLookupWindow(QDialog):
             listener = TextHotKeys(bindings)
             try:
                 listener.start()
-            except InputMonitoringPermissionError as error:
+            except (InputMonitoringPermissionError, AccessibilityPermissionError, OSError) as error:
                 self.show_message(str(error))
                 return str(error)
             setattr(self, attribute, listener)

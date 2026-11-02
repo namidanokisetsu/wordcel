@@ -35,11 +35,12 @@ class DesktopAccessTests(unittest.TestCase):
         self.access.deleteLater()
         self.app.processEvents()
 
-    def test_repeated_dock_activation_opens_settings_with_no_windows(self):
+    def test_repeated_dock_activation_opens_search_with_no_windows(self):
         for _ in range(2):
             self.access.dock_clicked()
             self.app.processEvents()
-        self.assertEqual(self.window.open_settings.call_count, 2)
+        self.assertEqual(self.window.open_search.call_count, 2)
+        self.window.open_settings.assert_not_called()
 
     def test_launch_and_application_activation_do_not_open_settings(self):
         self.app.applicationStateChanged.emit(Qt.ApplicationState.ApplicationActive)

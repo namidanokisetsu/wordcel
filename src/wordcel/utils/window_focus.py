@@ -180,10 +180,10 @@ def activate_application():
     if sys.platform == "darwin" and QApplication.platformName() == "cocoa":
         from AppKit import NSApplication
         application = NSApplication.sharedApplication()
-        if hasattr(application, "activate"):
-            application.activate()
-        else:
+        if hasattr(application, "activateIgnoringOtherApps_"):
             application.activateIgnoringOtherApps_(True)
+        elif hasattr(application, "activate"):
+            application.activate()
 
 
 def reduce_motion_enabled():
