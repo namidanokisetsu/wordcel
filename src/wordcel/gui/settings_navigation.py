@@ -148,7 +148,7 @@ class SettingsNavigation:
         page = self.tabs.currentIndex()
         with QSignalBlocker(self.navigation), QSignalBlocker(self.app_navigation):
             if not self.navigation.topLevelItemCount():
-                for title in (*self.APP_PAGES, "Lookup", "Dictionaries", "Shortcuts", "Appearance", "Audio", "Translation", "Anki"):
+                for title in (*self.APP_PAGES, "Lookup", "Dictionaries", "Shortcuts", "Popup", "Audio", "Translation", "Anki"):
                     index = next(i for i in range(self.tabs.count()) if self.tabs.tabText(i) == title)
                     tree = self.app_navigation if title in self.APP_PAGES else self.navigation
                     item = QTreeWidgetItem(tree, [title])
@@ -396,13 +396,13 @@ class SettingsNavigation:
                 window = self.parent()
                 if page in ("Shortcuts", "Profile"):
                     window.restore_shortcut()
-                if page in ("Appearance", "Profile"):
+                if page in ("Popup", "Profile"):
                     window.translation_panel.set_side_by_side(self.settings.value(
                         f"profiles/{self.profile.currentData()}/translation_side_by_side", False, bool))
                     window.reload_appearance()
                 elif page == "Shortcuts":
                     window.reload_popup_shortcuts()
-                if page in ("Lookup", "Shortcuts", "Appearance", "Profile"):
+                if page in ("Lookup", "Shortcuts", "Popup", "Profile"):
                     window.scan_settings_changed.emit()
                 if page in ("Dictionaries", "Profile"):
                     window.refresh_library()

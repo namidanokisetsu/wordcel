@@ -69,7 +69,7 @@ class ProfilePreferenceTests(unittest.TestCase):
         self.settings.setValue("history/delay", 3.0)
         self.settings.setValue("hover_scan/startup", True)
 
-        reset_page(self.settings, profile, "Appearance")
+        reset_page(self.settings, profile, "Popup")
         self.assertFalse(self.settings.contains(f"profiles/{profile}/theme_name"))
         reset_page(self.settings, profile, "Shortcuts")
         self.assertEqual(self.settings.value(f"profiles/{profile}/hotkey"), "")

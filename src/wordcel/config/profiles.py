@@ -262,7 +262,7 @@ PROFILE_PAGE_KEYS = {
                   "copy_hotkey", "copy_hotkey_preset", "hover_hotkey", "hover_hotkey_preset", "popup/",
                   "anki/shortcut", "anki/shortcut_preset", "pin_shortcut", "pin_shortcut_preset", "pin_gesture",
                   "scan_bindings", "block_scan_keys", "side_button_scrolling"),
-    "Appearance": ("theme_name", "font_family", "font_size_header", "font_size_definitions", "font_size_sentence",
+    "Popup": ("theme_name", "font_family", "font_size_header", "font_size_definitions", "font_size_sentence",
                    "furigana_scale", "scale", "background_opacity", "color_background", "color_foreground",
                    "color_highlight_word", "color_highlight_reading", "custom/", "buttons/", "pitch_colors",
                    "kanji_stroke_order", "headword_furigana", "definition_furigana", "compact_preview",

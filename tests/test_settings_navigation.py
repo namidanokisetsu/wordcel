@@ -37,7 +37,7 @@ class SettingsNavigationTests(unittest.TestCase):
     def test_pages_and_single_profile_management(self):
         dialog = self.dialog()
         self.assertEqual({dialog.tabs.tabText(i) for i in range(dialog.tabs.count())},
-                         {"Startup", "History", "Storage", "Lookup", "Dictionaries", "Shortcuts", "Appearance", "Audio", "Translation", "Anki"})
+                         {"Startup", "History", "Storage", "Lookup", "Dictionaries", "Shortcuts", "Popup", "Audio", "Translation", "Anki"})
         self.assertEqual(dialog.scope.count(), 1)
         self.assertFalse(dialog.scope.isHidden())
         self.assertFalse(dialog.scope_label.isHidden())
@@ -145,7 +145,7 @@ class SettingsNavigationTests(unittest.TestCase):
         dialog.appearance.controls["font_size_header"].setValue(39)
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No) as question:
             dialog.restore_page_defaults()
-        self.assertIn("Appearance for " + dialog.profile.currentText(), question.call_args.args[2])
+        self.assertIn("Popup for " + dialog.profile.currentText(), question.call_args.args[2])
         self.assertEqual(self.settings.value("profiles/ja/font_size_header", 0, int), 39)
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes), \
                 patch.object(dialog, "reload") as reload_library, \

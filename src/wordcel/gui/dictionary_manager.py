@@ -582,8 +582,10 @@ class SetupDialog(SettingsNavigation, QDialog):
         popup_page = QWidget()
         popup_layout = QVBoxLayout(popup_page)
         popup_layout.addWidget(self.appearance)
-        popup_layout.addWidget(SettingsSection("Layout & behavior", shared_shortcuts, collapsible=True))
-        self.popup_tab = add_page(popup_page, "Appearance")
+        appearance_layout = self.appearance.layout()
+        appearance_layout.insertWidget(appearance_layout.indexOf(self.appearance.content_section),
+                                       SettingsSection("Layout & behavior", shared_shortcuts, collapsible=True))
+        self.popup_tab = add_page(popup_page, "Popup")
         align_form_columns(self.appearance.form, self.appearance.preview_form, self.appearance.pinned_form, shared_layout)
         audio_layout.removeWidget(audio_playback)
         audio_layout.insertWidget(0, audio_playback)
@@ -627,6 +629,8 @@ class SetupDialog(SettingsNavigation, QDialog):
         saved_page = settings.value("settings/page", "Lookup")
         if saved_page == "General":
             saved_page = "Startup"
+        elif saved_page == "Appearance":
+            saved_page = "Popup"
         self.rebuild_profiles()
         for index in range(tabs.count()):
             if tabs.tabText(index) == saved_page:
@@ -1089,7 +1093,7 @@ class SetupDialog(SettingsNavigation, QDialog):
                 self.load_shortcut_controls(code)
             if only_page in (None, "Translation"):
                 self.load_translation_controls(code)
-            if only_page in (None, "Appearance"):
+            if only_page in (None, "Popup"):
                 self.translation_split.setChecked(self.settings.value(f"profiles/{code}/translation_side_by_side", False, bool))
                 self.close_on_cursor_leave.setChecked(self.settings.value(f"profiles/{code}/close_on_cursor_leave", False, bool))
                 self.cursor_close_margin.setValue(self.settings.value(f"profiles/{code}/cursor_close_margin", 24, int))
