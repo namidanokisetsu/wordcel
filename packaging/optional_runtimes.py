@@ -41,7 +41,11 @@ def prepare(root):
                         if Requirement(value).marker is None or Requirement(value).marker.evaluate())])
     groups = {"stanza": ["stanza", "torch"]}
     if sys.platform == "win32":
-        groups["paddle"] = ["paddleocr", "paddlex[ocr-core]", "paddlepaddle"]
+        # PaddleX's OCR extra owns the contrib build of cv2.  Keep it in the
+        # isolated engine site even though the base application may carry the
+        # headless OpenCV wheel for MeikiOCR.
+        groups["paddle"] = ["paddleocr", "paddlex[ocr-core]", "paddlepaddle",
+                            "opencv-contrib-python"]
     optional = {key: {name: package for name, package in dependencies(values).items() if name not in core}
                 for key, values in groups.items()}
     packages = {name: package for group in optional.values() for name, package in group.items()}

@@ -1,5 +1,6 @@
 """Local PaddleOCR 3.7: explicit setup, offline inference, real word boxes."""
 import hashlib
+import importlib
 from importlib.util import find_spec
 import json
 import os
@@ -9,6 +10,7 @@ import sys
 import tempfile
 
 from wordcel.ocr.scan_cache import ScanCache
+from wordcel.ocr.paddle_worker import PaddleWorker
 from wordcel.pipeline import REUSE_LAST_VALUE
 
 MODELS = {"det": "PP-OCRv6_small_det", "rec": "PP-OCRv6_small_rec"}
@@ -61,8 +63,24 @@ def prepare_environment():
         _openmp = ctypes.WinDLL(str(library))
 
 
+def activate_paddle_runtime():
+    """Prepend Paddle's complete site in a process dedicated to Paddle."""
+    from wordcel.optional_runtimes import runtime_site
+    site = runtime_site("paddle")
+    if site is None:
+        return
+    site = str(Path(site).resolve())
+    sys.path[:] = [entry for entry in sys.path
+                   if str(Path(entry).resolve()) != site]
+    sys.path.insert(0, site)
+    importlib.invalidate_caches()
+
+
 def setup_ocr(root=None, onnx_dir=None):
     prepare_environment()
+    # Model setup runs in its own CLI process, so it may own Paddle's cv2
+    # distribution without changing the desktop process's headless import.
+    activate_paddle_runtime()
     from paddlex.inference.utils.official_models import official_models
     root = Path(root or model_root())
     root.parent.mkdir(parents=True, exist_ok=True)
@@ -83,7 +101,8 @@ def setup_ocr(root=None, onnx_dir=None):
         (stage / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         validate_models(stage)
         # Verify the bundled inference runtime before activating the new models.
-        LocalOCR(stage)
+        probe = LocalOCR(stage)
+        probe.close()
         if root.exists():
             previous = Path(temporary) / "previous"
             root.replace(previous)
@@ -124,22 +143,29 @@ class LocalOCR:
         root = Path(root or model_root())
         manifest = validate_models(root)
         prepare_environment()
-        from paddleocr import PaddleOCR
         use_onnx = all(f"{name}/inference.onnx" in manifest["files"] for name in MODELS.values())
-        options = {"engine": "onnxruntime", "engine_config": {
-            "intra_op_num_threads": 4, "inter_op_num_threads": 1, "log_severity_level": 3,
-        }} if use_onnx else {"enable_mkldnn": True, "cpu_threads": 4}
-        self.engine = PaddleOCR(
-            text_detection_model_name=MODELS["det"], text_detection_model_dir=str(root / MODELS["det"]),
-            text_recognition_model_name=MODELS["rec"], text_recognition_model_dir=str(root / MODELS["rec"]),
-            use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False,
-            return_word_box=True, device="cpu", **options,
-        )
+        from wordcel.optional_runtimes import runtime_site
+        self._worker = PaddleWorker(root, use_onnx, runtime_site("paddle"))
         self.scan_cache = ScanCache()
 
     def recognize(self, pixels):
         """Recognize a BGR uint8 array; returned boxes use these input pixels."""
+        worker = getattr(self, "_worker", None)
+        if worker is not None:
+            return worker.predict(pixels)
         return list(self.engine.predict(pixels))
+
+    def close(self):
+        worker = getattr(self, "_worker", None)
+        if worker is not None:
+            self._worker = None
+            worker.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def lookup_point(self, pixels, point):
         results = self.scan_cache.result if pixels is REUSE_LAST_VALUE else self.scan_cache.scan(pixels, self.recognize)

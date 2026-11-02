@@ -16,7 +16,8 @@ class OCRTests(unittest.TestCase):
                 patch.object(turkish_paddle.sys, "platform", "win32"), \
                 patch.object(turkish_paddle, "find_spec", return_value=SimpleNamespace(origin="runtime/torch/__init__.py")) as spec, \
                 patch.object(Path, "is_file", return_value=True), \
-                patch("ctypes.WinDLL", loader, create=True):
+                patch("ctypes.WinDLL", loader, create=True), \
+                patch("wordcel.optional_runtimes.require"):
             turkish_paddle.prepare_environment()
             turkish_paddle.prepare_environment()
         spec.assert_called_once_with("torch")
@@ -26,10 +27,12 @@ class OCRTests(unittest.TestCase):
         from wordcel.ocr import turkish_paddle
         with patch.object(turkish_paddle, "_openmp", None), \
                 patch.object(turkish_paddle.sys, "platform", "win32"), \
-                patch.object(turkish_paddle, "find_spec", return_value=None):
+                patch.object(turkish_paddle, "find_spec", return_value=None), \
+                patch("wordcel.optional_runtimes.require"):
             turkish_paddle.prepare_environment()
         with patch.object(turkish_paddle.sys, "platform", "darwin"), \
-                patch.object(turkish_paddle, "find_spec") as spec:
+                patch.object(turkish_paddle, "find_spec") as spec, \
+                patch("wordcel.optional_runtimes.require"):
             turkish_paddle.prepare_environment()
         spec.assert_not_called()
 

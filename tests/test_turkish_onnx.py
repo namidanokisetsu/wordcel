@@ -42,14 +42,12 @@ class ONNXTests(unittest.TestCase):
             modules = {'paddleocr': SimpleNamespace(PaddleOCR=constructor),
                        'paddlex.inference.utils.official_models': SimpleNamespace(
                            official_models={name: source / name for name in MODELS.values()})}
-            with patch.dict('sys.modules', modules):
+            with patch.dict('sys.modules', modules), patch('wordcel.ocr.turkish_paddle.PaddleWorker') as worker, \
+                    patch('wordcel.ocr.turkish_paddle.prepare_environment'), patch('wordcel.optional_runtimes.runtime_site', return_value=None):
                 setup_ocr(installed, onnx_dir=exported)
                 LocalOCR(installed)
-            options = constructor.call_args.kwargs
-            self.assertEqual(options['engine'], 'onnxruntime')
-            self.assertEqual(options['engine_config']['intra_op_num_threads'], 4)
-            self.assertTrue(options['return_word_box'])
-            self.assertFalse(options['use_textline_orientation'])
+            self.assertTrue(worker.call_args_list[0].args[1])
+            self.assertTrue(worker.call_args_list[1].args[1])
             info = json.loads((installed / 'manifest.json').read_text())
             self.assertEqual(info['onnx_exporter']['paddle'], '3.1.1')
             self.assertTrue(all(f'{name}/inference.onnx' in info['files'] for name in MODELS.values()))
@@ -61,10 +59,11 @@ class ONNXTests(unittest.TestCase):
             for name in MODELS.values():
                 (root / name / 'inference.onnx').write_bytes(b'not in manifest')
             constructor = Mock()
-            with patch.dict('sys.modules', {'paddleocr': SimpleNamespace(PaddleOCR=constructor)}):
+            with patch.dict('sys.modules', {'paddleocr': SimpleNamespace(PaddleOCR=constructor)}), \
+                    patch('wordcel.ocr.turkish_paddle.PaddleWorker') as worker, \
+                    patch('wordcel.ocr.turkish_paddle.prepare_environment'), patch('wordcel.optional_runtimes.runtime_site', return_value=None):
                 LocalOCR(root)
-            self.assertTrue(constructor.call_args.kwargs['enable_mkldnn'])
-            self.assertNotIn('engine', constructor.call_args.kwargs)
+            self.assertFalse(worker.call_args.args[1])
 
     def test_partial_or_corrupt_export_fails_before_runtime_loading(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -73,7 +72,9 @@ class ONNXTests(unittest.TestCase):
             (root / MODELS['det'] / 'inference.onnx').write_bytes(b'detector')
             self.manifest(root)
             constructor = Mock()
-            with patch.dict('sys.modules', {'paddleocr': SimpleNamespace(PaddleOCR=constructor)}):
+            with patch.dict('sys.modules', {'paddleocr': SimpleNamespace(PaddleOCR=constructor)}), \
+                    patch('wordcel.ocr.turkish_paddle.PaddleWorker') as worker, \
+                    patch('wordcel.ocr.turkish_paddle.prepare_environment'), patch('wordcel.optional_runtimes.runtime_site', return_value=None):
                 with self.assertRaises(RuntimeError):
                     LocalOCR(root)
                 (root / MODELS['rec'] / 'inference.onnx').write_bytes(b'recognizer')
@@ -93,7 +94,8 @@ class ONNXTests(unittest.TestCase):
             previous = (installed / 'manifest.json').read_bytes()
             modules = {'paddlex.inference.utils.official_models': SimpleNamespace(
                 official_models={name: source / name for name in MODELS.values()})}
-            with patch.dict('sys.modules', modules):
+            with patch.dict('sys.modules', modules), patch('wordcel.ocr.turkish_paddle.PaddleWorker'), \
+                    patch('wordcel.ocr.turkish_paddle.prepare_environment'), patch('wordcel.optional_runtimes.runtime_site', return_value=None):
                 path = source / MODELS['det'] / 'inference.json'
                 original = path.read_bytes()
                 path.write_bytes(b'different model')
@@ -115,6 +117,7 @@ class ONNXTests(unittest.TestCase):
 
     def test_shared_setup_forwards_optional_export_directory(self):
         from wordcel.scripts.quick_lookup import main
-        with patch('wordcel.ocr.turkish_paddle.setup_ocr') as setup:
+        with patch('wordcel.ocr.turkish_paddle.setup_ocr') as setup, \
+                patch('wordcel.optional_runtimes.require'):
             self.assertEqual(main(['--setup-ocr', 'paddle', '--onnx-dir', 'exports']), 0)
         setup.assert_called_once_with(onnx_dir=Path('exports'))

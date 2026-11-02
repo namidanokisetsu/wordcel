@@ -27,14 +27,27 @@ def main(argv=None):
     parser.add_argument("--setup-engine", choices=("paddle", "stanza"), help=argparse.SUPPRESS)
     parser.add_argument("--check-engine", choices=("paddle", "stanza"), help=argparse.SUPPRESS)
     parser.add_argument("--engine-directory", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--paddle-worker", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--paddle-address", help=argparse.SUPPRESS)
+    parser.add_argument("--paddle-auth", help=argparse.SUPPRESS)
+    parser.add_argument("--paddle-model-dir", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--paddle-runtime", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--paddle-onnx", choices=("0", "1"), help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.onnx_dir and args.setup_ocr != "paddle":
         parser.error("--onnx-dir requires --setup-ocr paddle")
     background = args.background or (not args.text and sys.platform != "darwin")
 
+    if args.paddle_worker:
+        if not all((args.paddle_address, args.paddle_auth, args.paddle_model_dir, args.paddle_onnx)):
+            parser.error("Paddle worker arguments are incomplete")
+        from wordcel.ocr.paddle_worker import run_worker
+        return run_worker(args.paddle_address, bytes.fromhex(args.paddle_auth), args.paddle_model_dir,
+                          args.paddle_onnx == "1", args.paddle_runtime)
+
     if args.check_engine:
         if args.engine_directory:
-            sys.path.append(str(args.engine_directory.resolve()))
+            sys.path.insert(0, str(args.engine_directory.resolve()))
         from wordcel.optional_runtimes import check_engine
         check_engine(args.check_engine)
         return 0
@@ -81,8 +94,9 @@ def main(argv=None):
         from wordcel.optional_runtimes import require
         if sys.platform == "win32":
             require("paddle")
-            from wordcel.ocr.turkish_paddle import prepare_environment
+            from wordcel.ocr.turkish_paddle import activate_paddle_runtime, prepare_environment
             prepare_environment()
+            activate_paddle_runtime()
             import paddle
             import paddleocr
             from paddlex.utils.deps import require_extra

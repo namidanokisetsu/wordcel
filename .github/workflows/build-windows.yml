@@ -26,6 +26,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -e '.[morphology,turkish-ocr]'
+          pip install paddleocr==3.7.0 'paddlex[ocr-core]==3.7.2' paddlepaddle==3.2.2 opencv-contrib-python==4.10.0.84
           pip install pyinstaller==6.22.3
 
       - name: check setup flow

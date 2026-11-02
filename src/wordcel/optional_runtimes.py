@@ -17,6 +17,13 @@ from wordcel import USER_AGENT
 
 _install_lock = threading.Lock()
 _active = set()
+SOURCE_PADDLE_OPENCV = "opencv-contrib-python==4.10.0.84"
+SOURCE_PADDLE_PACKAGES = (
+    "paddleocr==3.7.0", "paddlex[ocr-core]==3.7.2", "paddlepaddle==3.2.2", SOURCE_PADDLE_OPENCV,
+)
+SOURCE_PADDLE_MARKER = {
+    "opencv": "4.10.0.84", "paddle": "3.2.2", "paddleocr": "3.7.0", "paddlex": "3.7.2",
+}
 
 
 @lru_cache(maxsize=1)
@@ -36,9 +43,54 @@ def runtime_root(feature, data_root=None):
     return Path(data_root or paths.data_dir) / "engines" / f"{feature}-{identity}"
 
 
+def source_runtime_root(feature, data_root=None):
+    """Return the source install location for a process-isolated engine."""
+    from wordcel.utils.paths import paths
+    return Path(data_root or paths.data_dir) / "engines" / f"{feature}-source"
+
+
+def runtime_site(feature, data_root=None):
+    """Return the site directory that a fresh engine process must prepend."""
+    if manifest():
+        return runtime_root(feature, data_root) / "site"
+    if feature == "paddle" and not getattr(sys, "frozen", False):
+        return source_runtime_root(feature, data_root) / "site"
+    return None
+
+
+def _source_paddle_ready(root):
+    site = Path(root) / "site"
+    if not site.is_dir() or not (Path(root) / "complete.json").is_file():
+        return False
+    try:
+        metadata = json.loads((Path(root) / "complete.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if metadata != SOURCE_PADDLE_MARKER:
+        return False
+    # Check files from the real wheel without importing cv2 in the parent.
+    if not (site / "cv2" / "__init__.py").is_file():
+        return False
+    # The native filename is platform-specific; the dist-info marker and
+    # package initializer are stable enough for a readiness check.
+    native = [path for path in (site / "cv2").glob("cv2.*")
+              if path.is_file() and path.suffix in {".so", ".pyd", ".dylib"}]
+    if not native:
+        return False
+    distributions = {
+        "opencv_contrib_python": "4.10.0.84", "paddlepaddle": "3.2.2",
+        "paddleocr": "3.7.0", "paddlex": "3.7.2",
+    }
+    return (all(any(site.glob(f"{name}-{version}*.dist-info/METADATA"))
+                for name, version in distributions.items())
+            and all((site / package).is_dir() for package in ("paddle", "paddleocr", "paddlex")))
+
+
 def ready(feature, data_root=None):
     if not manifest():
-        return not getattr(sys, "frozen", False)
+        if getattr(sys, "frozen", False):
+            return False
+        return feature != "paddle" or _source_paddle_ready(source_runtime_root(feature, data_root))
     try:
         root = runtime_root(feature, data_root)
         return json.loads((root / "complete.json").read_text(encoding="utf-8")) == manifest()["features"][feature] and (root / "site").is_dir()
@@ -49,12 +101,14 @@ def ready(feature, data_root=None):
 def activate():
     """Expose installed wheels without importing their engines or scanning model data."""
     config = manifest()
-    if not config:
-        return
-    for feature in config["features"]:
+    features = config["features"] if config else ("paddle",)
+    for feature in features:
         if ready(feature):
-            site = str(runtime_root(feature) / "site")
-            if site not in sys.path:
+            path = runtime_site(feature)
+            if path is None:
+                continue
+            site = str(path)
+            if feature != "paddle" and site not in sys.path:
                 sys.path.append(site)
                 importlib.invalidate_caches()
 
@@ -379,12 +433,15 @@ def check_engine(feature):
 
 def install(feature, progress=None, cancelled=None):
     if not getattr(sys, "frozen", False):
+        if feature == "paddle":
+            return _install_source_paddle(progress, cancelled)
         return
     progress = progress or (lambda text: None)
     _cancel(cancelled)
     with _install_lock:
         if ready(feature):
-            activate()
+            if feature != "paddle":
+                activate()
             return
         root = runtime_root(feature)
         root.parent.mkdir(parents=True, exist_ok=True)
@@ -413,4 +470,41 @@ def install(feature, progress=None, cancelled=None):
                 if previous.exists():
                     previous.rename(root)
                 raise
-        activate()
+        if feature != "paddle":
+            activate()
+
+
+def _install_source_paddle(progress=None, cancelled=None):
+    """Install Paddle and its contrib OpenCV wheel into an isolated site.
+
+    The regular source environment keeps MeikiOCR's headless distribution.
+    Paddle inference runs in a child process that prepends this site before
+    loading Paddle, so either distribution can own ``cv2`` in its process.
+    """
+    progress = progress or (lambda text: None)
+    _cancel(cancelled)
+    with _install_lock:
+        root = source_runtime_root("paddle")
+        if _source_paddle_ready(root):
+            return
+        root.parent.mkdir(parents=True, exist_ok=True)
+        from wordcel.scripts.setup_morphology import _run
+        with tempfile.TemporaryDirectory(prefix=".install-", dir=root.parent) as temporary:
+            stage = Path(temporary) / "engine"
+            site = stage / "site"
+            site.mkdir(parents=True)
+            progress("Installing Paddle's OCR runtime…")
+            _run(["-m", "pip", "install", "--disable-pip-version-check", "--target", str(site),
+                  *SOURCE_PADDLE_PACKAGES], cancelled)
+            _cancel(cancelled)
+            if not _source_paddle_ready(stage):
+                raise RuntimeError("Paddle's contrib OpenCV runtime is incomplete.")
+            previous = Path(temporary) / "previous"
+            if root.exists():
+                root.rename(previous)
+            try:
+                stage.rename(root)
+            except OSError:
+                if previous.exists():
+                    previous.rename(root)
+                raise

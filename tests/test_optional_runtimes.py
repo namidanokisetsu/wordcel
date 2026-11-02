@@ -100,6 +100,39 @@ class OptionalRuntimeTests(unittest.TestCase):
             install("ru")
         self.assertEqual(calls, ["engine", "model"])
 
+    def test_source_paddle_runtime_is_full_and_stays_out_of_parent_path(self):
+        with patch.object(engines, "manifest", return_value=None), \
+                patch("sys.frozen", False, create=True), \
+                patch.object(engines, "activate") as activate, \
+                patch("wordcel.scripts.setup_morphology._run") as run:
+            def install(arguments, cancelled=None):
+                site = Path(arguments[arguments.index("--target") + 1])
+                (site / "cv2").mkdir()
+                (site / "cv2/__init__.py").write_text("OWNER = 'contrib'\n")
+                (site / "cv2/cv2.abi3.so").write_bytes(b"fixture")
+                distributions = {
+                    "opencv_contrib_python": "4.10.0.84", "paddlepaddle": "3.2.2",
+                    "paddleocr": "3.7.0", "paddlex": "3.7.2",
+                }
+                for distribution, version in distributions.items():
+                    metadata = site / f"{distribution}-{version}.dist-info/METADATA"
+                    metadata.parent.mkdir()
+                    metadata.write_text(f"Name: {distribution}\nVersion: {version}\n")
+                for package in ("paddle", "paddleocr", "paddlex"):
+                    (site / package).mkdir()
+                root = site.parent
+                (root / "complete.json").write_text(json.dumps(engines.SOURCE_PADDLE_MARKER))
+            run.side_effect = install
+            engines.install("paddle")
+            command = run.call_args.args[0]
+            self.assertIn("--target", command)
+            self.assertNotIn("--no-deps", command)
+            for package in engines.SOURCE_PADDLE_PACKAGES:
+                self.assertIn(package, command)
+            self.assertTrue(engines.ready("paddle"))
+            self.assertNotIn(str(engines.source_runtime_root("paddle") / "site"), __import__("sys").path)
+            activate.assert_not_called()
+
     def test_interrupted_wheel_download_resumes_with_range_and_validator(self):
         content = b"x" * (1024 * 1024 + 137) + b"tail"
         digest = hashlib.sha256(content).hexdigest()

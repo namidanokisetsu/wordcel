@@ -43,6 +43,11 @@ class PaddleScan:
         results = self.provider.recognize(np.asarray(image)[:, :, ::-1].copy())
         return paddle_paragraphs(results, *image.size, language=language)
 
+    def close(self):
+        close = getattr(self.provider, "close", None)
+        if close:
+            close()
+
 
 class ScanWorker(threading.Thread):
     def __init__(self, completed, directory=None, frames=None):
@@ -113,6 +118,10 @@ class ScanWorker(threading.Thread):
                 if job is None or self._stopped.is_set():
                     return
                 if self._reset_models.is_set():
+                    for provider in providers.values():
+                        close = getattr(provider, "close", None)
+                        if close:
+                            close()
                     providers.clear()
                     caches.clear()
                     scanners.clear()
@@ -265,6 +274,10 @@ class ScanWorker(threading.Thread):
                     else:
                         self._emit(generation, None, None, detail[:300])
         finally:
+            for provider in providers.values():
+                close = getattr(provider, "close", None)
+                if close:
+                    close()
             self._frozen = None
             if engine:
                 engine.close()

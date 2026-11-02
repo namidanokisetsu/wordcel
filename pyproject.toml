@@ -55,11 +55,10 @@ morphology = [
     "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "torch==2.8.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
 ]
-# MeikiOCR and PaddleX install cv2 under two distribution names. Keep their
-# wheels on the same release so Python wrappers match the native extension;
-# packaging keeps the shared core with MeikiOCR and isolates Paddle's extras.
-# Paddle 3.3.x has a PIR/oneDNN regression; 3.2.2 accelerates the same v6 models.
-turkish-ocr = ["paddleocr==3.7.0", "paddlex[ocr-core]==3.7.2", "paddlepaddle==3.2.2", "opencv-python-headless==4.10.0.84"]
+# Paddle and PaddleX, including their contrib OpenCV wheel, are installed by
+# the setup worker into an isolated engine site. Keeping them out of the
+# source environment prevents cv2 ownership from depending on pip order.
+turkish-ocr = []
 
 [tool.setuptools.packages.find]
 where = ["src"]
