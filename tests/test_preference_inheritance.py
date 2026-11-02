@@ -10,7 +10,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QSettings
 
 from wordcel.config.inheritance import migrate_defaults
-from wordcel.config.profiles import (create_profile, reset_app_page, reset_page, reset_profile)
+from wordcel.config.profiles import (create_profile, ensure_private_connection, reset_app_page,
+                                     reset_page, reset_profile)
 
 
 class IndependentProfileSettingsTests(unittest.TestCase):
@@ -96,6 +97,16 @@ class IndependentProfileSettingsTests(unittest.TestCase):
         self.assertEqual(self.settings.value("profiles/ja/theme_name"), "Light")
         self.assertEqual(self.settings.value("connections/anki/source/api_key"), "secret")
         self.assertEqual(self.settings.value("profile"), "ja")
+
+    def test_connection_edit_detaches_shared_reference(self):
+        self.settings.setValue("profiles/ja/anki/connection", "source")
+        self.settings.setValue("profiles/tr/anki/connection", "source")
+        self.settings.setValue("connections/anki/source/endpoint", "http://127.0.0.1:8765")
+        private = ensure_private_connection(self.settings, "ja", "anki")
+        self.assertNotEqual(private, "source")
+        self.assertEqual(self.settings.value("profiles/tr/anki/connection"), "source")
+        self.settings.setValue(f"connections/anki/{private}/endpoint", "http://127.0.0.1:9999")
+        self.assertEqual(self.settings.value("connections/anki/source/endpoint"), "http://127.0.0.1:8765")
 
     def test_page_and_profile_resets_preserve_data_enablement_and_assignments(self):
         profile = "ja"
