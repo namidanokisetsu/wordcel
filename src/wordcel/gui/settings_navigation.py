@@ -43,8 +43,6 @@ class SettingsNavigation:
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         sidebar_layout.addWidget(self.search)
-        self.app_heading = QLabel("App settings")
-        sidebar_layout.addWidget(self.app_heading)
         sidebar_layout.addWidget(self.app_navigation)
         row = QHBoxLayout()
         self.scope_label = QLabel("Editing")
@@ -129,7 +127,8 @@ class SettingsNavigation:
                 global_page = title == "General"
                 index = next(i for i in range(self.tabs.count()) if self.tabs.tabText(i) == title)
                 identity = None if global_page else self.profile.currentData()
-                item = QTreeWidgetItem(self.app_navigation if global_page else self.navigation, [title])
+                item = QTreeWidgetItem(self.app_navigation if global_page else self.navigation,
+                                      ["App settings" if global_page else title])
                 item.setData(0, Qt.ItemDataRole.UserRole, (identity, index))
                 if index == page:
                     selected = item
@@ -178,8 +177,6 @@ class SettingsNavigation:
         identity, page = value
         profile_page = identity is not None
         self.profile_details.setVisible(profile_page)
-        self.scope.setVisible(profile_page)
-        self.scope_label.setVisible(profile_page)
         self.reset_app_shortcuts.setVisible(self.tabs.tabText(page) == "Shortcuts")
         self.tabs.setCurrentIndex(page)
         self._editing_scope = self.scope.currentData()
@@ -198,7 +195,6 @@ class SettingsNavigation:
         query = self.search.text().strip().casefold()
         self.navigation.setVisible(not query)
         self.app_navigation.setVisible(not query)
-        self.app_heading.setVisible(not query)
         self.search_results.setVisible(bool(query))
         self.search_results.clear()
         if not query:

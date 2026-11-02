@@ -42,7 +42,7 @@ Release to copy; **Escape** or right-click cancels. Its optional shortcut is in
 
 In **Settings**, choose a profile under **Editing** to change its settings.
 This does not switch the active profile. Startup, history and storage are in
-**General**.
+**App settings**.
 
 Use **Restore defaults…** for one page or **Reset profile settings…** for a profile.
 Resets keep your profiles, enabled features, connections, credentials, downloaded
@@ -55,7 +55,7 @@ every profile. Download dictionaries here, OCR resources in **Lookup**, and
 translation models in **Translation**.
 
 Downloads continue when you close or minimize setup. Use **Cancel downloads** or
-**Cancel** to stop them. **General > Storage** shows running jobs. Progress shows
+**Cancel** to stop them. **App settings > Storage** shows running jobs. Progress shows
 the current step; estimated download time excludes verification and installation.
 
 Japanese recommendations include JMdict, KANJIDIC, Jiten Global and the WaDoku pitch
@@ -64,15 +64,15 @@ dictionary. [Jiten frequency data](https://jiten.moe/frequency-dictionaries) use
 WaDoku data is attributed to [Wadoku](https://www.wadoku.de) and
 distributed under its [data licence](https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten+Lizenz).
 
-**General > Startup > Preload OCR** loads the OCR model at startup. Turn it off
+**App settings > Startup > Preload OCR** loads the OCR model at startup. Turn it off
 to load it on the first scan. The model stays in memory until Wordcel exits.
 Dictionary-only mode skips preloading.
 
 ## Lookup history
 
-Enable recording in **General > History**, then open **History** from the tray.
+Enable recording in **App settings > History**, then open **History** from the tray.
 It saves pinned results and searches by default, with no expiry. Change what
-gets recorded, set retention or clear history in **General > History**.
+gets recorded, set retention or clear history in **App settings > History**.
 Turning recording off keeps existing history.
 
 Search by word, reading, encountered form, stored meaning or sentence fragment.

@@ -126,7 +126,7 @@ class NamedProfileTests(unittest.TestCase):
         self.addCleanup(dialog.deleteLater)
         self.assertEqual([dialog.app_navigation.topLevelItem(i).text(0)
                           for i in range(dialog.app_navigation.topLevelItemCount())],
-                         ["General"])
+                         ["App settings"])
         for page in (dialog.app_tab,):
             for identity in ("ja", duplicate):
                 with self.subTest(page=dialog.tabs.indexOf(page), profile=identity):
@@ -138,6 +138,9 @@ class NamedProfileTests(unittest.TestCase):
                     self.assertIs(dialog.app_navigation.currentItem(), item)
                     self.assertIs(dialog.tabs.currentWidget(), page)
                     self.assertTrue(dialog.profile_details.isHidden())
+                    self.assertFalse(dialog.scope.isHidden())
+                    self.assertFalse(dialog.scope_label.isHidden())
+                    self.assertEqual(dialog.scope.currentData(), identity)
                     self.assertEqual(dialog.profile.currentData(), identity)
         dialog.navigation.setCurrentItem(dialog.navigation.topLevelItem(0))
         self.assertIs(dialog.tabs.currentWidget(), dialog.lookup_tab)

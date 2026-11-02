@@ -49,7 +49,9 @@ class SettingsNavigationTests(unittest.TestCase):
         self.assertIn("Reset profile settings…", [action.text() for action in dialog.profile_menu.actions()])
         self.assertFalse(dialog.appearance.isHidden())
         dialog.tabs.setCurrentWidget(dialog.app_tab)
-        self.assertTrue(dialog.scope.isHidden())
+        self.assertFalse(dialog.scope.isHidden())
+        self.assertFalse(dialog.scope_label.isHidden())
+        self.assertEqual(dialog.app_navigation.topLevelItem(0).text(0), "App settings")
 
     def test_duplicate_is_selected_for_editing_without_activation(self):
         dialog = self.dialog()
@@ -122,7 +124,7 @@ class SettingsNavigationTests(unittest.TestCase):
         self.assertEqual(self.settings.value("next_profile_hotkey", ""), "")
         dialog.tabs.setCurrentWidget(dialog.app_tab)
         self.assertTrue(dialog.reset_app_shortcuts.isHidden())
-        self.assertTrue(dialog.scope.isHidden())
+        self.assertFalse(dialog.scope.isHidden())
 
     def test_translation_disable_preserves_options_and_availability(self):
         from wordcel.gui.resources import profile_translation_available
