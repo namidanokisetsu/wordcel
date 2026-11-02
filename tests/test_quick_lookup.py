@@ -622,9 +622,7 @@ class QuickLookupTests(unittest.TestCase):
                     left = handle.mapTo(self.window.frame, QPoint()).x()
                     self.assertEqual(left, self.window.frame.width() - left - handle.width())
                 self.assertEqual(self.window.geometry(), geometry)
-        self.assertEqual(panel.splitter.handleWidth(), self.window.kanji_splitter.handleWidth())
-        self.assertEqual(panel.source_label.parentWidget().layout().contentsMargins().top(),
-                         self.window.kanji_panel.layout().contentsMargins().top())
+        self.assertEqual(panel.splitter.handleWidth(), self.window.lookup_splitter.handleWidth())
 
     def test_editing_source_cancels_stream_and_preserves_edit_cursor(self):
         self.window.translation_worker = Mock()
@@ -1913,7 +1911,7 @@ class QuickLookupTests(unittest.TestCase):
             self.window.go_back()
             render.assert_not_called()
             self.assertFalse(self.window._translation_view)
-            self.assertIs(self.window.content_stack.currentWidget(), browser)
+            self.assertIs(self.window.content_stack.currentWidget(), self.window.lookup_splitter)
             self.assertEqual(browser.selected_text(), selection)
             self.assertEqual(browser.verticalScrollBar().value(), scroll)
             self.assertEqual(self.window.geometry(), geometry)
@@ -3578,7 +3576,7 @@ class QuickLookupTests(unittest.TestCase):
                 self.assertIn("犬", self.window.kanji_browser.toPlainText())
                 self.assertTrue(self.window.kanji_panel.isVisible())
 
-    def test_headword_kanji_opens_pane_without_rebuilding_or_widening(self):
+    def test_headword_kanji_opens_full_view_without_rebuilding_or_resizing(self):
         kanji = (KanjiEntry("猫", source="Kanji A", meanings=("cat",), stats=(("strokes", 11),)),)
         self.window.show_entries((entry("猫", definitions=("Meaning " * 200,)),), "猫", kanji=kanji)
         self.window._expanded.add("Dictionary")
@@ -3603,7 +3601,7 @@ class QuickLookupTests(unittest.TestCase):
         self.window._link(QUrl("headkanji:0:%E7%8C%AB"))
         self.assertTrue(self.window.kanji_panel.isHidden())
 
-    def test_kanji_links_share_one_visible_pane_and_preserve_dictionary_selection(self):
+    def test_kanji_links_share_one_view_and_preserve_dictionary_selection(self):
         kanji = (KanjiEntry("猫", stats=(("strokes", 11),)),
                  KanjiEntry("犬", stats=(("strokes", 4),)))
         self.window.show_entries((entry("猫犬", definitions=("Meaning " * 200,)),), kanji=kanji)
@@ -3630,7 +3628,7 @@ class QuickLookupTests(unittest.TestCase):
             self.assertEqual(browser.textCursor().selectedText(), selection)
             self.assertEqual(browser.document().revision(), revision)
             self.assertEqual(self.window.width(), geometry.width())
-        self.window.kanji_close.click()
+        self.window.back.click()
         self.app.processEvents()
         self.assertTrue(self.window.kanji_panel.isHidden())
         self.assertEqual(browser.verticalScrollBar().value(), scroll)
@@ -3678,48 +3676,47 @@ class QuickLookupTests(unittest.TestCase):
         self.app.processEvents()
         self.assertEqual(self.window.geometry(), geometry)
         self.assertTrue(self.window.kanji_panel.isVisible())
-        self.window.kanji_close.click()
+        self.window.back.click()
         self.app.processEvents()
         self.assertEqual(self.window.geometry(), geometry)
 
-    def test_default_kanji_split_fits_glyph_without_fitting_long_meanings(self):
+    def test_kanji_uses_full_content_area_without_labels_or_window_resize(self):
         for height in (340, 500):
             self.window.show_entries((entry(),),
-                                     kanji=(KanjiEntry("?", meanings=("long meaning " * 500,)),))
+                                     kanji=(KanjiEntry("邪", meanings=("long meaning " * 500,)),))
             self.window._reading_size_custom = True
             self.window.resize(480, height)
             self.app.processEvents()
             geometry = self.window.geometry()
-            self.window._select_kanji("?")
+            self.window._select_kanji("邪")
             self.app.processEvents()
             self.assertEqual(self.window.geometry(), geometry)
-            self.assertGreaterEqual(self.window.kanji_browser.viewport().height(),
-                                    self.window._kanji_glyph_height())
+            self.assertIs(self.window.content_stack.currentWidget(), self.window.kanji_panel)
+            self.assertFalse(self.window.browser.isVisible())
+            self.assertEqual(self.window.kanji_panel.geometry(), self.window.content_stack.contentsRect())
+            self.assertNotIn("Meanings", self.window.kanji_browser.toPlainText())
             self.assertGreater(self.window.kanji_browser.verticalScrollBar().maximum(), 0)
-            self.window._close_kanji()
+            self.window.go_back()
             self.app.processEvents()
             self.assertEqual(self.window.geometry(), geometry)
 
-    def test_closing_kanji_returns_pane_focus_to_dictionary(self):
+    def test_closing_kanji_returns_focus_to_dictionary(self):
         self.window.show_entries((entry(),), kanji=(KanjiEntry("x", meanings=("test",)),))
         self.window.activateWindow()
         self.app.processEvents()
-        for widget in (self.window.kanji_browser, self.window.kanji_close, self.window.search):
-            with self.subTest(widget=widget):
-                self.window._select_kanji("x")
-                widget.setFocus()
-                self.assertIs(self.app.focusWidget(), widget)
-                self.window._close_kanji()
-                expected = widget if widget is self.window.search else self.window.browser
-                self.assertIs(self.app.focusWidget(), expected)
+        self.window._select_kanji("x")
+        self.window.kanji_browser.setFocus()
+        self.assertIs(self.app.focusWidget(), self.window.kanji_browser)
+        self.window._close_kanji()
+        self.assertIs(self.app.focusWidget(), self.window.browser)
 
-    def test_search_reopens_after_dismissal_during_dictionary_selection(self):
+    def test_search_reopens_after_dismissal_during_kanji_selection(self):
         self.window.show_entries((entry(),), kanji=(KanjiEntry("猫", meanings=("cat",)),))
         self.window._select_kanji("猫")
         self.app.processEvents()
-        QTest.mousePress(self.window.browser.viewport(), Qt.MouseButton.LeftButton,
-                         pos=self.window.browser.viewport().rect().center())
-        self.assertTrue(self.window.browser.selecting)
+        QTest.mousePress(self.window.kanji_browser.viewport(), Qt.MouseButton.LeftButton,
+                         pos=self.window.kanji_browser.viewport().rect().center())
+        self.assertTrue(self.window.kanji_browser.selecting)
         # Native dismissal can consume the release before the browser receives it.
         self.window.hide()
         self.window.open_search()
@@ -3728,27 +3725,78 @@ class QuickLookupTests(unittest.TestCase):
                         and self.window._result is not None and self.window._result.text == "hanashi")
         self.assertIn("hanashi", self.window.browser.toPlainText())
         self.assertFalse(self.window.browser.selecting)
+        self.assertFalse(self.window.kanji_browser.selecting)
         self.assertTrue(self.window.kanji_panel.isHidden())
 
-    def test_kanji_divider_remembers_share_and_keeps_manual_window_size(self):
-        self.window.show_entries((entry(),), kanji=(KanjiEntry("猫", meanings=("cat",)),))
+    def test_kanji_breadcrumb_returns_to_unchanged_word_view(self):
+        self.settings.setValue("profiles/ja/kanji_height_ratio", .8)
+        self.window.show_entries((entry("猫犬", definitions=("Meaning " * 200,)),),
+                                 kanji=(KanjiEntry("猫", meanings=("cat",)),))
         self.app.processEvents()
-        self.window._select_kanji("猫")
-        self.app.processEvents()
-        splitter = self.window.kanji_splitter
-        splitter.moveSplitter(round(sum(splitter.sizes()) * .3), 1)
-        ratio = self.settings.value("profiles/ja/kanji_height_ratio", type=float)
-        self.assertGreater(ratio, .5)
-        self.window._close_kanji()
-        self.window._select_kanji("猫")
-        self.app.processEvents()
-        sizes = splitter.sizes()
-        self.assertAlmostEqual(sizes[1] / sum(sizes), ratio, delta=.02)
-        self.window.resize(self.window.width() + 20, self.window.height())
+        browser = self.window.browser
+        cursor = browser.document().find("Meaning")
+        browser.setTextCursor(cursor)
+        browser.verticalScrollBar().setValue(browser.verticalScrollBar().maximum() // 2)
+        scroll = browser.verticalScrollBar().value()
+        selected = browser.selected_text()
+        revision = browser.document().revision()
         geometry = self.window.geometry()
-        self.window._close_kanji()
+        for back in (lambda: self.window.title.linkActivated.emit("word"), self.window.go_back):
+            self.window._select_kanji("猫")
+            self.app.processEvents()
+            self.assertIn('href="word"', self.window.title.text())
+            self.assertIn("猫犬", self.window.title.text())
+            self.assertIn(" › 猫", self.window.title.text())
+            self.assertTrue(self.window.back.isEnabled())
+            self.assertEqual(self.window.geometry(), geometry)
+            back()
+            self.app.processEvents()
+            self.assertIs(self.window.content_stack.currentWidget(), self.window.lookup_splitter)
+            self.assertEqual(browser.document().revision(), revision)
+            self.assertEqual(browser.verticalScrollBar().value(), scroll)
+            self.assertEqual(browser.selected_text(), selected)
+            self.assertEqual(self.window.geometry(), geometry)
+            self.assertFalse(self.window.back.isEnabled())
+
+    def test_kanji_back_returns_to_word_before_older_history(self):
+        self.window.show_entries((entry("earlier"),), "earlier")
+        self.window._display(SearchResult("猫", "ja", "en", (entry("猫", definitions=("Meaning " * 300,)),),
+                                          kanji=(KanjiEntry("猫", meanings=("cat",)),)))
         self.app.processEvents()
-        self.assertEqual(self.window.geometry(), geometry)
+        browser = self.window.browser
+        browser.verticalScrollBar().setValue(browser.verticalScrollBar().maximum() // 2)
+        scroll = browser.verticalScrollBar().value()
+        self.window._select_kanji("猫")
+        self.window._display(SearchResult("next", "ja", "en", (entry("next"),)))
+        self.window.go_back()
+        self.assertTrue(self.window._kanji_view)
+        self.window.go_back()
+        self.app.processEvents()
+        self.assertEqual(self.window._result.text, "猫")
+        self.assertEqual(browser.verticalScrollBar().value(), scroll)
+        self.window._select_kanji("猫")
+        self.window.title.linkActivated.emit("0")
+        self.assertEqual(self.window._result.text, "earlier")
+        self.assertFalse(self.window._kanji_view)
+
+    def test_kanji_view_hides_automatic_translation_and_copies_visible_text(self):
+        self.window.show_entries((entry("猫"),), "猫", kanji=(KanjiEntry("猫", meanings=("cat",)),))
+        self.window.automatic_output.set_content("translation")
+        self.window.automatic_output.show()
+        self.app.processEvents()
+        browser = self.window.browser
+        browser.selectAll()
+        self.window._select_kanji("猫")
+        self.app.processEvents()
+        self.assertFalse(self.window.automatic_output.isVisible())
+        self.window.copy_text()
+        self.assertEqual(QApplication.clipboard().text(), "猫")
+        self.window.kanji_browser.setTextCursor(self.window.kanji_browser.document().find("cat"))
+        self.window.copy_text()
+        self.assertEqual(QApplication.clipboard().text(), "cat")
+        self.window.go_back()
+        self.assertTrue(self.window.automatic_output.isVisible())
+        self.assertIn("translation", self.window.automatic_output.toPlainText())
 
     def test_headword_audio_buttons_follow_readings_and_scroll_with_headings(self):
         entries = (replace(entry("same", definitions=("first " * 250,)), reading="one"),

@@ -6,7 +6,7 @@ from html import escape
 
 from PyQt6.QtCore import QEvent, QMimeData, QObject, QPointF, QSizeF, Qt, QUrl
 from PyQt6.QtGui import (QColor, QFont, QFontMetricsF, QTextCharFormat, QTextCursor,
-                         QTextDocument, QTextFormat, QTextObjectInterface)
+                         QTextDocument, QTextFormat, QTextLength, QTextObjectInterface)
 from PyQt6.QtWidgets import QToolTip
 
 from wordcel.config.config import config
@@ -22,6 +22,9 @@ KANJI = READING + 1
 KANJI_GROUP = KANJI + 1
 PREFIX = "wordcel-ruby:"
 TAG_PREFIX = "wordcel-tag:"
+GLYPH_PREFIX = "wordcel-glyph:"
+GLYPH = QTextFormat.ObjectTypes.UserObject.value + 3
+GLYPH_FONT = KANJI_GROUP + 1
 _ruby_ids = count()
 
 
@@ -91,14 +94,32 @@ class RubyObject(QObject, QTextObjectInterface):
         painter.restore()
 
 
+class GlyphObject(QObject, QTextObjectInterface):
+    @staticmethod
+    def bounds(fmt):
+        return QFontMetricsF(fmt.property(GLYPH_FONT)).tightBoundingRect(fmt.property(BASE))
+
+    def intrinsicSize(self, document, pos, fmt):
+        return self.bounds(fmt).size()
+
+    def drawObject(self, painter, rect, document, pos, fmt):
+        painter.save()
+        painter.setFont(fmt.property(GLYPH_FONT))
+        painter.setPen(fmt.foreground().color())
+        painter.drawText(rect.topLeft() - self.bounds(fmt).topLeft(), fmt.property(BASE))
+        painter.restore()
+
+
 class RubyBrowser(DictionaryBrowser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.document().setDocumentMargin(0)
         self._ruby_object = RubyObject(self)
+        self._glyph_object = GlyphObject(self)
         self._pitch_object = None
         self._pressed_kanji = ""
         self.document().documentLayout().registerHandler(RUBY, self._ruby_object)
+        self.document().documentLayout().registerHandler(GLYPH, self._glyph_object)
 
     def viewportEvent(self, event):
         if event.type() == QEvent.Type.ToolTip:
@@ -132,7 +153,7 @@ class RubyBrowser(DictionaryBrowser):
                 href = fragment.charFormat().anchorHref()
                 if href.startswith((TAG_PREFIX, "frequency:")):
                     tags.append((fragment.position(), fragment.length(), href))
-                if href.startswith((PREFIX, PITCH_PREFIX)):
+                if href.startswith((PREFIX, PITCH_PREFIX, GLYPH_PREFIX)):
                     start, end = fragment.position(), fragment.position() + fragment.length()
                     if runs and runs[-1][1] == start and runs[-1][2] == href:
                         runs[-1] = (runs[-1][0], end, href)
@@ -164,6 +185,26 @@ class RubyBrowser(DictionaryBrowser):
                         cursor.insertText("\ufffc", pitch_format(cursor.charFormat(), payload))
                     continue
                 fmt = QTextCharFormat(cursor.charFormat())
+                if href.startswith(GLYPH_PREFIX):
+                    font = fmt.font()
+                    font.setFamilies(font.families() or document.defaultFont().families())
+                    character, _, scheme = href[len(GLYPH_PREFIX):].partition("#")
+                    fmt.setObjectType(GLYPH)
+                    fmt.setProperty(BASE, unquote(character))
+                    fmt.setProperty(GLYPH_FONT, font)
+                    fmt.setFont(document.defaultFont())
+                    fmt.setAnchorHref(f"{unquote(scheme)}:{character}")
+                    cursor.insertText("\ufffc", fmt)
+                    table = cursor.currentTable()
+                    if table is not None:
+                        cell = table.cellAt(cursor).format().toTableCellFormat()
+                        width = self._glyph_object.bounds(fmt).width() + cell.leftPadding() + cell.rightPadding()
+                        table_format = table.format()
+                        table_format.setColumnWidthConstraints([
+                            QTextLength(QTextLength.Type.FixedLength, width),
+                            QTextLength(QTextLength.Type.VariableLength, 1)])
+                        table.setFormat(table_format)
+                    continue
                 fmt.setAnchor(False)
                 fmt.setAnchorHref("")
                 fmt.setFontUnderline(False)
@@ -187,7 +228,7 @@ class RubyBrowser(DictionaryBrowser):
             while not iterator.atEnd():
                 fragment = iterator.fragment()
                 fmt = fragment.charFormat()
-                if fmt.objectType() in (RUBY, PITCH_OBJECT):
+                if fmt.objectType() in (RUBY, PITCH_OBJECT, GLYPH):
                     for position in range(max(start, fragment.position()), min(end, fragment.position() + fragment.length())):
                         replacements.append((position - start, fmt.property(BASE)))
                 iterator += 1
@@ -229,7 +270,7 @@ class RubyBrowser(DictionaryBrowser):
                 from wordcel.dictionary.pitch import pitch_payload
                 payload = pitch_payload(PITCH_PREFIX + quote(cursor.charFormat().property(PITCH_DATA), safe=""))
                 return payload["reading"] if payload else ""
-            if cursor.charFormat().objectType() == RUBY:
+            if cursor.charFormat().objectType() in (RUBY, GLYPH):
                 return cursor.charFormat().property(BASE)
         return super().text_at(point)
 

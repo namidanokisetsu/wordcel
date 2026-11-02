@@ -91,10 +91,11 @@ def render_kanji_export(entries, term):
     return '<div class="kanji-details">' + ''.join(parts) + '</div>' if parts else ''
 
 
-def _character_link(character, accent, expanded, scheme="kanji"):
+def _character_link(character, accent, expanded, scheme="kanji", *, glyph=False):
     href = quote(character, safe="")
+    target = f"wordcel-glyph:{href}#{quote(scheme, safe='')}" if glyph else f"{scheme}:{href}"
     title = "Collapse" if expanded else "Expand"
-    return (f'<a href="{scheme}:{href}" title="{title}" '
+    return (f'<a href="{target}" title="{title}" '
             f'style="color:{accent};text-decoration:none">{_text(character)}</a>')
 
 
@@ -128,16 +129,17 @@ def render_kanji_details(entries, scheme="kanji"):
     family = stroke_order_family(character) if getattr(config, "kanji_stroke_order", True) else ""
     glyph_style = f'font-size:128px;font-family:{_text(family)}' if family else 'font-size:96px'
     anchor = quote(f"{scheme}:{character}", safe="")
-    parts = ['<table width="100%" cellspacing="0" cellpadding="1"><tr><td valign="top">',
+    parts = ['<table width="100%" cellspacing="0" cellpadding="0"><tr>'
+             '<td valign="top" style="padding-right:12px">',
              f'<a name="kanji-detail-{anchor}"></a><span style="{glyph_style}">'
-             f'{_character_link(character, accent, True, scheme)}</span></td><td valign="top">']
-    for label, field in (("Meanings", "meanings"), ("音", "onyomi"), ("訓", "kunyomi")):
+             f'{_character_link(character, accent, True, scheme, glyph=True)}</span></td><td valign="top">']
+    for label, field in (("", "meanings"), ("音", "onyomi"), ("訓", "kunyomi")):
         values = _shared_values(entries, field)
         if values:
             color = reading_color if field != "meanings" else _text(config.color_foreground)
             text = " · ".join(_attributed(value, sources) for value, sources in values)
-            separator = '<br>' if field == "meanings" else ' '
-            parts.append(f'<p style="margin:2px 0"><small>{label}</small>{separator}'
+            heading = f'<small>{label}</small> ' if label else ''
+            parts.append(f'<p style="margin:0 0 2px">{heading}'
                          f'<span style="color:{color}">{text}</span></p>')
     parts.append('</td></tr>')
     parts.append('</table>')

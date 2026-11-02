@@ -13,7 +13,7 @@ from PyQt6.QtTest import QTest
 from wordcel.dictionary.library import Entry
 from wordcel.dictionary.search import SearchResult
 from wordcel.gui.quick_lookup import LocalDictionaryBrowser, render_result
-from wordcel.gui.ruby import BASE, READING, RUBY, ruby_html
+from wordcel.gui.ruby import BASE, GLYPH, READING, RUBY, ruby_html
 from wordcel.config.config import config
 from unittest.mock import patch
 
@@ -44,6 +44,45 @@ class RubyTests(unittest.TestCase):
                 iterator += 1
             block = block.next()
         return result
+
+    def test_large_kanji_uses_ink_bounds_without_overlapping_definitions(self):
+        from urllib.parse import quote
+        from wordcel.dictionary.kanji import KanjiEntry
+        from wordcel.gui.kanji_panel import render_kanji_details
+        for character in ("邪", "𠮷"):
+            with self.subTest(character=character), patch(
+                    "wordcel.utils.stroke_order_font.stroke_order_family", return_value=""):
+                self.browser.setHtml(render_kanji_details((KanjiEntry(character, meanings=("wicked",)),)))
+                self.browser.show()
+                self.app.processEvents()
+                document = self.browser.document()
+                block = document.begin()
+                glyph = None
+                while block.isValid():
+                    iterator = block.begin()
+                    while not iterator.atEnd():
+                        fragment = iterator.fragment()
+                        if fragment.charFormat().objectType() == GLYPH:
+                            glyph = fragment
+                        iterator += 1
+                    block = block.next()
+                self.assertIsNotNone(glyph)
+                cursor = QTextCursor(document)
+                cursor.setPosition(glyph.position())
+                table = cursor.currentTable()
+                bounds = self.browser._glyph_object.bounds(glyph.charFormat())
+                left = self.browser.cursorRect(cursor)
+                meaning = document.find("wicked")
+                meaning.setPosition(meaning.selectionStart())
+                right = self.browser.cursorRect(meaning)
+                self.assertGreater(bounds.height(), 0)
+                self.assertGreaterEqual(right.left(), left.left() + bounds.width())
+                self.assertAlmostEqual(left.top(), right.top(), delta=1)
+                self.assertEqual(glyph.charFormat().anchorHref(), "kanji:" + quote(character, safe=""))
+                self.assertEqual(len(table.format().columnWidthConstraints()), 2)
+                self.browser.selectAll()
+                self.assertIn(character, self.browser.selected_text())
+                self.assertNotIn("\ufffc", self.browser.createMimeDataFromSelection().text())
 
     def test_readings_default_to_brackets_with_independent_furigana_options(self):
         definition = {"type": "structured-content", "content": {"tag": "ruby", "content": [

@@ -247,6 +247,7 @@ class QuickLookupWindow(QDialog):
         self._collapsed = set()
         self._details_expanded = set()
         self._kanji_details = set()
+        self._kanji_return_position = None
         self._pin_anchor_click = False
         self._shutting_down = False
         self._drag_position = None
@@ -445,50 +446,34 @@ class QuickLookupWindow(QDialog):
         self.translation_panel.source.composition_changed.connect(self._translation_composition_changed)
         self.translation_panel.swap_requested.connect(self._swap_translation_languages)
         self.content_stack = QStackedWidget()
-        self.content_stack.addWidget(self.browser)
         self.content_stack.addWidget(self.translation_panel)
-        self.kanji_splitter = QSplitter(Qt.Orientation.Vertical)
-        self.kanji_splitter.setChildrenCollapsible(False)
-        self.kanji_splitter.setHandleWidth(DIVIDER_WIDTH)
         self.content_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         self.content_stack.setMinimumHeight(self.browser.fontMetrics().height())
-        self.kanji_splitter.addWidget(self.content_stack)
         self.kanji_panel = QWidget()
         kanji_layout = QVBoxLayout(self.kanji_panel)
-        kanji_layout.setContentsMargins(0, PANE_PADDING, 0, PANE_PADDING)
-        kanji_layout.setSpacing(2)
+        kanji_layout.setContentsMargins(0, 0, 0, 0)
         self.kanji_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
-        kanji_header = QHBoxLayout()
-        kanji_header.addWidget(QLabel("Kanji"))
-        kanji_header.addStretch()
-        self.kanji_close = self._action("close", "Close kanji")
-        self.kanji_close.clicked.connect(self._close_kanji)
-        kanji_header.addWidget(self.kanji_close)
-        kanji_layout.addLayout(kanji_header)
         self.kanji_browser = RubyBrowser()
         self.kanji_browser.setAccessibleName("Kanji details")
         self.kanji_browser.setOpenLinks(False)
         self.kanji_browser.setOpenExternalLinks(False)
         self.kanji_browser.anchorClicked.connect(self._queue_link)
         kanji_layout.addWidget(self.kanji_browser, 1)
-        self.kanji_splitter.addWidget(self.kanji_panel)
-        self.kanji_splitter.setStretchFactor(0, 1)
-        self.kanji_splitter.setStretchFactor(1, 1)
-        self.kanji_splitter.handle(1).setToolTip("Resize kanji pane")
-        self.kanji_splitter.splitterMoved.connect(self._save_kanji_split)
-        self.kanji_panel.hide()
+        self.content_stack.addWidget(self.kanji_panel)
         from wordcel.gui.translation_view import TranslationView
         self.automatic_output = TranslationView()
         self.automatic_output.setAccessibleName("Automatic translation")
         self.lookup_splitter = QSplitter(Qt.Orientation.Vertical)
         self.lookup_splitter.setChildrenCollapsible(False)
         self.lookup_splitter.setHandleWidth(DIVIDER_WIDTH)
-        self.lookup_splitter.addWidget(self.kanji_splitter)
+        self.lookup_splitter.addWidget(self.browser)
         self.lookup_splitter.addWidget(self.automatic_output)
         self.lookup_splitter.setStretchFactor(0, 1)
         self.lookup_splitter.setStretchFactor(1, 1)
         self.automatic_output.hide()
-        layout.addWidget(self.lookup_splitter, 1)
+        self.content_stack.addWidget(self.lookup_splitter)
+        self.content_stack.setCurrentWidget(self.lookup_splitter)
+        layout.addWidget(self.content_stack, 1)
         self._kanji_html = ""
         self.status = QLabel()
         self.status.setWordWrap(True)
@@ -841,8 +826,8 @@ class QuickLookupWindow(QDialog):
         self._translation_text = text
         self._translation_content = SearchResult(text, source, target)
         self.fit_timer.stop()
-        self.content_stack.setCurrentWidget(self.translation_panel)
         self._set_kanji_visible(False)
+        self.content_stack.setCurrentWidget(self.translation_panel)
         self.back.setEnabled(True)
         self._update_trail()
         self._place_actions()
@@ -864,9 +849,9 @@ class QuickLookupWindow(QDialog):
         for name, value in (self._translation_return or {}).items():
             setattr(self, name, value)
         self._translation_return = None
-        self.content_stack.setCurrentWidget(self.browser)
+        self.content_stack.setCurrentWidget(self.lookup_splitter)
         self._render_kanji_panel()
-        self.back.setEnabled(bool(self._history))
+        self.back.setEnabled(bool(self._history) or self._kanji_view)
         self._update_trail()
         self._place_actions()
 
@@ -1339,7 +1324,7 @@ class QuickLookupWindow(QDialog):
             self._result_screenshot = None
         self._result_input = self.search.text().strip()
         self._render(static=same)
-        self.back.setEnabled(bool(self._history) or self._translation_view)
+        self.back.setEnabled(bool(self._history) or self._translation_view or self._kanji_view)
         self._update_trail()
         self.audio_button.setEnabled(bool(result.entries))
         self.update_anki()
@@ -1507,7 +1492,7 @@ class QuickLookupWindow(QDialog):
     def _fit_preview(self):
         if not self._peek and not self._manual_at_cursor:
             return
-        if self._translation_view or not self.kanji_panel.isHidden():
+        if self._translation_view or self._kanji_view:
             return
         preview = self._peek and not self.is_pinned and self.compact_preview()
         reading = (not self._peek or self.is_pinned) and not self._reading_size_custom and self._normal_size == QSize(480, 340)
@@ -1616,53 +1601,33 @@ class QuickLookupWindow(QDialog):
         self._kanji_details.clear()
         self._render_kanji_panel()
 
-    def _save_kanji_split(self, *_):
-        sizes = self.kanji_splitter.sizes()
-        if not self.kanji_panel.isHidden() and sum(sizes):
-            self.settings.setValue(f"profiles/{self.active_profile}/kanji_height_ratio", sizes[1] / sum(sizes))
+    @property
+    def _kanji_view(self):
+        return self.content_stack.currentWidget() is self.kanji_panel
 
     def _set_kanji_visible(self, visible):
-        if visible == (not self.kanji_panel.isHidden()):
+        if visible == self._kanji_view:
             return
         from wordcel.gui.section_scroll import ReadingPosition
-        position = ReadingPosition(self.browser)
         self.fit_timer.stop()
         focused = QApplication.focusWidget()
-        if not visible and focused is not None and self.kanji_panel.isAncestorOf(focused):
-            self.browser.setFocus(Qt.FocusReason.OtherFocusReason)
-        self.kanji_panel.setVisible(visible)
-        self.layout().activate()
+        return_focus = not visible and focused is not None and self.kanji_panel.isAncestorOf(focused)
         if visible:
-            document = self.kanji_browser.document()
-            document.setTextWidth(self.kanji_browser.viewport().width())
-            layout = self.kanji_panel.layout()
-            margins = layout.contentsMargins()
-            browser_margins = self.kanji_browser.contentsMargins()
-            pane_chrome = (layout.itemAt(0).sizeHint().height() + layout.spacing()
-                           + margins.top() + margins.bottom()
-                           + browser_margins.top() + browser_margins.bottom())
-            available = self.kanji_splitter.contentsRect().height() - self.kanji_splitter.handleWidth()
-            ratio = self.settings.value(f"profiles/{self.active_profile}/kanji_height_ratio", 0., float)
-            pane_height = round(available * ratio) if 0 < ratio < 1 else (
-                self._kanji_glyph_height() + pane_chrome)
-            self.kanji_splitter.setSizes([max(self.content_stack.minimumHeight(), available - pane_height),
-                                         min(pane_height, available - self.content_stack.minimumHeight())])
-        position.restore(self.browser, preserve_scroll=True)
-
-    def _kanji_glyph_height(self):
-        document = self.kanji_browser.document()
-        block = document.begin()
-        while block.isValid():
-            names = set(block.charFormat().anchorNames())
-            fragment = block.begin()
-            while not fragment.atEnd():
-                names.update(fragment.fragment().charFormat().anchorNames())
-                fragment += 1
-            if any(name.startswith("kanji-detail-") for name in names):
-                return math.ceil(document.documentLayout().blockBoundingRect(block).bottom()
-                                 + document.documentMargin())
-            block = block.next()
-        return math.ceil(document.size().height())
+            self._kanji_return_position = ReadingPosition(self.browser)
+            self.render_timer.stop()
+            self.content_stack.setCurrentWidget(self.kanji_panel)
+        else:
+            self.content_stack.setCurrentWidget(self.translation_panel if self._translation_view else self.lookup_splitter)
+        self.back.setEnabled(bool(self._history) or self._translation_view or visible)
+        self._update_trail()
+        self._place_actions()
+        self.layout().activate()
+        if not visible:
+            if self._kanji_return_position is not None:
+                self._kanji_return_position.restore(self.browser, preserve_scroll=True)
+                self._kanji_return_position = None
+            if return_focus and not self._translation_view:
+                self.browser.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _select_kanji(self, character):
         self._kanji_details = set() if character in self._kanji_details else {character}
@@ -1678,6 +1643,7 @@ class QuickLookupWindow(QDialog):
             self.kanji_browser.setHtml(html)
             self._kanji_html = html
         self._set_kanji_visible(visible)
+        self._update_trail()
 
     def _link(self, url):
         if self._result is None:
@@ -1788,6 +1754,9 @@ class QuickLookupWindow(QDialog):
             self._restore_actions()
             self.update_anki()
             return
+        if self._kanji_view:
+            self._close_kanji()
+            return
         if not self._history:
             return
         self._invalidate()
@@ -1819,11 +1788,14 @@ class QuickLookupWindow(QDialog):
         self.record_encounter(restored=True)
         self._result_screenshot = previous[8] if len(previous) > 8 else None
         self.browser.verticalScrollBar().setValue(scroll)
+        if self._kanji_view:
+            from wordcel.gui.section_scroll import ReadingPosition
+            self._kanji_return_position = ReadingPosition(self.browser)
         self.translate.setEnabled(bool(result.text) and self.translation_available())
         self.status.setText(f"{language_name(result.source)} → {language_name(result.target)}")
 
     def _update_trail(self):
-        if self._translation_view or not self._history:
+        if self._translation_view or not (self._history or self._kanji_view):
             self.title.clear()
             return
         labels = []
@@ -1834,13 +1806,23 @@ class QuickLookupWindow(QDialog):
             text = self._history[index][0].text
             short = text[:12] + ("…" if len(text) > 12 else "")
             labels.append(f'<a href="{index}" style="color:{config.color_highlight_word}">{escape(short)}</a>')
-        text = self._result.text
-        labels.append(escape(text[:12] + ("…" if len(text) > 12 else "")))
+        text = self._result.text or (self._result.entries[0].term if self._result.entries else "")
+        word = escape(text[:12] + ("…" if len(text) > 12 else ""))
+        if self._kanji_view:
+            labels.append(f'<a href="word" style="color:{config.color_highlight_word}">{word}</a>')
+            labels.append(escape(next(iter(self._kanji_details))))
+        else:
+            labels.append(word)
         self.title.setText(" › ".join(labels))
 
     def _history_jump(self, index):
+        if index == "word":
+            self._close_kanji()
+            return
         index = int(index)
         if 0 <= index < len(self._history):
+            if self._kanji_view:
+                self._close_kanji()
             self._history = self._history[:index + 1]
             self.go_back()
 
@@ -1911,6 +1893,7 @@ class QuickLookupWindow(QDialog):
             return
         self.frame.layout().setContentsMargins(FRAME_PADDING, 0 if self._translation_view else PANE_PADDING,
                                               FRAME_PADDING, PANE_PADDING)
+        kanji_view = self._kanji_view
         self._sync_headword_actions()
         self.mode_row.hide()
         for name, button in self._popup_actions.items():
@@ -1922,7 +1905,9 @@ class QuickLookupWindow(QDialog):
             if name == "translate":
                 visible = visible and self.translation_available()
             if name == "back":
-                visible = visible and (bool(self._history) or self._translation_view)
+                visible = visible and (bool(self._history) or self._translation_view or kanji_view)
+            if kanji_view and name in ("translate", "copy", "anki", "audio", "audio_sentence"):
+                visible = False
             if name in ("translate", "copy") and self._translation_view:
                 visible = False
             if name in ("anki", "audio") and self._headword_rows:
@@ -1934,13 +1919,13 @@ class QuickLookupWindow(QDialog):
             self.audio_actions.setParent(container)
             if not inline:
                 self.header.layout().addWidget(self.audio_actions, 0, Qt.AlignmentFlag.AlignRight)
-        self.search.setVisible(not self._peek and not self._translation_view)
+        self.search.setVisible(not self._peek and not self._translation_view and not kanji_view)
         show_history = (not self._translation_view and self.lookup_history.value(
             "button_ocr" if self._peek else "button_manual", False))
         self.history_button.setVisible(show_history)
         self.title.setVisible(not self._peek or self.is_pinned)
-        self.header.setVisible(not self._translation_view and (not self._peek or self.is_pinned and not inline))
-        self.audio_actions.setVisible(not self._translation_view and (not self._peek or self.is_pinned) and
+        self.header.setVisible(not self._translation_view and not kanji_view and (not self._peek or self.is_pinned and not inline))
+        self.audio_actions.setVisible(not self._translation_view and not kanji_view and (not self._peek or self.is_pinned) and
                                       any(not button.isHidden() for button in
                                           (self.anki_button, self.sentence_audio_button, self.audio_button)))
         self.actions_row.setVisible(show_history or ((not self._peek or self.is_pinned) and
@@ -1949,7 +1934,7 @@ class QuickLookupWindow(QDialog):
         self._position_actions()
 
     def _inline_actions(self):
-        return bool(not self._translation_view and self._peek and self.is_pinned and self._result and self._result.entries)
+        return bool(not self._translation_view and not self._kanji_view and self._peek and self.is_pinned and self._result and self._result.entries)
 
     def _action_clearance(self):
         if not self._inline_actions():
@@ -2427,7 +2412,7 @@ class QuickLookupWindow(QDialog):
         if (virtual_key in keys and self._source_overlay and self.is_pinned and self.isVisible()
                 and QApplication.activeModalWidget() is None and QApplication.activePopupWidget() is None):
             event = QKeyEvent(QEvent.Type.KeyPress, keys[virtual_key], Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(self.browser, event)
+            QApplication.sendEvent(self.kanji_browser if self._kanji_view else self.browser, event)
 
     def nativeEvent(self, event_type, message):
         if getattr(self, "_source_overlay", False) and event_type == b"windows_generic_MSG":
@@ -2462,7 +2447,10 @@ class QuickLookupWindow(QDialog):
                 and (not self._peek or self.is_pinned)):
             if event.type() == QEvent.Type.MouseButtonPress:
                 direction = 1 if event.button() == Qt.MouseButton.BackButton else -1
-                if self.browser.section_scroll.enabled:
+                if self._kanji_view:
+                    bar = self.kanji_browser.verticalScrollBar()
+                    bar.setValue(bar.value() + direction * bar.pageStep())
+                elif self.browser.section_scroll.enabled:
                     self.browser.section_scroll.advance(direction)
                 else:
                     bar = self.browser.verticalScrollBar()
@@ -2483,7 +2471,7 @@ class QuickLookupWindow(QDialog):
             mark("paint", self._document_revision)
         if event.type() == QEvent.Type.Resize and hasattr(self, "browser") and watched is self.browser.viewport():
             self._position_actions()
-            if (self._peek and self.is_pinned and hasattr(self, "render_timer")
+            if (self._peek and self.is_pinned and not self._kanji_view and hasattr(self, "render_timer")
                     and self.settings.value(f"profiles/{self.active_profile}/pinned_sentence", False, bool)
                     and not getattr(self, "_pin_transition", False)):
                 self.render_timer.start(0)
@@ -2603,6 +2591,8 @@ class QuickLookupWindow(QDialog):
         text = browser.selected_text() if browser else ""
         if not text and self._translation_view:
             text = self.translation_panel.translation or self.translation_panel.source.toPlainText()
+        if not text and self._kanji_view:
+            text = next(iter(self._kanji_details), "")
         if not text and self._result and self._result.entries:
             text = self._result.entries[0].term
         if text:
@@ -2612,7 +2602,9 @@ class QuickLookupWindow(QDialog):
     def _reading_browsers(self):
         if self._translation_view:
             return (self.translation_panel.source, self.translation_browser)
-        browsers = (self.browser,) if self.kanji_panel.isHidden() else (self.kanji_browser, self.browser)
+        if self._kanji_view:
+            return (self.kanji_browser,)
+        browsers = (self.browser,)
         return browsers if self.automatic_output.isHidden() else (*browsers, self.automatic_output)
 
     def _selected_reading_browser(self):

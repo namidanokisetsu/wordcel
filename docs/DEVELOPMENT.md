@@ -58,6 +58,8 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
 - **Popup:** pinning freezes results. Preserve document, selection, scroll and
   geometry during disclosure and translation. Keep visible text anchored during
   resizing and text scaling; resize source excerpts without rebuilding definitions.
+  Kanji uses the shared content stack; the existing breadcrumb and Back restore
+  the word document, selection and scroll. Size its glyph column from font ink bounds.
   Derive layout from content bounds;
   batch updates instead of rebuilding unchanged content. Autoplay runs on new
   results or the explicit pin preference, never restoration or rendering.
