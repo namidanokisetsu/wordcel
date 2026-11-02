@@ -85,6 +85,8 @@ class ResourceBundleTests(unittest.TestCase):
         engine = source_runtime_root("paddle", self.destination / "data")
         self.assertTrue((engine / "complete.json").is_file())
         self.assertTrue((engine / "site/cv2/cv2.abi3.so").is_file())
+        for package in ("paddle", "paddleocr", "paddlex"):
+            self.assertTrue((engine / "site" / package / "__init__.py").is_file())
 
     def test_corrupt_resource_does_not_publish_any_files(self):
         def corrupt(files):

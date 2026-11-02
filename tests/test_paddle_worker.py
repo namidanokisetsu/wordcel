@@ -1,5 +1,7 @@
 from multiprocessing import get_all_start_methods, get_context
 from multiprocessing.connection import Listener
+import json
+import os
 from pathlib import Path
 import tempfile
 from types import ModuleType
@@ -75,7 +77,9 @@ class PaddleWorkerTests(unittest.TestCase):
                 pass
 
             def predict(self, pixels):
-                raise RuntimeError("fixture inference error")
+                if pixels == "error":
+                    raise RuntimeError("fixture inference error")
+                return [{"value": pixels}]
 
         fake_paddleocr.PaddleOCR = PaddleOCR
         with tempfile.TemporaryDirectory() as temporary, patch.dict("sys.modules", {"paddleocr": fake_paddleocr}), \
@@ -90,13 +94,73 @@ class PaddleWorkerTests(unittest.TestCase):
             connection = listener.accept()
             listener.close()
             self.assertEqual(connection.recv()[0], "ready")
-            connection.send(("predict", "pixels"))
+            connection.send(("predict", "error"))
             kind, detail = connection.recv()
             self.assertEqual(kind, "error")
             self.assertIn("fixture inference error", detail)
+            connection.send(("predict", "retry"))
+            self.assertEqual(connection.recv(), ("result", [{"value": "retry"}]))
+            connection.send(("close", None))
+            self.assertEqual(connection.recv()[0], "closed")
             connection.close()
             process.join(3)
             self.assertEqual(process.exitcode, 0)
+
+    def test_real_worker_command_uses_isolated_runtime_and_recovers(self):
+        """Exercise the CLI boundary with fresh imports and no model files."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data = root / "data"
+            cache = root / "cache"
+            environment = {
+                "HOME": str(root / "home"), "USERPROFILE": str(root / "home"),
+                "PYTHONPATH": os.pathsep.join((str(root / "headless"), str(Path(__file__).resolve().parents[1] / "src"))),
+                "XDG_DATA_HOME": str(data), "XDG_CACHE_HOME": str(cache),
+            }
+            base_site = root / "headless"
+            base_cv2 = base_site / "cv2"
+            base_cv2.mkdir(parents=True)
+            (base_cv2 / "__init__.py").write_text("OWNER = 'headless'\n", encoding="utf-8")
+
+            parent_cv2 = ModuleType("cv2")
+            parent_cv2.OWNER = "parent-headless"
+            with patch.dict(os.environ, environment, clear=False), patch.dict(sys.modules, {"cv2": parent_cv2}):
+                from wordcel.optional_runtimes import SOURCE_PADDLE_MARKER, source_runtime_root
+                runtime = source_runtime_root("paddle")
+                site = runtime / "site"
+                (site / "cv2").mkdir(parents=True)
+                (site / "cv2/__init__.py").write_text("OWNER = 'contrib'\n", encoding="utf-8")
+                (site / "cv2/cv2.fixture.dylib").write_bytes(b"fixture")
+                paddleocr = site / "paddleocr"
+                paddleocr.mkdir()
+                (paddleocr / "__init__.py").write_text(
+                    "import cv2\n"
+                    "class PaddleOCR:\n"
+                    "    def __init__(self, **options): self.owner = cv2.OWNER\n"
+                    "    def predict(self, pixels):\n"
+                    "        if pixels == 'error': raise RuntimeError('fixture inference error')\n"
+                    "        return [{'owner': self.owner, 'value': pixels}]\n",
+                    encoding="utf-8",
+                )
+                for package in ("paddle", "paddlex"):
+                    (site / package).mkdir()
+                    (site / package / "__init__.py").write_text("\n", encoding="utf-8")
+                for distribution, version in {
+                        "opencv_contrib_python": "4.10.0.84", "paddlepaddle": "3.2.2",
+                        "paddleocr": "3.7.0", "paddlex": "3.7.2"}.items():
+                    metadata = site / f"{distribution}-{version}.dist-info/METADATA"
+                    metadata.parent.mkdir()
+                    metadata.write_text(f"Name: {distribution}\nVersion: {version}\n", encoding="utf-8")
+                (runtime / "complete.json").write_text(json.dumps(SOURCE_PADDLE_MARKER), encoding="utf-8")
+                worker = paddle_worker.PaddleWorker(root / "models", False, site, startup_timeout=10)
+                self.addCleanup(worker.close)
+                self.assertEqual(worker.predict("first"), [{"owner": "contrib", "value": "first"}])
+                with self.assertRaisesRegex(RuntimeError, "fixture inference error") as raised:
+                    worker.predict("error")
+                self.assertNotIn("Traceback", str(raised.exception))
+                self.assertEqual(worker.predict("retry"), [{"owner": "contrib", "value": "retry"}])
+                worker.close()
+                self.assertIs(sys.modules["cv2"], parent_cv2)
 
     def test_quick_lookup_worker_hook_forwards_runtime_site(self):
         from wordcel.scripts import quick_lookup

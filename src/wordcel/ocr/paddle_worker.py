@@ -6,6 +6,7 @@ by the Japanese provider loaded in its own interpreter.
 """
 from base64 import b16encode
 from collections.abc import Mapping
+import logging
 from multiprocessing.connection import Client, Listener
 import os
 from pathlib import Path
@@ -13,7 +14,9 @@ import subprocess
 import sys
 import threading
 import time
-import traceback
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _address(value):
@@ -80,14 +83,21 @@ def serve(address, authkey, root, use_onnx, runtime_site=None):
                 connection.send(("closed", None))
                 return
             if command != "predict":
-                raise RuntimeError(f"Unknown Paddle worker command: {command}")
-            connection.send(("result", _plain(list(engine.predict(payload)))))
+                connection.send(("error", f"Unknown Paddle worker command: {command}"))
+                continue
+            try:
+                result = _plain(list(engine.predict(payload)))
+            except Exception as error:
+                _LOGGER.exception("Paddle OCR inference failed")
+                connection.send(("error", f"{type(error).__name__}: {error}"))
+                continue
+            connection.send(("result", result))
     except EOFError:
         return
-    except Exception:
-        detail = traceback.format_exc()
+    except Exception as error:
+        _LOGGER.exception("Paddle OCR worker failed")
         try:
-            connection.send(("error", detail))
+            connection.send(("error", f"{type(error).__name__}: {error}"))
         except (BrokenPipeError, EOFError, OSError):
             pass
     finally:
