@@ -58,6 +58,16 @@ class NamedProfileTests(unittest.TestCase):
         self.assertNotEqual(self.settings.value("profiles/ja/collapsed_dictionaries"), ["Words"])
         self.assertEqual(self.settings.value("initial_profile", ""), "")
 
+    def test_conversion_sync_failure_restores_live_settings_for_retry(self):
+        before = {key: self.settings.value(key) for key in self.settings.allKeys()}
+        with patch("wordcel.config.profiles._sync", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                migrate(self.settings, self.directory)
+        self.assertEqual(before, {key: self.settings.value(key) for key in self.settings.allKeys()})
+        self.assertFalse(self.settings.contains("profiles_version"))
+        migrate(self.settings, self.directory)
+        self.assertEqual(self.settings.value("profiles_version", 0, int), 2)
+
     def test_startup_profile_defaults_to_last_used_and_preserves_selection(self):
         from wordcel.gui.dictionary_manager import SetupDialog
         migrate(self.settings, self.directory)

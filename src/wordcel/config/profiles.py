@@ -136,6 +136,7 @@ def migrate(settings, directory=None):
     """Migrate legacy language settings while preserving a local backup."""
     if settings.value("profiles_version", 0, int) >= PROFILE_VERSION:
         return False
+    original = {key: deepcopy(settings.value(key)) for key in settings.allKeys()}
     _backup(settings)
     from wordcel.dictionary.library import Library
     from wordcel.dictionary.translation import load_profile_settings, save_profile_settings
@@ -186,7 +187,11 @@ def migrate(settings, directory=None):
     try:
         _sync(settings)
     except Exception:
-        settings.remove("profiles_version")
+        for key in list(settings.allKeys()):
+            if key not in original:
+                settings.remove(key)
+        for key, value in original.items():
+            settings.setValue(key, deepcopy(value))
         raise
 
     # Complete the inheritance migration when this is the first settings
