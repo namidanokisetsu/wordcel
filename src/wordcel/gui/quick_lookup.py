@@ -1016,7 +1016,6 @@ class QuickLookupWindow(QDialog):
         self.settings_button = self._action("settings", "Settings")
         self.settings_menu = QMenu(self.settings_button)
         self.settings_menu.addAction("Settings", self.open_settings)
-        self.settings_menu.addAction("Resume setup", self.resume_setup)
         self.settings_button.setMenu(self.settings_menu)
         self.settings_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.settings_button.setParent(self)
@@ -3577,10 +3576,6 @@ class QuickLookupWindow(QDialog):
         self.submit(saved_encounter=row)
         self._history_anki_revision = self.revision if add_to_anki else None
 
-    def resume_setup(self):
-        from wordcel.gui.first_run import offer_resources
-        offer_resources(self, self.active_profile, force=True, tutorial=False)
-
     def refresh_library(self):
         self._render_identity = None
         self.refresh_translation_availability()
@@ -3675,9 +3670,6 @@ class QuickLookupWindow(QDialog):
     def shutdown(self):
         if self._shutting_down:
             return
-        practice = getattr(self, "_first_lookup", None)
-        if practice is not None:
-            practice.close()
         onboarding = getattr(self, "_language_setup", None)
         if onboarding is not None:
             onboarding.cancelled.set()

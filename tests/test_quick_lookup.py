@@ -2321,7 +2321,6 @@ class QuickLookupTests(unittest.TestCase):
             german = dialog.profile.currentData()
             wizard = self.window._resource_suggestions[german]
             self.assertTrue(wizard.isVisible())
-            self.assertFalse(wizard.tutorial)
             wizard.close()
             self.assertEqual(self.window.preferred_foreign, "ja")
             dialog.activate_profile()
@@ -3889,7 +3888,7 @@ class QuickLookupTests(unittest.TestCase):
             self.assertFalse(self.window.isVisible())
             clipboard.assert_not_called()
 
-    def test_lookup_shortcut_reads_tutorial_selection_while_popup_is_visible(self):
+    def test_lookup_shortcut_reads_selection_while_popup_is_visible(self):
         from PyQt6.QtWidgets import QLabel
         sample = QLabel("Merhaba!")
         sample.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
