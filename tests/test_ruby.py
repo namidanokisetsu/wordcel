@@ -170,7 +170,7 @@ class RubyTests(unittest.TestCase):
         self.browser.setHtml(render_result(SearchResult("猫", "ja", "en", (alternate,))))
         self.assertIn("猫 [ねこ]", self.browser.toPlainText())
 
-    def test_multiple_frequency_ranks_move_below_pitch_without_source_labels(self):
+    def test_multiple_frequency_dictionaries_move_below_unlabeled_pitch(self):
         from wordcel.dictionary.metadata import Frequency
         from wordcel.dictionary.pitch import Pitch, PITCH_OBJECT
         single = Frequency("Jiten", 100, "100")
@@ -208,12 +208,20 @@ class RubyTests(unittest.TestCase):
                             frequency = document.find("#")
                             self.assertFalse(frequency.isNull())
                             frequency_y = self.browser.cursorRect(frequency).top()
-                            separate = not combined and len(set(frequencies)) > 1
+                            separate = not combined and len({f.source for f in frequencies}) > 1
                             if separate:
                                 self.assertGreater(frequency_y, pitch_y)
+                                self.assertIn("Jiten", heading.text())
+                                self.assertIn("Other frequency", heading.text())
                             else:
                                 self.assertEqual(frequency_y, pitch_y)
+                                self.assertNotIn("Jiten", heading.text())
+                                self.assertNotIn("Other frequency", heading.text())
                             self.assertNotIn("Pitch source", self.browser.toPlainText())
+                            if not combined and not separate:
+                                self.assertTrue(frequency.charFormat().toolTip().startswith("Jiten: #100"))
+                            if combined:
+                                self.assertRegex(heading.text(), r"#\d[\d,]*$")
 
     def test_headword_ruby_links_each_kanji_and_preserves_reading_and_copy(self):
         self.browser.setHtml('<h2>' + ruby_html("祈願", "きがん", kanji="祈願") + '</h2>')
