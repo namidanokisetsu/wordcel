@@ -189,7 +189,7 @@ class ProfileAppearance(QWidget):
 
     @property
     def japanese_controls(self):
-        return getattr(self.settings, "editing_global", None) in ("appearance", "popup_all") or profile_language(self.settings, self.profile()) == "ja"
+        return profile_language(self.settings, self.profile()) == "ja"
 
     def _apply_preview(self):
         self.saved()

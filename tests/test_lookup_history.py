@@ -98,9 +98,9 @@ class HistoryRecordingTests(unittest.TestCase):
 
     def test_settings_share_enable_and_hide_hover_duration(self):
         panel = HistorySettings(self.service)
-        self.assertFalse(panel.layout().isRowVisible(panel.delay))
+        self.assertTrue(panel.delay.isHidden())
         panel.checks["hover"].setChecked(True)
-        self.assertTrue(panel.layout().isRowVisible(panel.delay))
+        self.assertFalse(panel.delay.isHidden())
         self.window.settings.setValue("history/enabled", False)
         self.service.preferences_changed.emit()
         self.assertFalse(panel.checks["enabled"].isChecked())

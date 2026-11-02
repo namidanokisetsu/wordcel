@@ -178,7 +178,9 @@ class HistorySettings(QWidget):
     def __init__(self, service):
         super().__init__()
         self.service = service
-        layout = QFormLayout(self)
+        layout = QVBoxLayout(self)
+        self.options = QWidget()
+        options_layout = QFormLayout(self.options)
         self.checks = {}
         for key, title, default in (("enabled", "Enable history", False), ("pinned", "Pinned lookups", True),
                                     ("manual", "Manual/text lookups", True), ("hover", "Hover lookups", False),
@@ -186,22 +188,26 @@ class HistorySettings(QWidget):
                                     ("button_ocr", "Show button in OCR popups", False)):
             control = QCheckBox(title)
             self.checks[key] = control
-            layout.addRow(control)
+            if key == "enabled":
+                layout.addWidget(control)
+            else:
+                options_layout.addRow(control)
             control.toggled.connect(lambda value, key=key: self.save(key, value))
+        layout.addWidget(self.options)
         self.delay = QDoubleSpinBox()
         self.delay.setRange(0.1, 60)
         self.delay.setSingleStep(0.1)
         self.delay.setSuffix(" s")
-        layout.addRow("Display duration", self.delay)
+        options_layout.addRow("Display duration", self.delay)
         self.delay.valueChanged.connect(lambda value: self.save("delay", value))
         self.retention = QComboBox()
         for text, days in (("Forever", 0), ("30 days", 30), ("90 days", 90), ("1 year", 365)):
             self.retention.addItem(text, days)
-        layout.addRow("Keep history", self.retention)
+        options_layout.addRow("Keep history", self.retention)
         self.retention.currentIndexChanged.connect(lambda _: self.save("retention", self.retention.currentData()))
         clear = QPushButton("Clear history")
         clear.clicked.connect(lambda: service.clear(self))
-        layout.addRow(clear)
+        options_layout.addRow(clear)
         service.preferences_changed.connect(self.sync)
         self.sync()
 
@@ -212,7 +218,8 @@ class HistorySettings(QWidget):
         with QSignalBlocker(self.delay), QSignalBlocker(self.retention):
             self.delay.setValue(self.service.value("delay", 0.5, float))
             self.retention.setCurrentIndex(max(0, self.retention.findData(self.service.value("retention", 0, int))))
-        self.layout().setRowVisible(self.delay, self.checks["hover"].isChecked())
+        self.options.setVisible(self.checks["enabled"].isChecked())
+        self.options.layout().setRowVisible(self.delay, self.checks["hover"].isChecked())
 
     def save(self, key, value):
         self.service.settings.setValue("history/" + key, value)

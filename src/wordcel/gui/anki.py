@@ -137,7 +137,7 @@ class AnkiSettingsPanel(QWidget):
         self.duplicate_form.addRow("Check in", self.duplicate_scope)
         self.duplicate_form.addRow("Also check", self.duplicate_decks)
         self.duplicate_form.addRow(self.check_all_models)
-        options_layout.addWidget(SettingsSection("Duplicates", duplicates))
+        options_layout.addWidget(SettingsSection("Advanced", duplicates, collapsible=True))
         self.notifications = QCheckBox("Anki tray notifications")
         self.notifications.setToolTip("Show save results in system notifications")
         form.addRow(self.notifications)
@@ -181,7 +181,7 @@ class AnkiSettingsPanel(QWidget):
         self.shortcut.recorder.editingFinished.connect(self._save)
         self.reload.clicked.connect(self.refresh)
 
-    def load(self, profile):
+    def load(self, profile, *, refresh=True):
         self._loading = True
         self.profile = profile
         self._generation += 1
@@ -216,7 +216,7 @@ class AnkiSettingsPanel(QWidget):
         self.status.clear()
         self._loading = False
         self._refresh_pending = False
-        if options.enabled and self.isVisible():
+        if refresh and options.enabled and self.isVisible():
             self.refresh()
 
     def showEvent(self, event):
@@ -230,6 +230,12 @@ class AnkiSettingsPanel(QWidget):
             self.refresh()
 
     def _connection_changed(self):
+        from wordcel.anki import endpoint_address
+        try:
+            endpoint_address(self.endpoint.text().strip())
+        except ValueError as error:
+            self.status.setText(str(error))
+            return
         self._save()
         if self.enabled.isChecked():
             self.refresh()
@@ -280,8 +286,12 @@ class AnkiSettingsPanel(QWidget):
                       shortcut=shortcut if self.shortcut.enabled.isChecked() else "",
                       shortcut_preset=shortcut)
         if self.settings.contains(self._prefix + "connection"):
-            values.pop("endpoint")
-            values.pop("api_key")
+            from wordcel.config.profiles import connection, save_connection
+            identity = self.settings.value(self._prefix + "connection", "")
+            record = connection(self.settings, "anki", identity)
+            credentials = {key: values.pop(key) for key in ("endpoint", "api_key")}
+            if any(record.get(key, "") != value for key, value in credentials.items()):
+                self.settings.setValue(self._prefix + "connection", save_connection(self.settings, "anki", credentials))
         if self.shortcut_form.indexOf(self.shortcut) < 0:
             # The Shortcuts tab owns validation after taking this control.
             values.pop("shortcut")

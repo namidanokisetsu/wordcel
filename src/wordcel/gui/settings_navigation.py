@@ -1,27 +1,27 @@
-"""Settings navigation and shared service connection editors."""
+"""Settings navigation and scoped restore actions."""
 from PyQt6.QtCore import QSignalBlocker, Qt
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMenu, QSizePolicy, QToolButton, QTreeWidget, QTreeWidgetItem, QWidget
 
-from wordcel.config.profiles import connection, profile_ids, profile_name
+from wordcel.config.profiles import profile_ids, profile_name
 
 
 class SettingsNavigation:
     def highlight_active_profile(self, active):
         if not hasattr(self, "scope"):
             return
-        for index in range(1, self.scope.count()):
+        for index in range(self.scope.count()):
             identity = self.scope.itemData(index)
             self.scope.setItemText(index, profile_name(self.settings, identity) + (" ✓" if identity == active else ""))
 
     def is_active_edit(self):
-        return self.settings.editing_global is None and self.parent() is not None and getattr(self.parent(), "active_profile", None) == self.profile.currentData()
+        return self.parent() is not None and getattr(self.parent(), "active_profile", None) == self.profile.currentData()
 
     def build_sidebar(self, layout, tabs):
         from PyQt6.QtWidgets import QComboBox, QLineEdit, QListWidget, QVBoxLayout
         self._navigation_state = {}
         self.scope = QComboBox()
         self.scope.setAccessibleName("Editing")
-        self.scope.setToolTip("Choose a profile or edit defaults used by profiles")
+        self.scope.setToolTip("Profile to edit")
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search settings…")
         self.search.setClearButtonEnabled(True)
@@ -46,12 +46,14 @@ class SettingsNavigation:
         sidebar_layout.addWidget(self.app_heading)
         sidebar_layout.addWidget(self.app_navigation)
         row = QHBoxLayout()
-        row.addWidget(QLabel("Editing"))
+        self.scope_label = QLabel("Editing")
+        row.addWidget(self.scope_label)
         row.addWidget(self.scope, 1)
         self.profile_menu = QMenu(self)
         self.profile_menu.addAction("New profile", self.choose_profile)
         self.profile_actions = {}
         for title, callback in (("Activate", self.activate_profile), ("Duplicate", self.duplicate_profile),
+                                ("Rename…", self.rename_profile), ("Reset profile settings…", self.restore_profile_defaults),
                                 ("Move up", lambda: self.reorder_profile(-1)),
                                 ("Move down", lambda: self.reorder_profile(1)), ("Delete", self.remove_profile)):
             self.profile_actions[title] = self.profile_menu.addAction(title, callback)
@@ -62,8 +64,9 @@ class SettingsNavigation:
         manage.setAccessibleName("Manage profiles")
         manage.setMenu(self.profile_menu)
         manage.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        manage.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        manage.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         row.addWidget(manage)
+        row.addStretch()
         sidebar_layout.addLayout(row)
         sidebar_layout.addWidget(self.navigation, 1)
         sidebar_layout.addWidget(self.search_results, 1)
@@ -99,14 +102,13 @@ class SettingsNavigation:
             self.initial_profile.clear()
             self.initial_profile.addItem("Last used", "")
             self.scope.clear()
-            self.scope.addItem("Shared defaults", "shared")
             for identity in profile_ids(self.settings):
                 name = profile_name(self.settings, identity)
                 self.profile.addItem(name, identity)
                 self.initial_profile.addItem(name, identity)
                 self.scope.addItem(name, identity)
             self.profile.setCurrentIndex(max(0, self.profile.findData(selected)))
-            self.scope.setCurrentIndex(0 if scope == "shared" else max(1, self.scope.findData(selected)))
+            self.scope.setCurrentIndex(max(0, self.scope.findData(selected)))
             self.initial_profile.setCurrentIndex(max(0, self.initial_profile.findData(self.settings.value("initial_profile", ""))))
         self.highlight_active_profile(self.settings.value("profile", ""))
         self.profile_changed()
@@ -114,24 +116,17 @@ class SettingsNavigation:
 
     def populate_navigation(self):
         page = self.tabs.currentIndex()
-        shared = self.scope.currentData() == "shared"
         with QSignalBlocker(self.navigation), QSignalBlocker(self.app_navigation):
             self.navigation.clear()
             self.app_navigation.clear()
             selected = None
-            titles = ("Popup", "Shortcuts", "Audio") if shared else ("Lookup", "Dictionaries", "Popup", "Shortcuts", "Audio", "Translation", "Anki")
-            for title in (*titles, "Startup", "History", "Connections", "Storage"):
-                global_page = title in ("Startup", "History", "Connections", "Storage")
-                target = "Audio playback" if shared and title == "Audio" else title
-                index = next(i for i in range(self.tabs.count()) if self.tabs.tabText(i) == target)
-                identity = self.profile.currentData()
-                if global_page:
-                    identity = None
-                elif shared:
-                    identity = "global:" + {"Popup": "popup_all", "Shortcuts": "shortcuts", "Audio": "audio"}[title]
+            for title in ("General", "Lookup", "Dictionaries", "Shortcuts", "Appearance", "Audio", "Translation", "Anki"):
+                global_page = title == "General"
+                index = next(i for i in range(self.tabs.count()) if self.tabs.tabText(i) == title)
+                identity = None if global_page else self.profile.currentData()
                 item = QTreeWidgetItem(self.app_navigation if global_page else self.navigation, [title])
                 item.setData(0, Qt.ItemDataRole.UserRole, (identity, index))
-                if index == page or title == "Audio" and self.tabs.tabText(page) in ("Audio", "Audio playback"):
+                if index == page:
                     selected = item
             selected = selected or self.navigation.topLevelItem(0)
             selected.treeWidget().setCurrentItem(selected)
@@ -144,11 +139,10 @@ class SettingsNavigation:
     def change_scope(self):
         identity = self.scope.currentData()
         self.appearance._preview_timer.stop()
-        old_scope = self._editing_scope
+        old_scope = getattr(self, "_editing_scope", self.profile.currentData())
         positions = [self.tabs.widget(i).verticalScrollBar().value() for i in range(self.tabs.count())]
         self._navigation_state[old_scope] = positions
-        if identity != "shared" and identity != self.profile.currentData():
-            self.settings.editing_global = None
+        if identity != self.profile.currentData():
             with QSignalBlocker(self.profile):
                 self.profile.setCurrentIndex(self.profile.findData(identity))
             self.profile_changed()
@@ -161,7 +155,7 @@ class SettingsNavigation:
         order = list(profile_ids(self.settings))
         identity = self.profile.currentData()
         index = order.index(identity) if identity in order else -1
-        editing = self.scope.currentData() != "shared"
+        editing = identity in order
         self.profile_actions["Activate"].setEnabled(editing and identity != self.settings.value("profile", ""))
         self.profile_actions["Duplicate"].setEnabled(editing)
         self.profile_actions["Delete"].setEnabled(editing and len(order) > 1)
@@ -177,19 +171,11 @@ class SettingsNavigation:
             other.clearSelection()
             other.setCurrentItem(None)
         identity, page = value
-        global_group = identity.split(":", 1)[1] if identity and identity.startswith("global:") else None
-        previous_group = self.settings.editing_global
-        if previous_group != global_group:
-            self.appearance._preview_timer.stop()
-            self.settings.editing_global = global_group
-            for group in dict.fromkeys(group for group in (previous_group, global_group) if group):
-                self.preference_groups.reload(group)
-            self.update_ocr_controls()
-            self.resources.refresh_actions()
-        if global_group:
-            self.preference_groups.load_global_audio()
-        self.preference_groups.refresh()
-        self.profile_details.setVisible(identity is not None and not global_group)
+        profile_page = identity is not None
+        self.profile_details.setVisible(profile_page and self.scope.count() > 1)
+        self.scope.setVisible(profile_page and self.scope.count() > 1)
+        self.scope_label.setVisible(profile_page and self.scope.count() > 1)
+        self.reset_app_shortcuts.setVisible(self.tabs.tabText(page) == "Shortcuts")
         self.tabs.setCurrentIndex(page)
         self._editing_scope = self.scope.currentData()
         self.settings.setValue("settings/scope", self._editing_scope)
@@ -201,10 +187,6 @@ class SettingsNavigation:
             if value and value[1] == page:
                 item.treeWidget().setCurrentItem(item)
                 return
-        # Links to profile-only features leave shared defaults explicitly.
-        if self.scope.currentData() == "shared":
-            self.scope.setCurrentIndex(self.scope.findData(self.profile.currentData()))
-
     def search_settings(self, *_):
         from PyQt6.QtWidgets import QAbstractButton, QLabel, QListWidgetItem
         from wordcel.gui.settings_section import SettingsSection
@@ -290,7 +272,6 @@ class SettingsNavigation:
         if self._loading:
             return
         from wordcel.gui.text_shortcuts import validate_shortcuts
-        from wordcel.config.profiles import PROFILE_KEYS
         value = editor.text()
         other = "previous_profile" if name == "next_profile" else "next_profile"
         try:
@@ -307,102 +288,91 @@ class SettingsNavigation:
             self.status.setText(str(error))
             editor.set_value(self.settings.value(name + "_hotkey", ""), self.settings.value(name + "_hotkey_preset", ""))
 
-    def reload_connections(self):
-        with QSignalBlocker(self.connection_list):
-            self.connection_list.clear()
-            for kind, title in (("anki", "Anki"), ("translation", "Translation")):
-                self.settings.beginGroup("connections/" + kind)
-                identities = self.settings.childGroups()
-                self.settings.endGroup()
-                for index, identity in enumerate(identities, 1):
-                    record = connection(self.settings, kind, identity)
-                    self.connection_list.addItem(record.get("name", f"{title} {index}"), (kind, identity))
-        self.load_connection()
+    def restore_page_defaults(self):
+        from wordcel.config.profiles import reset_app_page, reset_page
+        page = self.tabs.tabText(self.tabs.currentIndex())
+        identity = self.profile.currentData()
+        scope = "the app" if page == "General" else profile_name(self.settings, identity)
+        self.confirm_restore(f"{page} for {scope}", lambda: reset_app_page(self.settings, page)
+                             if page == "General" else reset_page(self.settings, identity, page), page)
 
-    def add_connection(self, kind):
-        from PyQt6.QtWidgets import QInputDialog
-        from uuid import uuid4
-        name, accepted = QInputDialog.getText(self, "New connection", "Name")
-        if not accepted or not name.strip():
-            return
-        identity = uuid4().hex
-        values = {"name": name.strip(), "endpoint": "http://127.0.0.1:8765" if kind == "anki" else "http://127.0.0.1:8766/v1"}
-        values.update({"api_key": ""} if kind == "anki" else {"model": "local-model"})
-        for key, value in values.items():
-            self.settings.setValue(f"connections/{kind}/{identity}/{key}", value)
-        self.reload_connections()
-        self.reload_connection_choices()
-        self.connection_list.setCurrentIndex(self.connection_list.findData((kind, identity)))
+    def restore_profile_defaults(self):
+        from wordcel.config.profiles import reset_profile
+        identity = self.profile.currentData()
+        self.confirm_restore("profile settings for " + profile_name(self.settings, identity),
+                             lambda: reset_profile(self.settings, identity), "Profile")
 
-    def load_connection(self):
-        selected = self.connection_list.currentData()
-        if not selected:
-            return
-        kind, identity = selected
-        record = connection(self.settings, kind, identity)
-        self.connection_endpoint.setText(record.get("endpoint", ""))
-        self.connection_key.setText(record.get("api_key", ""))
-        self.connection_model.setText(record.get("model", ""))
-        self.connection_key.setEnabled(kind == "anki")
-        self.connection_model.setEnabled(kind == "translation")
-        form = self.connection_list.parentWidget().layout()
-        form.setRowVisible(self.connection_key, kind == "anki")
-        form.setRowVisible(self.connection_model, kind == "translation")
+    def restore_switching_defaults(self):
+        from wordcel.config.profiles import reset_app_page
+        self.confirm_restore("profile-switching shortcuts for all profiles",
+                             lambda: reset_app_page(self.settings, "Shortcuts"), "Switching")
 
-    def save_connection(self):
-        selected = self.connection_list.currentData()
-        if not selected:
+    def confirm_restore(self, scope, reset, page):
+        from PyQt6.QtWidgets import QMessageBox
+        message = (f"Restore defaults for {scope}?\n\n"
+                   "Feature and shortcut enablement, connections, credentials and saved data will be kept.")
+        if QMessageBox.question(self, "Restore defaults", message,
+                               QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                               QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
-        kind, identity = selected
-        endpoint = self.connection_endpoint.text().strip()
         try:
-            if kind == "anki":
-                from wordcel.anki import endpoint_address
-                endpoint_address(endpoint)
-            else:
-                from wordcel.dictionary.translation import local_endpoint
-                endpoint = local_endpoint(endpoint)
-                if not self.connection_model.text().strip():
-                    raise ValueError("Enter a server model.")
-            values = {"endpoint": endpoint}
-            values.update({"api_key": self.connection_key.text()} if kind == "anki" else
-                          {"model": self.connection_model.text().strip()})
-            for key, value in values.items():
-                self.settings.setValue(f"connections/{kind}/{identity}/{key}", value)
-            self.profile_changed()
-            if self.parent() is not None:
-                self.parent().update_anki()
-                self.parent().refresh_translation_availability()
-            self.status.clear()
-        except ValueError as error:
+            reset()
+            self.refresh_after_reset(page)
+        except (ValueError, OSError) as error:
             self.status.setText(str(error))
 
-    def reload_connection_choices(self):
-        for kind, control, key in (("anki", self.profile_connection, "anki/connection"),
-                                   ("translation", self.translation_connection, "translation_connection")):
-            with QSignalBlocker(control):
-                control.clear()
-                for index in range(self.connection_list.count()):
-                    record_kind, identity = self.connection_list.itemData(index)
-                    if kind == record_kind:
-                        control.addItem(self.connection_list.itemText(index), identity)
-                control.setCurrentIndex(control.findData(self.settings.value(f"profiles/{self.profile.currentData()}/{key}", "")))
-            if kind == "translation":
-                self.translation_form.setRowVisible(control, self.translation_mode.currentData() == "custom")
-
-    def save_anki_connection(self):
-        if not self._loading and self.profile_connection.currentData():
-            self.settings.setValue(f"profiles/{self.profile.currentData()}/anki/connection", self.profile_connection.currentData())
-            self.anki.load(self.profile.currentData())
+    def refresh_after_reset(self, page):
+        scrolls = [self.tabs.widget(i).verticalScrollBar().value() for i in range(self.tabs.count())]
+        self.appearance._preview_timer.stop()
+        if page in ("General", "Switching"):
+            self._loading = True
+            try:
+                if page == "General":
+                    for control, key, default in ((self.preload_ocr, "ocr/preload", True),
+                                                   (self.hover_startup, "hover_scan/startup", False)):
+                        with QSignalBlocker(control):
+                            control.setChecked(self.settings.value(key, default, bool))
+                    with QSignalBlocker(self.initial_profile):
+                        self.initial_profile.setCurrentIndex(max(0, self.initial_profile.findData(
+                            self.settings.value("initial_profile", ""))))
+                    self.history_settings.service.preferences_changed.emit()
+                else:
+                    for key, editor in self.cycle_shortcuts.items():
+                        preset = "Ctrl+Alt+PgDown" if key == "next_profile" else "Ctrl+Alt+PgUp"
+                        editor.set_value(self.settings.value(key + "_hotkey", ""),
+                                         self.settings.value(key + "_hotkey_preset", preset))
+            finally:
+                self._loading = False
+            if self.parent() is not None:
+                if page == "General":
+                    self.parent().scan_settings_changed.emit()
+                else:
+                    self.parent().restore_cycle_shortcuts()
+        else:
+            self._resetting = True
+            try:
+                self.profile_changed(only_page=None if page == "Profile" else page)
+            finally:
+                self._resetting = False
             if self.is_active_edit():
-                self.parent().update_anki()
-
-    def select_translation_connection(self):
-        if self._loading or not self.translation_connection.currentData():
-            return
-        identity = self.translation_connection.currentData()
-        record = connection(self.settings, "translation", identity)
-        self.translation_endpoint.setText(record.get("endpoint", ""))
-        self.translation_model.setText(record.get("model", ""))
-        self.settings.setValue(f"profiles/{self.profile.currentData()}/translation_connection", identity)
-        self.save_translation()
+                window = self.parent()
+                if page in ("Shortcuts", "Profile"):
+                    window.restore_shortcut()
+                if page in ("Appearance", "Profile"):
+                    window.translation_panel.set_side_by_side(self.settings.value(
+                        f"profiles/{self.profile.currentData()}/translation_side_by_side", False, bool))
+                    window.reload_appearance()
+                elif page == "Shortcuts":
+                    window.reload_popup_shortcuts()
+                if page in ("Lookup", "Shortcuts", "Appearance", "Profile"):
+                    window.scan_settings_changed.emit()
+                if page in ("Dictionaries", "Profile"):
+                    window.refresh_library()
+                elif page == "Translation":
+                    window._edited()
+                    window.refresh_translation_availability()
+                if page in ("Anki", "Profile"):
+                    window.update_anki()
+        for i, position in enumerate(scrolls):
+            self.tabs.widget(i).widget().layout().activate()
+            self.tabs.widget(i).verticalScrollBar().setValue(position)

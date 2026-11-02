@@ -63,6 +63,8 @@ def profile_translation_available(settings, identity):
     from wordcel.config.profiles import profile_language
     from wordcel.dictionary.translation import load_profile_settings, local_endpoint
     from wordcel.language.support import translation_supported
+    if not settings.value(f"profiles/{identity}/translation_enabled", True, bool):
+        return False
     try:
         options = load_profile_settings(settings, identity)
         prefix = f"profiles/{identity}/"
@@ -216,10 +218,6 @@ class ResourcesPanel(QWidget):
         owner.appearance.content_form.setRowVisible(self.font_install, owner.appearance.japanese_controls and not font_ready())
         self.font_install.setEnabled(not owner.operation_busy("fonts"))
         ready = profile_translation_available(owner.settings, owner.profile.currentData())
-        global_group = getattr(owner.settings, "editing_global", None)
-        owner.appearance.set_translation_available(ready or global_group in ("appearance", "popup_all"))
-        ready = ready or global_group == "shortcuts"
+        owner.appearance.set_translation_available(ready)
         owner.translation_shortcut.enabled.setEnabled(ready)
         owner.translation_shortcut.recorder.setEnabled(ready and owner.translation_shortcut.enabled.isChecked())
-        if hasattr(owner, "translation_connection"):
-            owner.translation_form.setRowVisible(owner.translation_connection, owner.translation_mode.currentData() == "custom")

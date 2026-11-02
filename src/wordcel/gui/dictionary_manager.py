@@ -211,10 +211,10 @@ class SetupDialog(SettingsNavigation, QDialog):
         self._section_scans = set()
         self.sections_ready.connect(self._sections_ready)
         from wordcel.config.profiles import migrate
-        from wordcel.config.inheritance import PreferenceSettings, migrate_defaults, raw_settings
-        migrate(raw_settings(settings), directory)
+        from wordcel.config.inheritance import migrate_defaults
+        migrate(settings, directory)
         migrate_defaults(settings)
-        self.settings = settings = PreferenceSettings(settings)
+        self.settings = settings
         self._apply_shortcut = apply_shortcut
         self.operation = None
         self.operations = {}
@@ -244,11 +244,10 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.activate_button = QPushButton("Activate")
         self.activate_button.clicked.connect(self.activate_profile)
         profile_row.addWidget(self.activate_button)
-        self.profile_name = QLineEdit()
-        self.profile_name.editingFinished.connect(self.rename_profile)
         self.profile_language_label = QLabel()
         header_form = QFormLayout()
-        header_form.addRow("Name", self.profile_name)
+        self.editing_status = QLabel()
+        header_form.addRow(self.editing_status)
         header_form.addRow("Lookup language", self.profile_language_label)
         self.profile_details = QWidget()
         self.profile_details.setLayout(header_form)
@@ -311,7 +310,18 @@ class SetupDialog(SettingsNavigation, QDialog):
         dictionary_layout.addWidget(self.combine_frequencies)
         dictionary_layout.addStretch()
         translation = QWidget()
-        translation_layout = QVBoxLayout(translation)
+        translation_outer = QVBoxLayout(translation)
+        self.translation_enabled = QCheckBox("Enable translation")
+        translation_outer.addWidget(self.translation_enabled)
+        self.translation_options = QWidget()
+        translation_outer.addWidget(self.translation_options)
+        translation_outer.addStretch()
+        translation_layout = QVBoxLayout(self.translation_options)
+        translation_layout.setContentsMargins(0, 0, 0, 0)
+        self.translation_enabled.setChecked(settings.value(f"profiles/{self.profile.currentData()}/translation_enabled", True, bool))
+        self.translation_options.setVisible(self.translation_enabled.isChecked())
+        self.translation_enabled.toggled.connect(self.translation_options.setVisible)
+        self.translation_enabled.toggled.connect(lambda enabled: self.autosave(lambda: self.save_translation_enablement(enabled)))
         translation_form = QFormLayout()
         self.translation_form = translation_form
         self.translation_advanced_widget = QWidget()
@@ -361,7 +371,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.translation_warm.setToolTip("Retains model memory after use. Changes apply on the next translation.")
         advanced_form.addRow(self.translation_warm)
         translation_layout.addLayout(translation_form)
-        translation_layout.addWidget(SettingsSection("Translation options", self.translation_advanced_widget))
+        translation_layout.addWidget(SettingsSection("Advanced", self.translation_advanced_widget, collapsible=True))
         translation_layout.addStretch()
         translation_error = ""
         try:
@@ -595,8 +605,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.appearance.pinned_form.takeRow(self.appearance.side_button_scrolling)
         popup_form.addRow(self.appearance.side_button_scrolling)
         if hasattr(parent, "update_anki"):
-            self.anki.changed.connect(parent.update_anki)
-            self.anki.changed.connect(parent.scan_settings_changed.emit)
+            self.anki.changed.connect(self.anki_preferences_changed)
 
         self.jobs_layout = QVBoxLayout()
         layout.addLayout(self.jobs_layout)
@@ -606,11 +615,13 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self.status)
         footer = QHBoxLayout()
-        tutorial = QPushButton("Tutorial")
-        tutorial.setFlat(True)
-        tutorial.setStyleSheet("color: palette(mid);")
-        tutorial.clicked.connect(self.show_tutorial)
-        footer.addWidget(tutorial)
+        self.reset_button = QPushButton("Restore defaults…")
+        self.reset_button.clicked.connect(self.restore_page_defaults)
+        footer.addWidget(self.reset_button)
+        self.reset_app_shortcuts = QPushButton("Restore switching keys…")
+        self.reset_app_shortcuts.clicked.connect(self.restore_switching_defaults)
+        self.reset_app_shortcuts.hide()
+        footer.addWidget(self.reset_app_shortcuts)
         footer.addStretch()
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setVisible(False)
@@ -661,16 +672,17 @@ class SetupDialog(SettingsNavigation, QDialog):
 
         lookup = QWidget()
         lookup_layout = QVBoxLayout(lookup)
-        resume = QPushButton("Resume setup")
-        resume.setFlat(True)
-        resume.clicked.connect(self.resume_setup)
-        lookup_layout.addWidget(resume, alignment=Qt.AlignmentFlag.AlignLeft)
         for control in (self.selected_text, self.selection_lookup):
             shortcut_layout.takeRow(control)
             lookup_layout.addWidget(control)
         text_row = shared_layout.takeRow(self.shortcut)
         text_row.labelItem.widget().deleteLater()
         shortcut_layout.addRow("Text lookup", self.shortcut)
+        capture_options = QWidget()
+        capture_form = QFormLayout(capture_options)
+        scan_layout.takeRow(self.freeze_while_held)
+        capture_form.addRow(self.freeze_while_held)
+        scan_layout.addRow(SettingsSection("Advanced", capture_options, collapsible=True))
         self.screen_section = SettingsSection("Screen recognition", scanning)
         self.screen_section.toggle.setChecked(True)
         lookup_layout.addWidget(self.screen_section)
@@ -702,11 +714,9 @@ class SetupDialog(SettingsNavigation, QDialog):
             section.toggle.setChecked(True)
             shortcut_page_layout.addWidget(section)
         shortcut_page_layout.addStretch()
-        from wordcel.gui.preference_groups import PreferenceGroups
-        self.preference_groups = PreferenceGroups(self)
         shortcut_container = QWidget()
         shortcut_container_layout = QVBoxLayout(shortcut_container)
-        shortcut_container_layout.addWidget(self.preference_groups.wrap("shortcuts", shortcut_page))
+        shortcut_container_layout.addWidget(shortcut_page)
         cycle_controls = QWidget()
         cycle_layout = QFormLayout(cycle_controls)
         shortcut_container_layout.addWidget(SettingsSection("Profile switching (all profiles)", cycle_controls))
@@ -715,12 +725,12 @@ class SetupDialog(SettingsNavigation, QDialog):
         add_page(dictionaries, "Dictionaries")
         popup_page = QWidget()
         popup_layout = QVBoxLayout(popup_page)
-        popup_layout.addWidget(self.preference_groups.wrap("appearance", self.appearance))
-        popup_layout.addWidget(self.preference_groups.wrap("popup", SettingsSection("Layout & behavior", shared_shortcuts)))
-        self.popup_tab = add_page(popup_page, "Popup")
+        popup_layout.addWidget(self.appearance)
+        popup_layout.addWidget(SettingsSection("Layout & behavior", shared_shortcuts, collapsible=True))
+        self.popup_tab = add_page(popup_page, "Appearance")
         align_form_columns(self.appearance.form, self.appearance.preview_form, self.appearance.pinned_form, shared_layout)
         audio_layout.removeWidget(audio_playback)
-        audio_layout.insertWidget(0, self.preference_groups.wrap("audio", audio_playback))
+        audio_layout.insertWidget(0, audio_playback)
         self.audio_tab = add_page(audio, "Audio")
         self.translation_tab = add_page(translation, "Translation")
         self.anki_tab = add_page(self.anki, "Anki")
@@ -729,15 +739,16 @@ class SetupDialog(SettingsNavigation, QDialog):
         if history is None:
             history = HistoryService(self)
             self.finished.connect(history.shutdown)
-        self.history_tab = add_page(HistorySettings(history), "History")
+        self.history_settings = HistorySettings(history)
         from wordcel.gui.data_manager import DataPanel
         self.data = DataPanel(self)
-        self.data_tab = add_page(self.data, "Storage")
-        self.app_tab = add_page(app_page, "Startup")
-        connections = QWidget()
-        connection_layout = QFormLayout(connections)
-        self.connections_tab = add_page(connections, "Connections")
-        self.preference_groups.add_global_audio(add_page)
+        general = QWidget()
+        general_layout = QVBoxLayout(general)
+        general_layout.addWidget(SettingsSection("Startup", app_page))
+        general_layout.addWidget(SettingsSection("History", self.history_settings))
+        general_layout.addWidget(SettingsSection("Storage", self.data, collapsible=True))
+        general_layout.addStretch()
+        self.app_tab = self.data_tab = self.history_tab = add_page(general, "General")
         self.initial_profile = QComboBox()
         app_layout.addRow("Start with profile", self.initial_profile)
         self.initial_profile.currentIndexChanged.connect(lambda: self.settings.setValue("initial_profile", self.initial_profile.currentData()) if not self._loading else None)
@@ -750,42 +761,10 @@ class SetupDialog(SettingsNavigation, QDialog):
             editor.enabled.toggled.connect(lambda _, key=key, editor=editor: self.save_cycle_shortcut(key, editor))
             editor.recorder.editingFinished.connect(lambda key=key, editor=editor: self.save_cycle_shortcut(key, editor))
         align_form_columns(shortcut_layout, popup_form, cycle_layout)
-        self.connection_list = QComboBox()
-        self.connection_endpoint = QLineEdit()
-        self.connection_key = QLineEdit()
-        self.connection_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.connection_model = QLineEdit()
-        connection_layout.addRow("Connection", self.connection_list)
-        connection_layout.addRow("Address", self.connection_endpoint)
-        connection_layout.addRow("API key", self.connection_key)
-        connection_layout.addRow("Server model", self.connection_model)
-        connection_buttons = QWidget()
-        connection_buttons_layout = QHBoxLayout(connection_buttons)
-        connection_buttons_layout.setContentsMargins(0, 0, 0, 0)
-        for kind, label in (("anki", "Add Anki connection"), ("translation", "Add translation server")):
-            button = QPushButton(label)
-            button.clicked.connect(lambda checked=False, kind=kind: self.add_connection(kind))
-            connection_buttons_layout.addWidget(button)
-        connection_layout.addRow(connection_buttons)
-        self.connection_list.currentIndexChanged.connect(self.load_connection)
-        for editor in (self.connection_endpoint, self.connection_key, self.connection_model):
-            editor.editingFinished.connect(self.save_connection)
-        self.reload_connections()
-        self.profile_connection = QComboBox()
-        self.anki.layout().insertWidget(1, self.profile_connection)
-        self.profile_connection.currentIndexChanged.connect(self.save_anki_connection)
-        # Connections are shared; profiles choose a reference.
-        self.anki.connection_section.hide()
-        self.translation_connection = QComboBox()
-        translation_form.addRow("Server connection", self.translation_connection)
-        self.translation_connection.currentIndexChanged.connect(self.select_translation_connection)
-        self.translation_endpoint.hide()
-        self.translation_model.hide()
-        self.translation_advanced_form.setRowVisible(self.translation_endpoint, False)
-        self.translation_advanced_form.setRowVisible(self.translation_model, False)
+        self.anki.connection_section.toggle.setChecked(True)
         for control in (self.close_on_cursor_leave, self.appearance.snap_scrolling, self.translation_split):
-            control.toggled.connect(lambda _: self.autosave(lambda: self.preference_groups.apply("popup")))
-        self.cursor_close_margin.valueChanged.connect(lambda _: self.autosave(lambda: self.preference_groups.apply("popup")))
+            control.toggled.connect(lambda _: self.autosave(lambda: self.apply_popup_preferences()))
+        self.cursor_close_margin.valueChanged.connect(lambda _: self.autosave(lambda: self.apply_popup_preferences()))
         self.appearance.side_button_scrolling.toggled.connect(lambda _: self.autosave(self.notify_scan_settings))
         self.build_sidebar(layout, tabs)
         self.appearance.translation_hint.linkActivated.connect(lambda _: self.tabs.setCurrentWidget(self.translation_tab))
@@ -802,17 +781,6 @@ class SetupDialog(SettingsNavigation, QDialog):
     def autosave(self, callback):
         if not self._loading and self.profile.currentData():
             callback()
-
-    def resume_setup(self):
-        if self.parent() is not None:
-            from wordcel.gui.first_run import offer_resources
-            offer_resources(self.parent(), self.profile.currentData(), force=True, tutorial=False)
-
-    def show_tutorial(self):
-        if self.parent() is not None:
-            from wordcel.gui.first_run import show_tutorial
-            self.hide()
-            show_tutorial(self.parent(), self.profile.currentData())
 
     def save_startup(self, enabled):
         from wordcel.utils.startup import set_startup_enabled
@@ -972,7 +940,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         if self.parent() is not None:
             self.parent().update_languages()
             from wordcel.gui.first_run import offer_resources
-            offer_resources(self.parent(), identity, tutorial=False)
+            offer_resources(self.parent(), identity)
 
     def duplicate_profile(self):
         identity = create_profile(self.settings, self.editing_language,
@@ -982,10 +950,11 @@ class SetupDialog(SettingsNavigation, QDialog):
             self.parent().update_languages()
 
     def rename_profile(self):
-        name = self.profile_name.text().strip()
-        if name:
-            self.settings.setValue(f"profiles/{self.profile.currentData()}/name", name)
-            self.rebuild_profiles(self.profile.currentData())
+        identity = self.profile.currentData()
+        name, accepted = QInputDialog.getText(self, "Rename profile", "Name", text=profile_name(self.settings, identity))
+        if accepted and name.strip():
+            self.settings.setValue(f"profiles/{identity}/name", name.strip())
+            self.rebuild_profiles(identity)
             if self.parent() is not None:
                 self.parent().update_languages()
 
@@ -1000,6 +969,9 @@ class SetupDialog(SettingsNavigation, QDialog):
         active = self.settings.value("profile", "")
         self.highlight_active_profile(active)
         self.activate_button.setEnabled(active != self.profile.currentData())
+        editing = self.profile.currentData()
+        self.editing_status.setText("Active profile" if active == editing else
+                                   "Editing " + profile_name(self.settings, editing) + " · Active: " + profile_name(self.settings, active))
 
     def remove_profile(self):
         identity = self.profile.currentData()
@@ -1079,14 +1051,30 @@ class SetupDialog(SettingsNavigation, QDialog):
             warning = self._apply_shortcut(value, preset) if self.is_active_edit() else ""
             self.settings.setValue(prefix + "hotkey", value)
             self.settings.setValue(prefix + "hotkey_preset", preset)
-            if self.settings.editing_global:
-                self.preference_groups.apply("shortcuts")
             self.status.setText(warning if isinstance(warning, str) and warning else "")
         except (ValueError, OSError, RuntimeError) as error:
             with QSignalBlocker(self.shortcut.enabled), QSignalBlocker(self.shortcut.recorder):
                 self.shortcut.set_value(self.settings.value(f"profiles/{self.profile.currentData()}/hotkey", default_text_shortcut()),
                                         self.settings.value(f"profiles/{self.profile.currentData()}/hotkey_preset", shortcut_preset()))
             self.status.setText(str(error))
+
+    def save_translation_enablement(self, enabled):
+        self.settings.setValue(f"profiles/{self.profile.currentData()}/translation_enabled", enabled)
+        if self.is_active_edit():
+            self.parent()._edited()
+            self.parent().restore_shortcut()
+            self.parent().refresh_translation_availability()
+        self.resources.refresh_actions()
+
+    def anki_preferences_changed(self):
+        if self.is_active_edit():
+            self.parent().update_anki()
+            self.parent().scan_settings_changed.emit()
+
+    def apply_popup_preferences(self):
+        if self.is_active_edit():
+            self.parent().reload_appearance()
+            self.parent().scan_settings_changed.emit()
 
     def save_translation_layout(self, enabled):
         self.settings.setValue(f"profiles/{self.profile.currentData()}/translation_side_by_side", enabled)
@@ -1119,8 +1107,6 @@ class SetupDialog(SettingsNavigation, QDialog):
                 warning = getattr(self.parent(), "apply_" + name + "_shortcut")(value, preset)
             self.settings.setValue(key, value)
             self.settings.setValue(key + "_preset", preset)
-            if self.settings.editing_global:
-                self.preference_groups.apply("shortcuts")
             self.status.setText(warning if isinstance(warning, str) else "")
         except (ValueError, OSError, RuntimeError) as error:
             with QSignalBlocker(editor.enabled), QSignalBlocker(editor.recorder):
@@ -1181,7 +1167,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.status.clear()
 
     def notify_scan_settings(self):
-        if self.is_active_edit() or self.settings.editing_global is not None and self.parent() is not None:
+        if self.is_active_edit():
             self.parent().scan_settings_changed.emit()
 
     def save_capture_settings(self):
@@ -1216,53 +1202,79 @@ class SetupDialog(SettingsNavigation, QDialog):
         if hasattr(self, "resources"):
             self.resources.refresh()
 
-    def profile_changed(self):
-        from wordcel.config.config import config
+    def profile_changed(self, *_args, only_page=None):
         previous_loading, self._loading = self._loading, True
         code = self.profile.currentData()
-        self.remove_profile_button.setEnabled(self.operation is None and self.profile.count() > 1)
-        self.remove_profile_button.setToolTip("" if self.profile.count() > 1 else "Keep at least one profile")
         if code is None:
             self._loading = previous_loading
             return
-        self.anki.load(code)
-        self.profile_name.setText(profile_name(self.settings, code))
-        self.profile_language_label.setText(language_name(self.editing_language))
-        self.update_active_label()
-        for key, editor in (("hotkey", self.shortcut), ("translation_hotkey", self.translation_shortcut), ("hover_hotkey", self.hover_shortcut), ("copy_hotkey", self.copy_shortcut)):
-            editor.set_value(self.settings.value(f"profiles/{code}/{key}", default_text_shortcut() if key == "hotkey" else ""), self.settings.value(f"profiles/{code}/{key}_preset", LOOKUP_PRESETS[key]))
-        self.translation_split.setChecked(self.settings.value(f"profiles/{code}/translation_side_by_side", False, bool))
-        self.close_on_cursor_leave.setChecked(self.settings.value(f"profiles/{code}/close_on_cursor_leave", False, bool))
-        self.cursor_close_margin.setValue(self.settings.value(f"profiles/{code}/cursor_close_margin", 24, int))
+        try:
+            self.remove_profile_button.setEnabled(self.operation is None and self.profile.count() > 1)
+            self.remove_profile_button.setToolTip("" if self.profile.count() > 1 else "Keep at least one profile")
+            self.profile_language_label.setText(language_name(self.editing_language))
+            self.update_active_label()
+            self.status.clear()
+            if only_page in (None, "Anki"):
+                self.anki.load(code, refresh=only_page is None and not getattr(self, "_resetting", False))
+            if only_page in (None, "Lookup"):
+                for key, control, default in (("freeze_while_held", self.freeze_while_held, True),
+                                               ("selection_lookup", self.selection_lookup, False),
+                                               ("selected_text", self.selected_text, False)):
+                    with QSignalBlocker(control):
+                        control.setChecked(self.settings.value(f"profiles/{code}/{key}", default, bool))
+                self.scan_layout.setRowVisible(self.ja_ocr_provider, self.editing_language == "ja")
+                self.scan_layout.setRowVisible(self.tr_ocr_provider, self.editing_language == "tr")
+                self.scan_layout.setRowVisible(self.other_ocr_provider, self.editing_language not in ("ja", "tr"))
+                self.update_ocr_controls()
+            if only_page in (None, "Shortcuts"):
+                self.load_shortcut_controls(code)
+            if only_page in (None, "Translation"):
+                self.load_translation_controls(code)
+            if only_page in (None, "Appearance"):
+                self.translation_split.setChecked(self.settings.value(f"profiles/{code}/translation_side_by_side", False, bool))
+                self.close_on_cursor_leave.setChecked(self.settings.value(f"profiles/{code}/close_on_cursor_leave", False, bool))
+                self.cursor_close_margin.setValue(self.settings.value(f"profiles/{code}/cursor_close_margin", 24, int))
+                self.appearance.reload()
+            if only_page in (None, "Audio"):
+                from wordcel.config.config import config
+                from wordcel.audio.sources import database_path, source_order
+                self.audio_autoplay.setCurrentIndex(max(0, self.audio_autoplay.findData(audio_autoplay_mode(self.settings, code))))
+                self.audio_volume.setValue(self.settings.value(f"profiles/{code}/audio_volume", config.audio_volume, int))
+                self.audio_database.setText(database_path(self.settings, code))
+                self.audio_remove.setVisible(bool(self.audio_database.text()))
+                self.audio_sources.load(source_order(self.settings, code), self.audio_database.text(), language=self.editing_language)
+            if only_page in (None, "Dictionaries"):
+                with QSignalBlocker(self.combine_frequencies):
+                    self.combine_frequencies.setChecked(self.settings.value(f"profiles/{code}/combine_frequencies", True, bool))
+                self.language.setCurrentIndex(max(0, self.language.findData(self.editing_language)))
+                self.reload()
+        finally:
+            self._loading = previous_loading
+        if hasattr(self, "resources"):
+            self.resources.refresh()
+        if only_page is None and hasattr(self, "data") and self.data.isVisible():
+            self.data.refresh()
+
+    def load_shortcut_controls(self, code):
         from wordcel.gui.popup_shortcuts import POPUP_ACTIONS, popup_bindings, shortcut_key
+        for key, editor in (("hotkey", self.shortcut), ("translation_hotkey", self.translation_shortcut),
+                            ("hover_hotkey", self.hover_shortcut), ("copy_hotkey", self.copy_shortcut),
+                            ("pin_shortcut", self.pin_shortcut)):
+            default = default_text_shortcut() if key == "hotkey" else "c" if key == "pin_shortcut" else ""
+            editor.set_value(self.settings.value(f"profiles/{code}/{key}", default),
+                             self.settings.value(f"profiles/{code}/{key}_preset", LOOKUP_PRESETS[key]))
         for action, _, default in POPUP_ACTIONS:
-            control = self.popup_shortcuts[action]
-            with QSignalBlocker(control.enabled), QSignalBlocker(control.recorder):
-                control.set_value(popup_bindings(self.settings, code)[action],
-                                  self.settings.value(shortcut_key(code, action) + "_preset", default))
-        with QSignalBlocker(self.freeze_while_held):
-            self.freeze_while_held.setChecked(self.settings.value(f"profiles/{code}/freeze_while_held", True, bool))
-        with QSignalBlocker(self.selection_lookup):
-            self.selection_lookup.setChecked(self.settings.value(f"profiles/{code}/selection_lookup", False, bool))
-        self.status.clear()
-        with QSignalBlocker(self.combine_frequencies):
-            self.combine_frequencies.setChecked(self.settings.value(f"profiles/{code}/combine_frequencies", True, bool))
+            self.popup_shortcuts[action].set_value(popup_bindings(self.settings, code)[action],
+                self.settings.value(shortcut_key(code, action) + "_preset", default))
         bindings = self.settings.value(f"profiles/{code}/scan_bindings", "shift,middle").split(",")
-        with QSignalBlocker(self.block_scan_keys):
-            self.block_scan_keys.setChecked(self.settings.value(f"profiles/{code}/block_scan_keys", False, bool))
-        self.pin_shortcut.set_value(self.settings.value(f"profiles/{code}/pin_shortcut", "c"),
-                                    self.settings.value(f"profiles/{code}/pin_shortcut_preset", "C"))
-        with QSignalBlocker(self.selected_text):
-            self.selected_text.setChecked(self.settings.value(f"profiles/{code}/selected_text", False, type=bool))
-        self.scan_key.setCurrentIndex(max(0, next((self.scan_key.findData(b) for b in bindings if self.scan_key.findData(b) >= 0), 0)))
-        self.scan_mouse.setCurrentIndex(max(0, next((self.scan_mouse.findData(b) for b in bindings if self.scan_mouse.findData(b) >= 0), 0)))
-        for index in range(self.packs.count()):
-            self.packs.item(index).setHidden(self.packs.item(index).data(Qt.ItemDataRole.UserRole + 1) != self.editing_language)
-        self.update_dictionary_display()
-        self.scan_layout.setRowVisible(self.ja_ocr_provider, self.editing_language == "ja")
-        self.scan_layout.setRowVisible(self.tr_ocr_provider, self.editing_language == "tr")
-        self.scan_layout.setRowVisible(self.other_ocr_provider, self.editing_language not in ("ja", "tr"))
-        self.update_ocr_controls()
+        for control in (self.scan_key, self.scan_mouse):
+            control.setCurrentIndex(max(0, next((control.findData(b) for b in bindings if control.findData(b) >= 0), 0)))
+        self.block_scan_keys.setChecked(self.settings.value(f"profiles/{code}/block_scan_keys", False, bool))
+        self.pin_gesture.setCurrentIndex(max(0, self.pin_gesture.findData(self.settings.value(f"profiles/{code}/pin_gesture", "left"))))
+        with QSignalBlocker(self.appearance.side_button_scrolling):
+            self.appearance.side_button_scrolling.setChecked(self.settings.value(f"profiles/{code}/side_button_scrolling", True, bool))
+
+    def load_translation_controls(self, code):
         try:
             translation = load_profile_settings(self.settings, code)
         except ValueError as error:
@@ -1273,33 +1285,13 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.update_translation_controls(load=True)
         self.translation_endpoint.setText(translation.endpoint)
         self.translation_model.setText(translation.model)
-        self.translation_pair_label.setText(language_name(self.editing_language) + " \u2194")
+        self.translation_pair_label.setText(language_name(self.editing_language) + " ↔")
         self.translation_stream.setChecked(translation.stream)
         self.translation_chunk_size.setValue(translation.chunk_size)
         self.translation_warm.setChecked(translation.keep_warm)
+        self.translation_enabled.setChecked(self.settings.value(f"profiles/{code}/translation_enabled", True, bool))
         self.auto_translate_miss.setChecked(self.settings.value(f"profiles/{code}/auto_translate_miss", False, bool))
         self.auto_translate_sentences.setChecked(self.settings.value(f"profiles/{code}/auto_translate_sentences", False, bool))
-        self.appearance.reload()
-        self.show_component_controls()
-        self.pin_gesture.setCurrentIndex(max(0, self.pin_gesture.findData(self.settings.value(f"profiles/{code}/pin_gesture", "left"))))
-        with QSignalBlocker(self.audio_autoplay):
-            self.audio_autoplay.setCurrentIndex(max(0, self.audio_autoplay.findData(audio_autoplay_mode(self.settings, code))))
-        self.audio_volume.setValue(self.settings.value(f"profiles/{code}/audio_volume", config.audio_volume, type=int))
-        from wordcel.audio.sources import database_path, source_order
-        self.audio_database.setText(database_path(self.settings, code))
-        self.audio_remove.setVisible(bool(self.audio_database.text()))
-        self.audio_sources.load(source_order(self.settings, code), self.audio_database.text(), language=self.editing_language)
-        self.language.setCurrentIndex(max(0, self.language.findData(self.editing_language)))
-        self.reload()
-        if hasattr(self, "profile_connection"):
-            self.reload_connection_choices()
-        if hasattr(self, "preference_groups"):
-            self.preference_groups.refresh()
-        self._loading = previous_loading
-        if hasattr(self, "resources"):
-            self.resources.refresh()
-        if hasattr(self, "data") and self.data.isVisible():
-            self.data.refresh()
 
     def current_ocr_control(self):
         return {"ja": self.ja_ocr_provider, "tr": self.tr_ocr_provider}.get(self.editing_language, self.other_ocr_provider)
@@ -1335,7 +1327,7 @@ class SetupDialog(SettingsNavigation, QDialog):
                             else "No OCR provider supports this language on this computer" if not supported
                             else "The saved OCR provider does not support this language")
         for control in (self.scan_key, self.scan_mouse):
-            enabled = bool(supported) or self.settings.editing_global == "shortcuts"
+            enabled = bool(supported)
             control.setEnabled(enabled)
             control.setToolTip("" if enabled else "No OCR provider supports this language on this computer")
         self.show_component_controls()
@@ -1357,19 +1349,18 @@ class SetupDialog(SettingsNavigation, QDialog):
             self.profile.setCurrentIndex(self.profile.findData(code))
         self.profile_changed()
         if hasattr(self, "navigation"):
-            if self.scope.currentData() != "shared":
-                with QSignalBlocker(self.scope):
-                    self.scope.setCurrentIndex(self.scope.findData(code))
-                for index in range(self.navigation.topLevelItemCount()):
-                    item = self.navigation.topLevelItem(index)
-                    value = item.data(0, Qt.ItemDataRole.UserRole)
-                    if value and value[0] and not value[0].startswith("global:"):
-                        item.setData(0, Qt.ItemDataRole.UserRole, (code, value[1]))
+            with QSignalBlocker(self.scope):
+                self.scope.setCurrentIndex(self.scope.findData(code))
+            for index in range(self.navigation.topLevelItemCount()):
+                item = self.navigation.topLevelItem(index)
+                value = item.data(0, Qt.ItemDataRole.UserRole)
+                if value:
+                    item.setData(0, Qt.ItemDataRole.UserRole, (code, value[1]))
             self.navigate(self.app_navigation.currentItem() or self.navigation.currentItem())
 
     def apply_appearance(self):
         window = self.parent()
-        if self.is_active_edit() or self.settings.editing_global is not None and window is not None:
+        if self.is_active_edit():
             window.reload_appearance()
         self.status.clear()
 
@@ -1419,8 +1410,8 @@ class SetupDialog(SettingsNavigation, QDialog):
     def update_translation_controls(self, *_args, load=False):
         custom = self.translation_mode.currentData() == "custom"
         self.update_translation_languages(load=load)
-        self.translation_advanced_form.setRowVisible(self.translation_endpoint, False)
-        self.translation_advanced_form.setRowVisible(self.translation_model, False)
+        self.translation_advanced_form.setRowVisible(self.translation_endpoint, custom)
+        self.translation_advanced_form.setRowVisible(self.translation_model, custom)
         self.translation_advanced_form.setRowVisible(self.translation_warm, not custom)
         if hasattr(self, "resources"):
             self.resources.refresh()
