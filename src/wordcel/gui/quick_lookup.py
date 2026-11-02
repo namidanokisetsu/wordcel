@@ -1937,9 +1937,9 @@ class QuickLookupWindow(QDialog):
                 x = tray.center().x() if tray and not tray.isNull() else area.right()
                 y = area.bottom() + 1 - self.height()
                 if sys.platform == "darwin":
-                    y = area.top() + 8
+                    y = area.top()
                     if tray and not tray.isNull():
-                        y = max(y, tray.bottom() + 8)
+                        y = max(y, tray.bottom() + 1)
                     y = min(y, area.bottom() + 1 - self.height())
                 self.move(max(area.left(), min(x - self.width() // 2, area.right() + 1 - self.width())),
                           max(area.top(), min(y, area.bottom() + 1 - self.height())))

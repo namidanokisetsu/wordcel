@@ -2813,7 +2813,7 @@ class QuickLookupTests(unittest.TestCase):
                         patch.object(QApplication, "screenAt", return_value=screen):
                     self.window.tray_geometry = lambda: tray
                     self.window._place()
-                    expected = area.top() + 8 if platform == "darwin" else area.bottom() + 1 - self.window.height()
+                    expected = area.top() if platform == "darwin" else area.bottom() + 1 - self.window.height()
                     self.assertEqual(self.window.y(), expected)
                     edge = self.window.geometry().top() if platform == "darwin" else self.window.geometry().bottom()
                     self.window._resize_expanded(QSize(self.window.width(), 240))
