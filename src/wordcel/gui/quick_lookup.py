@@ -443,9 +443,6 @@ class QuickLookupWindow(QDialog):
         self.browser.word_selected.connect(self.lookup_word)
         from wordcel.gui.translation_view import TranslationPanel
         self.translation_panel = TranslationPanel(self.settings)
-        from wordcel.gui.copy_feedback import CopyFeedback
-        self.copy_feedback = CopyFeedback(self.frame)
-        self.translation_panel.copied.connect(self.copy_feedback.show_confirmation)
         self.translation_browser = self.translation_panel.output
         self.translation_panel.language_requested.connect(self._translation_language_menu)
         self.translation_panel.translate_requested.connect(self._submit_translation_source)
@@ -2434,7 +2431,6 @@ class QuickLookupWindow(QDialog):
         text = self.translation_panel.source.toPlainText() if self._translation_view else self._context
         if text:
             QApplication.clipboard().setText(text)
-            self.copy_feedback.show_confirmation()
 
     def _pin_changed(self, checked):
         if checked and not self._translation_view:
@@ -2695,7 +2691,6 @@ class QuickLookupWindow(QDialog):
             text = self._result.entries[0].term
         if text:
             QApplication.clipboard().setText(text)
-            self.copy_feedback.show_confirmation()
 
     def _reading_browsers(self):
         if self._translation_view:

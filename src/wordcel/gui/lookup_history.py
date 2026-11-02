@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFor
 
 from wordcel.history import EncounterSession, HistoryStore, primary_entries
 from wordcel.gui.action_icons import action_icon
-from wordcel.gui.copy_feedback import CopyFeedback
 
 
 class HistoryService(QObject):
@@ -392,7 +391,6 @@ class HistoryWindow(QDialog):
         layout.addWidget(self.cards, 1)
         self.status = QLabel()
         layout.addWidget(self.status)
-        self.copy_feedback = CopyFeedback(self)
         footer = QHBoxLayout()
         clear = QPushButton("Clear history")
         clear.clicked.connect(lambda: service.clear(self))
@@ -530,7 +528,6 @@ class HistoryWindow(QDialog):
 
     def copy_text(self, text):
         QApplication.clipboard().setText(text)
-        self.copy_feedback.show_confirmation()
 
     def card_menu(self, position):
         item = self.cards.itemAt(position)

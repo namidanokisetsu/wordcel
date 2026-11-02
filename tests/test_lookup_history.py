@@ -145,8 +145,6 @@ class HistoryRecordingTests(unittest.TestCase):
         self.assertEqual(browser.cards.viewport().cursor().shape(), Qt.CursorShape.PointingHandCursor)
         QTest.mouseClick(browser.cards.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
         self.assertEqual(self.app.clipboard().text(), row["context"])
-        self.assertTrue(browser.copy_feedback.isVisible())
-        self.assertTrue(browser.copy_feedback.timer.isActive())
         browser.rows[row["id"]]["context"] = ""
         QTest.mouseClick(browser.cards.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
         self.assertEqual(self.app.clipboard().text(), row["form"])

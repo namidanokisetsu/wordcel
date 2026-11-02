@@ -553,7 +553,6 @@ class UnifiedOCR(QObject):
             request = CaptureRequest(revision, "", (0, 0, image.width(), image.height()),
                                      (0, 0, image.width(), image.height()), 1, revision)
             self.worker.copy_passage((revision, image, (0, 0), language, selection, False, request, monotonic()))
-            QToolTip.showText(QCursor.pos(), "Copying text…", None, QRect(), 60000)
         except Exception as error:
             self._copy_pending = None
             QToolTip.showText(QCursor.pos(), str(error), None, QRect(), 5000)
@@ -576,7 +575,8 @@ class UnifiedOCR(QObject):
         text = passage_text(frame.paragraphs, frame.language, pending[2][0]) if frame is not None and not error else ""
         if text:
             QApplication.clipboard().setText(text)
-        QToolTip.showText(QCursor.pos(), error or ("Text copied" if text else "No text found"), None, QRect(), 3000)
+        else:
+            QToolTip.showText(QCursor.pos(), error or "No text found", None, QRect(), 3000)
 
     def _cancel_passage(self, *_):
         from PyQt6.QtWidgets import QToolTip

@@ -466,17 +466,6 @@ class QuickLookupTests(unittest.TestCase):
             self.assertEqual(bar.value(), scroll)
             self.assertEqual(view.toHtml(), before)
 
-    def test_copy_confirmation_centers_for_both_window_width_parities(self):
-        self.window.show()
-        for width in (480, 481):
-            self.window.resize(width, 340)
-            self.app.processEvents()
-            self.window.copy_feedback.show_confirmation()
-            frame = self.window.frame
-            bounds = frame.contentsRect().marginsRemoved(frame.layout().contentsMargins())
-            rect = self.window.copy_feedback.geometry()
-            self.assertLessEqual(abs((rect.left() - bounds.left()) - (bounds.right() - rect.right())), 1)
-
     def test_settings_sections_share_rendered_field_columns(self):
         from PyQt6.QtWidgets import QFormLayout
         dialog = SetupDialog(self.temp.name, self.settings, self.window.apply_shortcut, self.window)
@@ -1628,7 +1617,6 @@ class QuickLookupTests(unittest.TestCase):
             self.window.copy_sentence()
             clipboard.return_value.setText.assert_called_once_with(sentence)
         self.assertTrue(self.window.isVisible())
-        self.assertTrue(self.window.copy_feedback.isVisible())
 
     def test_input_selection_shortcut_and_menu_use_japanese_word_and_context(self):
         sentence = "公園で猫が寝ている。"
@@ -3014,7 +3002,6 @@ class QuickLookupTests(unittest.TestCase):
                     native = SimpleNamespace(vkCode=0x43)
                     self.assertFalse(inputs.filter_key(0x100, native))
                     self.assertEqual(QApplication.clipboard().text(), "Selected definition")
-                    self.assertTrue(self.window.copy_feedback.isVisible())
                     self.assertEqual(self.window.is_pinned, pinned)
                     self.assertEqual((self.window._previous_foreground, self.window._previous_focus), (987654, 987655))
                     self.assertEqual(user32.GetForegroundWindow(), 987654)
@@ -3222,7 +3209,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertNotIn("Strokes 11", self.window.browser.toPlainText())
         self.assertEqual(self.window._context, "猫がいる。")
 
-    def test_copy_click_confirms_without_closing_and_dismiss_does_not_pin(self):
+    def test_copy_click_keeps_popup_open_and_dismiss_does_not_pin(self):
         self.window.show_entries((entry(),), "猫", peek=True)
         self.window.set_context("猫がいる。")
         QTest.mouseClick(self.window.browser.viewport(), Qt.MouseButton.LeftButton)
@@ -3233,16 +3220,14 @@ class QuickLookupTests(unittest.TestCase):
             QTest.mouseClick(self.window.copy_button, Qt.MouseButton.LeftButton)
             clipboard.return_value.setText.assert_called_once_with("猫がいる。")
         self.assertTrue(self.window.is_pinned)
-        self.assertTrue(self.window.copy_feedback.isVisible())
         self.assertEqual(self.window.geometry(), geometry)
         self.window.hide()
-        self.assertTrue(self.window.copy_feedback.isHidden())
         self.window.show_entries((entry(),), "猫", peek=True)
         QTest.mouseClick(self.window.dismiss_button, Qt.MouseButton.LeftButton)
         self.assertFalse(self.window.is_pinned)
         self.assertFalse(self.window.isVisible())
 
-    def test_copy_feedback_stays_inside_fullscreen_popup_after_layout_invalidation(self):
+    def test_copy_preserves_fullscreen_popup_state_after_layout_invalidation(self):
         with patch("wordcel.gui.quick_lookup.sys.platform", "win32"), \
                 patch("wordcel.utils.window_focus.focus_pinned_popup") as focus:
             self.window.show_entries((entry(definitions=("Meaning\n" * 100,)),), "cat", peek=True)
@@ -3260,13 +3245,6 @@ class QuickLookupTests(unittest.TestCase):
                 selection = browser.textCursor()
                 self.window.frame.layout().invalidate()
                 copy()
-                feedback = self.window.copy_feedback
-                bounds = self.window.frame.contentsRect().marginsRemoved(
-                    self.window.frame.layout().contentsMargins())
-                self.assertTrue(feedback.isVisible())
-                self.assertTrue(bounds.contains(feedback.geometry()))
-                self.assertEqual(feedback.geometry().bottom(), bounds.bottom())
-                self.assertTrue(feedback.visibleRegion().contains(feedback.rect()))
                 self.assertEqual(self.window.geometry(), geometry)
                 self.assertEqual(browser.verticalScrollBar().value(), scroll)
                 self.assertEqual(browser.textCursor().selectionStart(), selection.selectionStart())

@@ -139,7 +139,6 @@ class TranslationPanel(QWidget):
     translate_requested = pyqtSignal()
     language_requested = pyqtSignal(str)
     swap_requested = pyqtSignal()
-    copied = pyqtSignal()
 
     def __init__(self, settings=None):
         super().__init__()
@@ -196,7 +195,6 @@ class TranslationPanel(QWidget):
     def _copy(self, text):
         if text:
             QApplication.clipboard().setText(text)
-            self.copied.emit()
 
     def set_content(self, text, translation, source, target, message=""):
         if self.source.toPlainText().strip() != text.strip():

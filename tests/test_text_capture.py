@@ -88,12 +88,15 @@ class TextCaptureTests(unittest.TestCase):
             window=SimpleNamespace(preferred_foreign="en"), profile_ocr_provider="windows", screenai_directory="",
             _selecting_text=False, session=SimpleNamespace(suspended=True), _sync_timer=Mock(), _sync_pin_ready=Mock())
         controller._cancel_passage = lambda: UnifiedOCR._cancel_passage(controller)
-        with patch("PyQt6.QtWidgets.QToolTip.showText"), patch("PyQt6.QtWidgets.QToolTip.hideText"):
+        with patch("PyQt6.QtWidgets.QToolTip.showText") as feedback, patch("PyQt6.QtWidgets.QToolTip.hideText"):
             UnifiedOCR._accept_passage(controller, -1, None, "OCR unavailable")
             self.assertEqual(self.app.clipboard().text(), "Keep this")
+            self.assertEqual(feedback.call_args.args[1], "OCR unavailable")
+            feedback.reset_mock()
             controller._copy_pending = (-2, "ja", ("windows", ""))
             UnifiedOCR._accept_passage(controller, -2, SimpleNamespace(paragraphs=[paragraph("Wrong profile")], language="ja"), "")
             self.assertEqual(self.app.clipboard().text(), "Keep this")
             controller._copy_pending = (-3, "en", ("windows", ""))
             UnifiedOCR._accept_passage(controller, -3, SimpleNamespace(paragraphs=[paragraph("Copied")], language="en"), "")
             self.assertEqual(self.app.clipboard().text(), "Copied")
+            feedback.assert_not_called()
