@@ -582,9 +582,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         popup_page = QWidget()
         popup_layout = QVBoxLayout(popup_page)
         popup_layout.addWidget(self.appearance)
-        appearance_layout = self.appearance.layout()
-        appearance_layout.insertWidget(appearance_layout.indexOf(self.appearance.content_section),
-                                       SettingsSection("Layout & behavior", shared_shortcuts, collapsible=True))
+        self.appearance.content_form.addRow(shared_shortcuts)
         self.popup_tab = add_page(popup_page, "Popup")
         align_form_columns(self.appearance.form, self.appearance.preview_form, self.appearance.pinned_form, shared_layout)
         audio_layout.removeWidget(audio_playback)
