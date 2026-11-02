@@ -2,14 +2,13 @@
 
 ## Get started
 
-[Download](https://github.com/namidanokisetsu/wordcel/releases) Wordcel, choose a
-language, and install the offered resources. Downloads can be skipped and added
-later in **Settings**. See [supported languages](LANGUAGES.md) for coverage.
+[Download](https://github.com/namidanokisetsu/wordcel/releases) and open Wordcel,
+then choose a language. Download the dictionaries and OCR resources during
+setup, or add them later in **Settings**. See [supported languages](LANGUAGES.md).
 
-Click the tray/menu-bar icon to open **Search**; on macOS, the Dock icon also
-works. Right-click for **Settings**, **Quit** and other actions. Closing Search
-leaves Wordcel running; use **Quit** to exit. For macOS setup problems, see
-[FAQ](#faq).
+Click Wordcel's tray/menu-bar icon to open **Search**. Right-click it for
+**Settings** or **Quit**. Closing Search leaves Wordcel running.
+For macOS setup problems, see [FAQ](#faq).
 
 ## Look up a word
 
@@ -17,17 +16,17 @@ leaves Wordcel running; use **Quit** to exit. For macOS setup problems, see
   keep the result open. **Escape** closes it.
 - For subtitles or a dialogue box, turn on **Hover scan** in the tray menu
   and select an area. Hover over words there without holding a key.
-- For typed text, open **Search** from the tray.
+- To type a word, open **Search**.
 
 For selected Japanese text, press **Ctrl+Shift+D** (**Command+Shift+D** on macOS).
-Click another word in the captured text to look it up; **Translate** uses the
-full selection. Text shortcuts can be changed or disabled in **Shortcuts**.
+Click a word in the captured text to look it up. **Translate** uses the full
+selection. Change or disable text shortcuts in **Shortcuts**.
 
 Point at the first character of Japanese or Chinese words. If subtitles change
 while you're holding Shift, release it and press again to capture the new text.
 
-Pinning shows full definitions. Click dictionary headings to collapse them or
-kanji to see details.
+Pin a result to see full definitions. Click a dictionary heading to collapse it,
+or a kanji to see its details.
 
 To copy a passage, choose **Grab text** in the tray and drag within one display.
 Release to copy; **Escape** or right-click cancels. Its optional shortcut is in
@@ -35,56 +34,51 @@ Release to copy; **Escape** or right-click cancels. Its optional shortcut is in
 
 ## Settings
 
-Open **Settings** from the tray. **General** holds startup, history and storage;
-the other pages cover lookup, dictionaries, shortcuts, appearance, audio,
-translation and Anki.
-
-The profile menu manages profiles. **Editing** selects whose settings you change;
-it does not activate that profile. Each profile has its own preferences.
+In **Settings**, choose a profile under **Editing** to change its settings.
+This does not switch the active profile. Startup, history and storage are in
+**General**.
 
 Use **Restore defaults…** for one page or **Reset profile settings…** for a profile.
-Resets preserve profile identity, feature enablement, connections, credentials,
-resources, history and Anki notes. Profile switching shortcuts are app-wide and
-have a separate reset.
+Resets keep your profiles, enabled features, connections, credentials, downloaded
+resources, history and Anki notes. Profile switching shortcuts apply across all
+profiles and have a separate reset.
 
-In **Dictionaries**, use **Import ZIPs** for Yomitan packs; extract any outer
-bundle first. **Remove** removes a dictionary from every profile. Missing
-dictionaries and models can be installed on their relevant settings pages.
+In **Dictionaries**, use **Import ZIPs** to add Yomitan dictionaries. If a ZIP
+contains other ZIPs, extract it first. Removing a dictionary removes it from
+every profile. Download dictionaries here, OCR resources in **Lookup**, and
+translation models in **Translation**.
 Japanese recommendations include JMdict, KANJIDIC, BCCWJ and the WaDoku pitch
 dictionary. WaDoku data is attributed to [Wadoku](https://www.wadoku.de) and
 distributed under its [data licence](https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten+Lizenz).
 
-**General > Startup > Preload OCR** prepares scanning in the background by
-default. Turn it off to load models on the first scan; loaded models stay in
-memory until Wordcel exits. Dictionary-only mode skips preloading.
+**General > Startup > Preload OCR** loads the OCR model at startup. Turn it off
+to load it on the first scan. The model stays in memory until Wordcel exits.
+Dictionary-only mode skips preloading.
 
 ## Lookup history
 
 Enable recording in **General > History**, then open **History** from the tray.
-By default, it records pinned and manual/text lookups and keeps them forever.
-Hover recording, retention, popup buttons and **Clear history** are in the same
-settings page; a popup shortcut is in **Shortcuts > Popup**. Turning recording
-off keeps existing history.
+It saves pinned results and searches by default, with no expiry. Change what
+gets recorded, set retention or clear history in **General > History**.
+Turning recording off keeps existing history.
 
 Search by word, reading, encountered form, stored meaning or sentence fragment.
-Double-click a card for fresh dictionary results without autoplay or another
-recorded visit. Right-click to copy, **Add to Anki** or **Delete**; Delete also
-works on a selected card. History stores text locally, without screenshots,
-audio or page addresses.
+Double-click a card to look it up again. This does not play audio or add another
+history entry. Right-click to copy, save to Anki or delete. History saves text
+on your computer, without screenshots, audio or page addresses.
 
 ## Listen or translate
 
-Use the popup's audio icons to hear a word or sentence. In **Audio**, enable and
-reorder providers; recordings play before system speech by default. Use **+**
-for additional providers or a Yomitan custom URL, including local JSON audio
-servers. **Import Yomitan** reads sources from exported settings. System voices
-come from your OS; browser-only voices may be unavailable.
+Click the popup's audio icons to hear a word or sentence. Choose and reorder
+sources in **Audio**. Recordings play before system speech by default. Use **+**
+to add a source or custom Yomitan audio URL. **Import Yomitan** imports audio
+sources from a Yomitan settings export. Browser-only voices may be unavailable.
 
 Download a model in **Translation**, then open **Translate** from the tray,
 choose languages and enter text. Translation runs offline after setup.
 **Translate when no definition is found** and **Auto-translate sentences** are
-off by default and configurable per profile. They apply to submitted text;
-typing previews and OCR hover never trigger translation.
+off by default. Enable them per profile to translate submitted text automatically.
+Typing or hovering over OCR text does not trigger translation.
 
 ## Save to Anki
 
@@ -93,12 +87,12 @@ Install [AnkiConnect](https://ankiweb.net/shared/info/2055492159) and keep Anki 
 1. In your profile's **Anki** settings, tick **Enable Anki**, configure
    AnkiConnect, and click **Refresh**.
 2. Choose your deck and note type, then map the fields. Use **Word** for the first field.
-3. Click the popup's **+** icon to save. With duplicates prevented, the checkmark opens existing notes;
-   with duplicates allowed, overlapping circles add another note.
+3. Click the popup's **+** icon to save. For words already saved, the checkmark
+   opens the existing note. If duplicates are allowed, overlapping circles let
+   you add another note.
 
-Map sentence, screenshot and audio fields to include them on cards. Saves run
-in the background; keep Wordcel open until they finish. **Anki tray
-notifications** show save results.
+Map sentence, screenshot and audio fields to include them on cards. Keep Wordcel
+open until saves finish. Turn on **Anki tray notifications** to see save results.
 
 ## FAQ
 
@@ -106,23 +100,25 @@ notifications** show save results.
 
 Drag Wordcel from the downloaded DMG to **Applications** and open it there.
 If macOS cannot verify the developer or check the app for malicious software,
-go to **System Settings > Privacy & Security > Open Anyway**, then confirm
-**Open**. Use this for downloads from the official releases linked above.
+open **System Settings > Privacy & Security**, click **Open Anyway**, then
+**Open**.
 See [Apple's instructions](https://support.apple.com/en-us/102445).
 
 ### Scanning or shortcuts don't work on macOS
 
-Allow Wordcel's permission requests. If skipped, enable it manually in
-**System Settings > Privacy & Security** under:
+Grant the permissions Wordcel requests, or enable them in
+**System Settings > Privacy & Security**:
 
 - **Screen & System Audio Recording** (or **Screen Recording**): screen capture.
 - **Input Monitoring**: scan keys, mouse buttons and global shortcuts.
-- **Accessibility**: scan/pin controls and copying selected text.
+- **Accessibility**: pinning results and copying selected text.
 
-Quit Wordcel from its menu-bar icon, then reopen it. If permissions are already
-enabled but still fail, quit first, toggle the affected permission off and on,
-and reopen. If needed, quit again, remove Wordcel with **−** and re-add
-**Applications > Wordcel.app** with **+**, where available; enable it and reopen.
+Quit Wordcel from its menu-bar icon and reopen it. If it still fails:
+
+1. Quit Wordcel, turn the affected permission off and on, then reopen it.
+2. If that fails, quit again. Where **−** and **+** buttons are available, remove
+   Wordcel and add **Applications > Wordcel.app** again. Enable it and reopen.
+
 For source runs, grant permissions to the launching terminal or app instead.
 Manual Search works without these permissions.
 
