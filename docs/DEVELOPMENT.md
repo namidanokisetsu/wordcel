@@ -60,6 +60,8 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   resizing and text scaling; resize source excerpts without rebuilding definitions.
   Kanji uses the shared content stack; the existing breadcrumb and Back restore
   the word document, selection and scroll. Size its glyph column from font ink bounds.
+  Its word header preserves the clicked headword and switches between prepared
+  kanji records without a new lookup. Retain that headword through history and translation.
   Derive layout from content bounds;
   batch updates instead of rebuilding unchanged content. Autoplay runs on new
   results or the explicit pin preference, never restoration or rendering.

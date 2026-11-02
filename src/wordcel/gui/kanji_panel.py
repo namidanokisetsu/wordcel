@@ -118,7 +118,7 @@ def _attributed(value, sources):
     return f'<span title="{_text(" · ".join(sources))}">{_text(value)}</span>'
 
 
-def render_kanji_details(entries, scheme="kanji"):
+def render_kanji_details(entries, scheme="kanji", *, origin="", available_characters=()):
     if not entries:
         return ""
     from wordcel.config.config import config
@@ -129,10 +129,23 @@ def render_kanji_details(entries, scheme="kanji"):
     family = stroke_order_family(character) if getattr(config, "kanji_stroke_order", True) else ""
     glyph_style = f'font-size:128px;font-family:{_text(family)}' if family else 'font-size:96px'
     anchor = quote(f"{scheme}:{character}", safe="")
-    parts = ['<table width="100%" cellspacing="0" cellpadding="0"><tr>'
+    parts = []
+    if origin:
+        word = []
+        for char in origin:
+            if char == character:
+                word.append(f'<span style="color:{accent}"><u>{_text(char)}</u></span>')
+            elif char in available_characters:
+                word.append(f'<a href="kanjiselect:{quote(char, safe="")}" '
+                            f'style="color:{accent};text-decoration:none">{_text(char)}</a>')
+            else:
+                word.append(_text(char))
+        parts.append(f'<p style="margin:0;font-size:{config.font_size_header}px">{"".join(word)}</p>')
+    table_style = ' style="margin-top:8px"' if origin else ''
+    parts.extend([f'<table width="100%" cellspacing="0" cellpadding="0"{table_style}><tr>'
              '<td valign="top" style="padding-right:12px">',
              f'<a name="kanji-detail-{anchor}"></a><span style="{glyph_style}">'
-             f'{_character_link(character, accent, True, scheme, glyph=True)}</span></td><td valign="top">']
+             f'{_character_link(character, accent, True, scheme, glyph=True)}</span></td><td valign="top">'])
     for label, field in (("", "meanings"), ("音", "onyomi"), ("訓", "kunyomi")):
         values = _shared_values(entries, field)
         if values:

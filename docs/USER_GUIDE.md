@@ -29,7 +29,8 @@ Point at the first character of Japanese or Chinese words. If subtitles change
 while you're holding Shift, release it and press again to capture the new text.
 
 Pin a result to see full definitions. Click a dictionary heading to collapse it,
-or a kanji to see its details. Use the word breadcrumb or Back to return.
+or a kanji to see its details. Click another kanji in the word at the top to switch
+characters. Use the word breadcrumb or Back to return.
 Hide dictionary names in **Appearance > Content > Pinned > Dictionary labels**;
 definitions stay visible while labels are hidden.
 

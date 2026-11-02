@@ -43,6 +43,15 @@ class KanjiTests(unittest.TestCase):
         self.assertIn("&lt;value&gt;", exported)
         self.assertEqual(render_kanji_details(()), "")
 
+    def test_origin_header_highlights_selected_kanji_and_escapes_text(self):
+        html = render_kanji_details((KanjiEntry("猫", meanings=("cat",)),),
+                                   origin="猫<&𠮷", available_characters={"猫", "𠮷"})
+        self.assertIn("<u>猫</u>", html)
+        self.assertNotIn("background-color:", html)
+        self.assertIn("&lt;&amp;", html)
+        self.assertIn('href="kanjiselect:%F0%A0%AE%B7"', html)
+        self.assertNotIn('href="kanjiselect:%E7%8C%AB"', html)
+
     def test_components_and_examples_are_deduplicated_without_losing_data(self):
         records = tuple(KanjiEntry("猫", source, components=({"c": "田", "m": "field"},),
                                   examples=({"w": "子猫", "r": "こねこ", "m": "kitten"},))

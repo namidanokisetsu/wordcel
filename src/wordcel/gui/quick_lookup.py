@@ -247,6 +247,7 @@ class QuickLookupWindow(QDialog):
         self._collapsed = set()
         self._details_expanded = set()
         self._kanji_details = set()
+        self._kanji_origin = ""
         self._kanji_return_position = None
         self._pin_anchor_click = False
         self._shutting_down = False
@@ -451,7 +452,8 @@ class QuickLookupWindow(QDialog):
         self.content_stack.setMinimumHeight(self.browser.fontMetrics().height())
         self.kanji_panel = QWidget()
         kanji_layout = QVBoxLayout(self.kanji_panel)
-        kanji_layout.setContentsMargins(0, 0, 0, 0)
+        padding = 2 * PANE_PADDING
+        kanji_layout.setContentsMargins(padding, padding, padding, padding)
         self.kanji_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         self.kanji_browser = RubyBrowser()
         self.kanji_browser.setAccessibleName("Kanji details")
@@ -818,7 +820,7 @@ class QuickLookupWindow(QDialog):
             for name in (
                 "_result", "_result_context", "_result_screenshot", "_result_input",
                 "_result_profile", "_result_target", "_expanded", "_details_expanded",
-                "_collapsed", "_kanji_details"):
+                "_collapsed", "_kanji_details", "_kanji_origin"):
                 if hasattr(self, name):
                     value = getattr(self, name)
                     self._translation_return[name] = value.copy() if isinstance(value, set) else value
@@ -1286,7 +1288,8 @@ class QuickLookupWindow(QDialog):
         return {_dictionary_section_key(entry.term, entry.reading, entry.source)
                 for entry in self._result.entries if entry.source == sources[source_index]}
 
-    def _display(self, result, remember=True, expanded=None, details_expanded=None, collapsed=None, kanji_details=None):
+    def _display(self, result, remember=True, expanded=None, details_expanded=None, collapsed=None,
+                 kanji_details=None, kanji_origin=None):
         remember = remember and not self._translation_view
         same = self._result is not None and getattr(self, "_result_profile", None) == self.active_profile and (self._result.text, self._result.source, self._result.target) == (
             result.text, result.source, result.target)
@@ -1296,7 +1299,7 @@ class QuickLookupWindow(QDialog):
                                   self._result_profile, self._result_target, tuple(self._expanded),
                                   self.browser.verticalScrollBar().value(), tuple(self._details_expanded),
                                   self._result_input, self._result_screenshot, tuple(self._collapsed),
-                                  tuple(self._kanji_details)))
+                                  tuple(self._kanji_details), self._kanji_origin))
             self._history = self._history[-30:]
         if details_expanded is not None:
             self._details_expanded = set(details_expanded)
@@ -1308,8 +1311,10 @@ class QuickLookupWindow(QDialog):
             self._collapsed = self.collapsed_dictionaries()
         if kanji_details is not None:
             self._kanji_details = set(tuple(kanji_details)[:1])
+            self._kanji_origin = kanji_origin or ""
         elif self._new_chain or not same:
             self._kanji_details.clear()
+            self._kanji_origin = ""
         if expanded is not None:
             self._expanded = set(expanded)
         elif self._new_chain or not same:
@@ -1600,6 +1605,7 @@ class QuickLookupWindow(QDialog):
 
     def _close_kanji(self):
         self._kanji_details.clear()
+        self._kanji_origin = ""
         self._render_kanji_panel()
 
     @property
@@ -1630,8 +1636,13 @@ class QuickLookupWindow(QDialog):
             if return_focus and not self._translation_view:
                 self.browser.setFocus(Qt.FocusReason.OtherFocusReason)
 
-    def _select_kanji(self, character):
-        self._kanji_details = set() if character in self._kanji_details else {character}
+    def _kanji_word(self, character):
+        return next((entry.term for entry in self._result.entries if character in entry.term),
+                    self._result.text or character)
+
+    def _select_kanji(self, character, *, origin=None, toggle=True):
+        self._kanji_origin = origin or (self._kanji_origin if self._kanji_details else self._kanji_word(character))
+        self._kanji_details = set() if toggle and character in self._kanji_details else {character}
         self.fit_timer.stop()
         self._render_kanji_panel()
 
@@ -1639,7 +1650,10 @@ class QuickLookupWindow(QDialog):
         from wordcel.gui.kanji_panel import render_kanji_details
         entries = tuple(entry for entry in self._result.kanji if entry.character in self._kanji_details) if self._result else ()
         visible = bool(entries) and not self._translation_view and not (self._peek and not self.is_pinned)
-        html = render_kanji_details(entries) if visible else ""
+        if visible and not self._kanji_origin:
+            self._kanji_origin = self._kanji_word(entries[0].character)
+        html = render_kanji_details(entries, origin=self._kanji_origin,
+                                   available_characters={entry.character for entry in self._result.kanji}) if visible else ""
         if html != self._kanji_html:
             self.kanji_browser.setHtml(html)
             self._kanji_html = html
@@ -1664,7 +1678,13 @@ class QuickLookupWindow(QDialog):
             if (not group.isdigit() or int(group) >= len(groups) or character not in groups[int(group)][0]
                     or character not in {entry.character for entry in self._result.kanji}):
                 return
-            self._select_kanji(character)
+            self._select_kanji(character, origin=groups[int(group)][0])
+            return
+        if url.scheme() == "kanjiselect":
+            character = url.path()
+            if (self._kanji_view and character in self._kanji_origin
+                    and character in {entry.character for entry in self._result.kanji}):
+                self._select_kanji(character, origin=self._kanji_origin, toggle=False)
             return
         if url.scheme() == "kanji" and url.path() in {entry.character for entry in self._result.kanji}:
             self._select_kanji(url.path())
@@ -1784,7 +1804,8 @@ class QuickLookupWindow(QDialog):
         self._display(result, remember=False, expanded=expanded,
                       details_expanded=previous[6] if len(previous) > 6 else (),
                       collapsed=previous[9] if len(previous) > 9 else None,
-                      kanji_details=previous[10] if len(previous) > 10 else ())
+                      kanji_details=previous[10] if len(previous) > 10 else (),
+                      kanji_origin=previous[11] if len(previous) > 11 else None)
         self.set_context(context)
         self.record_encounter(restored=True)
         self._result_screenshot = previous[8] if len(previous) > 8 else None
