@@ -50,6 +50,9 @@ RUNTIME_SIZES = {
     "llama-b11146-bin-macos-x64.tar.gz": 11237237,
 }
 from wordcel.translation_catalog import DEFAULT_ENDPOINT, DEFAULT_MODEL, MODELS
+from wordcel.translation_models import (
+    custom_models, is_custom_profile, validate_custom_spec,
+)
 
 _lock = threading.RLock()
 _running_warm = False
@@ -94,7 +97,7 @@ def _sha256(path, cancelled=None):
     return digest.hexdigest()
 
 
-def _download(url, destination, digest, progress=None, cancelled=None, local=None, size=None):
+def _download(url, destination, digest, progress=None, cancelled=None, local=None, size=None, display=None):
     """Verify bootstrap files; remote archives retain resumable partial transfers."""
     if not (local and Path(local).is_file()):
         from wordcel.optional_runtimes import download_verified
@@ -117,7 +120,8 @@ def _download(url, destination, digest, progress=None, cancelled=None, local=Non
                     received += len(chunk)
                     report = int(received * 100 / size) if size else received // (16 * 1024 * 1024)
                     if progress and report != last_report:
-                        progress(f"{destination.name}: {report}%" if size else f"{destination.name}: {received // (1024 * 1024)} MB")
+                        label = display or destination.name
+                        progress(f"{label}: {report}%" if size else f"{label}: {received // (1024 * 1024)} MB")
                         last_report = report
             if digest_state.hexdigest() != digest or size is not None and received != size:
                 raise ValueError(f"Download verification failed: {destination.name}")
@@ -128,16 +132,22 @@ def _download(url, destination, digest, progress=None, cancelled=None, local=Non
         temporary.unlink(missing_ok=True)
 
 
-def _download_model(model, root, progress=None, cancelled=None, downloads=None):
+def _download_model(model, root, progress=None, cancelled=None, downloads=None, local_model=None):
     """Resume Hub transfers, then publish only the pinned, verified model."""
     destination = root / "models" / model["file"]
     _cancelled(cancelled)
     if destination.is_file() and _sha256(destination, cancelled) == model["sha256"]:
         return destination
-    local = Path(downloads) / model["file"] if downloads else None
-    url = f'https://huggingface.co/tencent/{model["repo"]}/resolve/{model["revision"]}/{model["file"]}'
+    local = Path(local_model) if local_model else (Path(downloads) / model["file"] if downloads else None)
+    source_file = model.get("source_file", model["file"])
+    display_name = model.get("name") or source_file or model["file"]
+    repo_id = model.get("repo_id") or ("tencent/" + model["repo"] if model.get("repo") else "")
+    url = (f'https://huggingface.co/{repo_id}/resolve/{model["revision"]}/{source_file}'
+           if repo_id and model.get("revision") else "")
     if local and local.is_file():
-        return _download(url, destination, model["sha256"], progress, cancelled, local, model["size"])
+        return _download(url, destination, model["sha256"], progress, cancelled, local, model["size"], display_name)
+    if not repo_id or not model.get("revision"):
+        raise ValueError("Custom translation model has no downloadable source.")
 
     from wordcel.utils.model_cache import configure_model_cache
     configure_model_cache()
@@ -153,21 +163,25 @@ def _download_model(model, root, progress=None, cancelled=None, downloads=None):
             updated = super().update(amount)
             if progress and updated:
                 percent = min(100, int(self.n * 100 / self.total)) if self.total else 0
-                progress(f'{model["file"]}: {percent}%')
+                progress(f'{display_name}: {percent}%')
             return updated
 
     # Hub keeps resumable .incomplete files and transfer metadata in this cache.
-    stage = root / "downloads" / "huggingface" / model["repo"] / model["revision"]
+    # Keep the established built-in cache namespace so interrupted official
+    # downloads remain resumable across this catalog extension.  Custom Hub
+    # repositories use a namespaced id to avoid collisions.
+    cache_repo = model.get("repo") or repo_id.replace("/", "--")
+    stage = root / "downloads" / "huggingface" / cache_repo / model["revision"]
     for attempt in range(2):
         _cancelled(cancelled)
         if progress:
-            progress(f'Downloading {model["file"]}…')
+            progress(f'Downloading {display_name}…')
         source = Path(hf_hub_download(
-            repo_id="tencent/" + model["repo"], filename=model["file"], revision=model["revision"],
+            repo_id=repo_id, filename=source_file, revision=model["revision"],
             local_dir=stage, tqdm_class=DownloadProgress, force_download=bool(attempt), token=False))
         _cancelled(cancelled)
         if progress:
-            progress(f'Verifying {model["file"]}…')
+            progress(f'Verifying {display_name}…')
         received = source.stat().st_size
         if received == model["size"] and _sha256(source, cancelled) == model["sha256"]:
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -176,7 +190,7 @@ def _download_model(model, root, progress=None, cancelled=None, downloads=None):
         source.unlink()
         if progress:
             progress("Model verification failed. Retrying the download…")
-    raise ValueError(f'Download verification failed: {model["file"]} '
+    raise ValueError(f'Download verification failed: {display_name} '
                      f'({received:,} bytes received; {model["size"]:,} expected). Retry the download.')
 
 
@@ -263,9 +277,21 @@ def _write_installation(root, registry):
         Path(temporary).unlink(missing_ok=True)
 
 
-def install_model(profile="quality", directory=None, progress=None, cancelled=None, downloads=None, *, runtime_only=False, backend="automatic", capabilities=None):
+def _model_for_profile(profile, registry=None):
+    if profile in MODELS:
+        return dict(MODELS[profile])
+    if not is_custom_profile(profile):
+        return None
+    return custom_models(registry if registry is not None else {}).get(profile)
+
+
+def install_model(profile="quality", directory=None, progress=None, cancelled=None, downloads=None, *,
+                  runtime_only=False, backend="automatic", capabilities=None, model_spec=None, local_model=None):
     """Explicit setup only. Optional bootstrap files are copied and hash-checked."""
-    if profile not in MODELS:
+    if model_spec is not None:
+        model_spec = validate_custom_spec(profile if is_custom_profile(profile) else None, model_spec)
+        profile = model_spec["profile"]
+    elif profile not in MODELS and not is_custom_profile(profile) and not runtime_only:
         raise ValueError("Choose a translation model in Settings.")
     root, platform_key = translation_path(directory), _platform_key()
     if platform_key.startswith("win-"):
@@ -279,6 +305,10 @@ def install_model(profile="quality", directory=None, progress=None, cancelled=No
     root.mkdir(parents=True, exist_ok=True)
     with _install_lock:
         registry = installation(root)
+        if model_spec is None:
+            model_spec = _model_for_profile(profile, registry)
+        if not runtime_only and model_spec is None:
+            raise ValueError("Choose a translation model in Settings.")
         runtime_path = root / f"runtime-{RELEASE}-{runtime_key}"
         legacy = root / f"runtime-{RELEASE}-{platform_key}"
         if backend == "cuda" and legacy.is_dir():
@@ -327,13 +357,21 @@ def install_model(profile="quality", directory=None, progress=None, cancelled=No
         if runtime_only:
             _write_installation(root, registry)
             return registry
-        model = MODELS[profile]
-        url = f'https://huggingface.co/tencent/{model["repo"]}/resolve/{model["revision"]}/{model["file"]}'
-        model_path = _download_model(model, root, progress, cancelled, downloads)
+        model = model_spec
+        url = model.get("url")
+        if not url and model.get("repo_id") and model.get("revision"):
+            url = f'https://huggingface.co/{model["repo_id"]}/resolve/{model["revision"]}/{model.get("source_file", model["file"])}'
+        if not url and model.get("repo") and model.get("revision"):
+            url = f'https://huggingface.co/tencent/{model["repo"]}/resolve/{model["revision"]}/{model["file"]}'
+        model_path = _download_model(model, root, progress, cancelled, downloads, local_model)
         if not isinstance(registry.get("models"), dict):
             registry["models"] = {}
         registry["models"][profile] = dict(path=model_path.relative_to(root).as_posix(),
-                                          sha256=model["sha256"], size=model["size"], url=url)
+                                          sha256=model["sha256"], size=model["size"], **({"url": url} if url else {}))
+        if is_custom_profile(profile):
+            if not isinstance(registry.get("custom_models"), dict):
+                registry["custom_models"] = {}
+            registry["custom_models"][profile] = dict(model)
         _write_installation(root, registry)
         if progress:
             progress("Translation installed")
@@ -360,12 +398,18 @@ def _ready():
         return False
 
 
-def _installed_paths(profile, directory, backend="automatic"):
-    root, registry = translation_path(directory), installation(directory)
-    model_spec = MODELS.get(profile)
-    name = model_spec.get("name", profile) if isinstance(model_spec, dict) else profile
+def _runtime_entry(registry, backend="automatic", root=None):
     runtime = registry
     platform_name = registry.get("platform", "")
+    if platform_name.startswith("mac-"):
+        backend = "automatic"
+    def available(value):
+        if not value or root is None:
+            return bool(value)
+        try:
+            return _archive_target(root, value["executable"].replace("\\", "/")).is_file()
+        except (KeyError, TypeError, ValueError):
+            return False
     if backend == "automatic":
         # A saved Windows preference identifies the runtime to reuse. macOS has
         # one native runtime; its persisted Windows backend choice must not
@@ -373,9 +417,9 @@ def _installed_paths(profile, directory, backend="automatic"):
         preference = "native" if platform_name.startswith("mac-") else registry.get("automatic_backend")
         runtimes = registry.get("runtimes", {})
         runtime = runtimes.get(preference, {}) if isinstance(runtimes, dict) and preference else {}
-        if not runtime and isinstance(runtimes, dict):
+        if not available(runtime) and isinstance(runtimes, dict):
             runtime = runtimes.get("cpu", {})
-        if not runtime:
+        if not available(runtime):
             runtime = registry
     elif backend != "automatic":
         runtimes = registry.get("runtimes", {})
@@ -383,7 +427,20 @@ def _installed_paths(profile, directory, backend="automatic"):
         if not runtime:
             legacy_backend = registry.get("backend", "cuda" if platform_name.startswith("win-") else "native")
             runtime = registry if backend == legacy_backend else {}
+    return runtime
+
+
+def _installed_paths(profile, directory, backend="automatic"):
+    root, registry = translation_path(directory), installation(directory)
     try:
+        model_spec = _model_for_profile(profile, registry)
+    except (TypeError, ValueError):
+        model_spec = None
+    name = model_spec.get("name", profile) if isinstance(model_spec, dict) else profile
+    runtime = _runtime_entry(registry, backend, root)
+    try:
+        if is_custom_profile(profile):
+            model_spec = validate_custom_spec(profile, custom_models(registry)[profile])
         models = registry.get("models", {})
         model = models.get(profile, {}) if isinstance(models, dict) else {}
         if not isinstance(model_spec, dict):
@@ -393,7 +450,7 @@ def _installed_paths(profile, directory, backend="automatic"):
         if (model_path_value != expected_path or
                 model.get("size") != model_spec["size"] or
                 str(model.get("sha256", "")).lower() != model_spec["sha256"]):
-            raise ValueError("Managed translation model metadata does not match the pinned catalog.")
+            raise ValueError("Managed translation model metadata does not match its catalog.")
         # Older Windows installs used native separators. Normalize only local
         # manifest fields; archive member names remain strictly validated.
         executable = _archive_target(root, runtime["executable"].replace("\\", "/"))
@@ -455,7 +512,7 @@ def ensure_server(endpoint=DEFAULT_ENDPOINT, profile="quality", timeout=120, dir
     if (parsed.scheme, parsed.hostname, parsed.port, parsed.path) != ("http", "127.0.0.1", 8766, "/v1") \
             or parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise ValueError("Managed translation uses http://127.0.0.1:8766/v1 only.")
-    if profile not in MODELS:
+    if _model_for_profile(profile, installation(directory)) is None:
         raise ValueError("Choose a translation model in Settings.")
     executable, model = _installed_paths(profile, directory, backend)
     registry = installation(directory)
@@ -515,10 +572,10 @@ atexit.register(shutdown_server, permanent=True)
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Install or run local Hy-MT2 translation")
-    parser.add_argument("--install", choices=tuple(MODELS), nargs="?", const="quality")
+    parser.add_argument("--install", nargs="?", const="quality")
     parser.add_argument("--serve", action="store_true")
     parser.add_argument("--backend", choices=("automatic", "cpu", "vulkan", "cuda"), default="automatic")
-    parser.add_argument("--profile", choices=tuple(MODELS), default="quality")
+    parser.add_argument("--profile", default="quality")
     parser.add_argument("--directory", type=Path)
     parser.add_argument("--downloads", type=Path, help="Reuse already-downloaded official files")
     args = parser.parse_args(argv)

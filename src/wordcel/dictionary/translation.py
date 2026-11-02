@@ -17,6 +17,7 @@ from wordcel.utils.timing import mark
 
 
 from wordcel.translation_catalog import DEFAULT_ENDPOINT, DEFAULT_MODEL, MODELS
+from wordcel.translation_models import is_custom_profile, model_spec
 MODEL_NAMES = {key: model["name"] for key, model in MODELS.items()}
 LANGUAGE_NAMES = {
     "en": "English", "ja": "Japanese", "tr": "Turkish", "zh": "Chinese", "cmn": "Chinese",
@@ -88,7 +89,8 @@ class TranslationSettings:
     backend: str = "automatic"
 
     def validated(self):
-        if self.provider not in ("server", "custom") or self.profile not in tuple(MODEL_NAMES):
+        if (self.provider not in ("server", "custom") or
+                (self.profile not in tuple(MODEL_NAMES) and not is_custom_profile(self.profile))):
             raise ValueError("Choose a translation model in Settings.")
         if self.backend not in {"automatic", "cpu", "vulkan", "cuda"}:
             raise ValueError("Choose a translation backend in Settings.")
@@ -106,6 +108,22 @@ class TranslationSettings:
                 raise ValueError("Invalid local server model name.")
             model = self.model.strip()
         return TranslationSettings(self.provider, self.profile, endpoint, model, self.auto_start, self.stream, self.keep_warm, self.chunk_size, self.backend)
+
+
+def model_name(profile, directory=None):
+    """Resolve a display name without probing installation state."""
+    if profile in MODEL_NAMES:
+        return MODEL_NAMES[profile]
+    spec = model_spec(profile, directory)
+    return spec.get("name", profile) if isinstance(spec, dict) else profile
+
+
+def model_names(directory=None):
+    names = dict(MODEL_NAMES)
+    from wordcel.translation_models import model_catalog
+    names.update({profile: spec.get("name", profile) for profile, spec in model_catalog(directory).items()
+                  if is_custom_profile(profile)})
+    return names
 
 
 def load_settings(directory=None):
@@ -267,7 +285,7 @@ class LocalTranslator:
         if not target_name:
             raise ValueError(f"Translation to {target} is not configured. Dictionary lookup is still available.")
         settings = self.cache_key()
-        if settings.provider == "server":
+        if settings.provider == "server" and not is_custom_profile(settings.profile):
             for code in (source, target):
                 if translation_language(code) not in managed_translation_languages():
                     raise ValueError(f"Hy-MT2 does not list support for {code}. Dictionary lookup is still available.")
@@ -294,7 +312,7 @@ class LocalTranslator:
         if settings.provider == "server" and settings.auto_start:
             mark("model_start_or_wake", request_id)
             if on_state:
-                on_state("Starting " + MODEL_NAMES[settings.profile])
+                on_state("Starting " + model_name(settings.profile, self.directory))
             from wordcel.scripts.translation_server import ensure_server
             ensure_server(endpoint=DEFAULT_ENDPOINT, profile=settings.profile, timeout=120, backend=settings.backend,
                           directory=self.directory, cancelled=self._cancelled, keep_warm=settings.keep_warm,
@@ -332,7 +350,7 @@ class LocalTranslator:
             # http.client bypasses environment proxies and never follows redirects.
             mark("translation_dispatch", request_id)
             if on_state:
-                on_state(MODEL_NAMES[settings.profile] if settings.provider == "server" else settings.model)
+                on_state(model_name(settings.profile, self.directory) if settings.provider == "server" else settings.model)
             connection.request("POST", endpoint.path + "/chat/completions",
                                body=json.dumps(request, ensure_ascii=False).encode("utf-8"),
                                headers={"Content-Type": "application/json", "Accept": "text/event-stream" if request["stream"] else "application/json"})
@@ -379,6 +397,6 @@ class LocalTranslator:
                 if response is not None:
                     response.close()
         self.last_provider = settings.provider
-        self.last_model = MODEL_NAMES[settings.profile] if settings.provider == "server" else settings.model
+        self.last_model = model_name(settings.profile, self.directory) if settings.provider == "server" else settings.model
         mark("translation_done", request_id)
         return translated

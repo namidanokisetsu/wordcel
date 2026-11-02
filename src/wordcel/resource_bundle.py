@@ -17,9 +17,12 @@ _TRANSLATION_MANIFEST = "translation/installation.json"
 _TRANSLATION_BACKENDS = frozenset(("automatic", "cpu", "vulkan", "cuda", "native"))
 
 
-def _managed_model_spec(profile, path=None):
+def _managed_model_spec(profile, path=None, custom=None):
     from wordcel.translation_catalog import MODELS
     spec = MODELS.get(profile)
+    if spec is None and custom:
+        from wordcel.translation_models import custom_models
+        spec = custom_models({"custom_models": custom}).get(profile)
     if not isinstance(spec, dict) or not isinstance(spec.get("file"), str):
         raise ValueError("Unknown managed translation model.")
     if path is not None and path != "models/" + spec["file"]:
@@ -27,10 +30,14 @@ def _managed_model_spec(profile, path=None):
     return spec
 
 
-def _managed_model_for_path(path):
+def _managed_model_for_path(path, custom=None):
     from wordcel.translation_catalog import MODELS
     matches = [spec for spec in MODELS.values()
                if isinstance(spec, dict) and path == "models/" + spec.get("file", "")]
+    if custom:
+        from wordcel.translation_models import custom_models
+        matches.extend(spec for spec in custom_models({"custom_models": custom}).values()
+                      if path == "models/" + spec.get("file", ""))
     if len(matches) != 1:
         raise ValueError("Unknown managed translation model.")
     return matches[0]
@@ -88,14 +95,22 @@ def _sanitize_translation_manifest(value):
             raise ValueError("Invalid translation installation metadata.")
         else:
             result[key] = value[key]
+    custom = {}
+    if "custom_models" in value:
+        from wordcel.translation_models import custom_models as validate_custom_models
+        try:
+            custom = validate_custom_models({"custom_models": value["custom_models"]})
+        except ValueError as error:
+            raise ValueError("Invalid custom translation model metadata.") from error
+        result["custom_models"] = custom
     for key in ("runtimes", "models"):
         if key not in value:
             continue
-        if not isinstance(value[key], dict) or len(value[key]) > 32:
+        if not isinstance(value[key], dict) or len(value[key]) > (32 if key == "runtimes" else 64):
             raise ValueError("Invalid translation installation metadata.")
         entries = {}
         for name, item in value[key].items():
-            if not isinstance(name, str) or not name or len(name) > 64:
+            if not isinstance(name, str) or not name or len(name) > 128:
                 raise ValueError("Invalid translation installation metadata.")
             if key == "runtimes":
                 if name not in _TRANSLATION_BACKENDS:
@@ -108,7 +123,7 @@ def _sanitize_translation_manifest(value):
                 if not isinstance(item, dict):
                     raise ValueError("Invalid translation model metadata.")
                 path = _translation_relative(item.get("path"), "model")
-                spec = _managed_model_spec(name, path)
+                spec = _managed_model_spec(name, path, custom)
                 digest = item.get("sha256")
                 size = item.get("size")
                 if (not isinstance(digest, str) or len(digest) != 64 or
@@ -116,7 +131,7 @@ def _sanitize_translation_manifest(value):
                         type(size) is not int or size < 0):
                     raise ValueError("Invalid translation model metadata.")
                 if digest.lower() != spec["sha256"] or size != spec["size"]:
-                    raise ValueError("Translation model metadata does not match the managed catalog.")
+                    raise ValueError("Translation model metadata does not match its catalog.")
                 model = dict(path=path, sha256=digest.lower(), size=size)
                 if "url" in item:
                     if not isinstance(item["url"], str) or len(item["url"]) > 2048:
@@ -243,7 +258,7 @@ def _merge_translation_manifests(existing, incoming):
     for key in ("release", "platform", "backend", "automatic_backend", "executable", "profile"):
         if key not in merged and key in incoming:
             merged[key] = incoming[key]
-    for key in ("runtimes", "models"):
+    for key in ("runtimes", "models", "custom_models"):
         if key in incoming or key in merged:
             values = dict(incoming.get(key, {}))
             values.update(merged.get(key, {}))
@@ -369,6 +384,21 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                 raise ValueError("Unsupported resource archive.")
             if manifest.get("platform") != f"{os.sys.platform}-{platform.machine().lower()}":
                 raise ValueError("Import resources exported for this operating system and processor.")
+            # Read the signed-by-the-archive translation manifest before model
+            # payloads so custom filenames can be checked against their exact
+            # identity during staging.
+            for manifest_index, manifest_unit in enumerate(manifest.get("units", ())):
+                if (isinstance(manifest_unit, dict) and manifest_unit.get("root") == "data" and
+                        manifest_unit.get("path") == _TRANSLATION_MANIFEST and
+                        not manifest_unit.get("directory") and len(manifest_unit.get("files", ())) == 1 and
+                        manifest_unit.get("files", [{}])[0].get("path") == "file"):
+                    archive_name = f"resources/{manifest_index}/file"
+                    try:
+                        raw_manifest = json.loads(bundle.read(archive_name))
+                    except (KeyError, OSError, TypeError, ValueError):
+                        raise ValueError("Invalid translation installation metadata.") from None
+                    incoming_manifest = _sanitize_translation_manifest(raw_manifest)
+                    break
             names = [item.filename.casefold() for item in bundle.infolist()]
             if len(names) != len(set(names)):
                 raise ValueError("Duplicate archive entries.")
@@ -430,7 +460,8 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                     has_manifest_unit = True
                 if root == "data" and relative.startswith("translation/models/"):
                     model_relative = safe_member(relative).as_posix().removeprefix("translation/")
-                    spec = _managed_model_for_path(model_relative)
+                    spec = _managed_model_for_path(model_relative,
+                                                   (incoming_manifest or {}).get("custom_models"))
                     if not output_path.is_file() or output_path.stat().st_size != spec["size"]:
                         raise ValueError("Managed translation model size mismatch.")
                     if file_hash(output_path) != spec["sha256"]:

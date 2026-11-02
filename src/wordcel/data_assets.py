@@ -75,7 +75,8 @@ def cleanup_removed_data(*, data_root=None, cache_root=None):
 
 def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screenai=""):
     from wordcel.dictionary.library import Library
-    from wordcel.scripts.translation_server import MODELS, RELEASE, _platform_key
+    from wordcel.scripts.translation_server import MODELS, RELEASE, _platform_key, installation
+    from wordcel.translation_models import custom_models
     from wordcel.language.support import STANZA_LANGUAGES
     from wordcel.utils.stroke_order_font import PACKAGE
     data, cache = _roots(data_root, cache_root)
@@ -104,7 +105,14 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
         state = "Installed" if engine_ready("paddle", data) else "Incomplete" if root.exists() else "Not installed"
         add("engine:paddle", "Paddle OCR engine", kind="engine", value="paddle", paths=(root,), status=state)
 
-    for name, model in MODELS.items():
+    model_catalog = dict(MODELS)
+    try:
+        model_catalog.update(custom_models(installation(data / "translation")))
+    except ValueError:
+        # A malformed registry is reported by the installer/bundle importer;
+        # inventory still lists the pinned built-ins and remains usable.
+        pass
+    for name, model in model_catalog.items():
         path = data / "translation/models" / model["file"]
         state = None if not path.exists() else "Installed" if path.stat().st_size == model["size"] else "Incomplete"
         add("translation:" + name, model.get("name", name),
@@ -222,12 +230,10 @@ def resource_usage(settings, asset):
                 options = load_profile_settings(settings, identity)
                 selected = options.provider == "server" and options.profile == asset.value
                 if options.provider == "server" and asset.kind == "runtime" and asset.paths:
-                    from wordcel.scripts.translation_server import installation
+                    from wordcel.scripts.translation_server import installation, _runtime_entry
                     root = asset.paths[0].parent
                     registry = installation(root)
-                    runtime = registry if options.backend == "automatic" else registry.get("runtimes", {}).get(options.backend, {})
-                    if not runtime and options.backend == "cuda" and registry.get("platform", "").startswith("win-") and "backend" not in registry:
-                        runtime = registry
+                    runtime = _runtime_entry(registry, options.backend, root)
                     executable = str(runtime.get("executable", "")).replace("\\", "/")
                     selected = executable.split("/", 1)[0] == asset.paths[0].name
             except ValueError:

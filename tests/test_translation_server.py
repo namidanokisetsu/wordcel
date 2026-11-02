@@ -131,6 +131,23 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(result["models"], models)
         self.assertEqual(result["executable"], runtime.name + "/llama-server.exe")
 
+    def test_local_custom_model_is_published_and_resolved_by_digest_identity(self):
+        from wordcel.translation_models import local_model
+        source = self.root / "imported-F16.gguf"
+        source.write_bytes(b"GGUFmodel")
+        spec = local_model(source)
+        installed = self.root / "installed"
+        runtime = installed / f"runtime-{server.RELEASE}-mac-arm64"
+        runtime.mkdir(parents=True)
+        (runtime / "llama-server").write_bytes(b"server")
+        with patch.object(server, "_platform_key", return_value="mac-arm64"):
+            registry = server.install_model(profile=spec["profile"], model_spec=spec,
+                                            local_model=source, directory=installed)
+        self.assertIn(spec["profile"], registry["custom_models"])
+        executable, model = server._installed_paths(spec["profile"], installed)
+        self.assertTrue(executable.is_file())
+        self.assertEqual(model.read_bytes(), b"GGUFmodel")
+
     def test_zip_cannot_escape_runtime_directory(self):
         archive = self.root / "bad.zip"
         with zipfile.ZipFile(archive, "w") as output:
@@ -362,10 +379,6 @@ class ManagedServerTests(unittest.TestCase):
         self.assertIn("cancelled", errors[0])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class BackendTests(unittest.TestCase):
     def setUp(self):
         self.enterContext(patch.object(server, "MODELS", {
@@ -477,3 +490,24 @@ class BackendTests(unittest.TestCase):
                 "models": registry["models"],
             })
             self.assertEqual(server._installed_paths("quality", root)[0], legacy)
+
+
+class RuntimeSelectionTests(unittest.TestCase):
+    def test_automatic_uses_available_preference_and_macos_keeps_native(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            runtimes = {name: {"executable": name + "/llama-server"} for name in ("cpu", "vulkan", "native")}
+            for entry in runtimes.values():
+                path = root / entry["executable"]
+                path.parent.mkdir()
+                path.write_bytes(b"runtime")
+            registry = dict(platform="win-x64", backend="cpu", automatic_backend="vulkan", runtimes=runtimes)
+            self.assertEqual(server._runtime_entry(registry, root=root), runtimes["vulkan"])
+            (root / runtimes["vulkan"]["executable"]).unlink()
+            self.assertEqual(server._runtime_entry(registry, root=root), runtimes["cpu"])
+            registry["platform"] = "mac-arm64"
+            self.assertEqual(server._runtime_entry(registry, "cpu", root), runtimes["native"])
+
+
+if __name__ == "__main__":
+    unittest.main()

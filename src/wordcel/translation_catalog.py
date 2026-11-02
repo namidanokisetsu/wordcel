@@ -16,8 +16,13 @@ MODELS = {
 }
 
 
-def model_label(identity):
-    model = MODELS[identity]
+def model_label(identity, directory=None):
+    model = MODELS.get(identity)
+    if model is None:
+        from wordcel.translation_models import model_spec
+        model = model_spec(identity, directory)
+    if not isinstance(model, dict):
+        raise KeyError(identity)
     return f'{model["label"]} ({model["size"] / 1e9:.2g} GB)'
 
 
@@ -36,6 +41,8 @@ def recommend_model(available_memory, gpu_memory=None, offload=False):
 
 
 def fit_message(identity, available_memory, gpu_memory=None, offload=False):
+    if identity not in MODELS:
+        return "Memory needs depend on the model and context size"
     model = MODELS[identity]
     if available_memory is None:
         return "Available memory unknown; choose a model explicitly"

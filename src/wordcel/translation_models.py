@@ -248,7 +248,7 @@ def list_hub_models(repo_id: str) -> list[dict[str, Any]]:
             continue
         lfs = _field(sibling, "lfs", {}) or {}
         digest = _field(lfs, "sha256") or _field(sibling, "sha256")
-        size = _field(sibling, "size")
+        size = _field(sibling, "size") or _field(lfs, "size")
         if digest is None or size is None:
             raise ValueError("Hugging Face GGUF metadata is incomplete.")
         descriptors.append(_descriptor(repo_id, filename, revision.lower(), size, digest))
