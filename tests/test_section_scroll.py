@@ -325,6 +325,34 @@ class SectionScrollTests(unittest.TestCase):
         self.wheel(angle=0, pixel=10000)
         self.assertEqual(self.bar.value(), second - self.browser.viewport().height())
 
+    def test_boundary_stop_allows_reversing_the_same_gesture(self):
+        entries = tuple(Entry(str(i), term, "", "Source", "ja", ("line\n" * 20,))
+                        for i, term in enumerate(("猫", "犬", "鳥")))
+        self.browser.setHtml(render_result(SearchResult("猫", "ja", "en", entries), expanded=("Source",)))
+        self.app.processEvents()
+        self.scroller.set_enabled(True)
+        for pixel, angle, phase in ((-10000, 0, Qt.ScrollPhase.ScrollUpdate),
+                                    (-10000, 0, Qt.ScrollPhase.NoScrollPhase),
+                                    (0, -12000, Qt.ScrollPhase.NoScrollPhase)):
+            with self.subTest(pixel=pixel, phase=phase):
+                self.scroller._reset_gesture()
+                self.bar.setValue(0)
+                self.wheel(angle=angle, pixel=pixel, phase=phase)
+                stopped = self.bar.value()
+                self.wheel(angle=-120 if angle else 0, pixel=-20 if pixel else 0, phase=phase)
+                self.assertEqual(self.bar.value(), stopped)
+                self.wheel(angle=120 if angle else 0, pixel=20 if pixel else 0, phase=phase)
+                self.assertLess(self.bar.value(), stopped)
+                self.wheel(angle=0, phase=Qt.ScrollPhase.ScrollBegin)
+                self.wheel(angle=0, pixel=-10000, phase=Qt.ScrollPhase.ScrollUpdate)
+                self.wheel(angle=0, phase=Qt.ScrollPhase.ScrollBegin)
+                self.wheel(angle=0, pixel=-10, phase=Qt.ScrollPhase.ScrollUpdate)
+                boundary = self.bar.value()
+                self.wheel(angle=0, pixel=-20, phase=Qt.ScrollPhase.ScrollMomentum)
+                self.assertEqual(self.bar.value(), boundary)
+                self.wheel(angle=0, pixel=20, phase=Qt.ScrollPhase.ScrollUpdate)
+                self.assertLess(self.bar.value(), boundary)
+
     def test_mouse_wheel_scrolls_immediately_without_intermediate_animation(self):
         self.render(lines=20)
         self.scroller.set_enabled(True)

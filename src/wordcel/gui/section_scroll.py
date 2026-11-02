@@ -163,6 +163,7 @@ class SectionScroller(QObject):
         self._heading = None
         self._target = None
         self._boundary_latched = False
+        self._boundary_direction = 0
         self._wheel_angle = 0
         self._gesture_idle = QTimer(self)
         self._gesture_idle.setSingleShot(True)
@@ -203,6 +204,7 @@ class SectionScroller(QObject):
     @pyqtSlot()
     def _reset_gesture(self):
         self._boundary_latched = False
+        self._boundary_direction = 0
         self._wheel_angle = 0
 
     @pyqtSlot(int, int)
@@ -608,6 +610,9 @@ class SectionScroller(QObject):
             return False
         if phase in (Qt.ScrollPhase.ScrollBegin, Qt.ScrollPhase.ScrollEnd):
             self._boundary_latched = False
+        direction = (delta.y() > 0) - (delta.y() < 0)
+        if self._boundary_latched and direction and direction != self._boundary_direction:
+            self._reset_gesture()
         if not self._boundary_latched:
             if not pixel.isNull() or phase != Qt.ScrollPhase.NoScrollPhase:
                 self._boundary_latched = self.scroll_by(-pixel.y() if not pixel.isNull() else -angle.y() / 3)
@@ -617,6 +622,8 @@ class SectionScroller(QObject):
                 self._wheel_angle -= steps * 120
                 if steps:
                     self._boundary_latched = self.scroll_lines(-steps * QApplication.wheelScrollLines())
+            if self._boundary_latched:
+                self._boundary_direction = direction
         if phase == Qt.ScrollPhase.NoScrollPhase:
             self._gesture_idle.start()
         event.accept()
