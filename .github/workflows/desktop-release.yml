@@ -7,6 +7,10 @@ on:
         description: Release tag
         required: true
         default: v1.0.0
+      notes:
+        description: Release notes
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -36,6 +40,7 @@ jobs:
           tag_name: ${{ inputs.tag }}
           target_commitish: ${{ github.sha }}
           name: Wordcel ${{ inputs.tag }}
+          body: ${{ inputs.notes }}
           make_latest: true
           prerelease: false
           fail_on_unmatched_files: true

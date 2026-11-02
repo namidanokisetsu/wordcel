@@ -61,6 +61,27 @@ jobs:
           & ./dist/wordcel/wordcel-cli.exe --check-optional-runtimes
           if ($LASTEXITCODE -ne 0) { throw 'Optional engine check failed' }
 
+      - name: verify installation and data preservation
+        run: |
+          $installer = (Get-ChildItem dist/*-setup.exe).FullName
+          $installDir = Join-Path $env:LOCALAPPDATA 'Programs/wordcel'
+          $dataDir = Join-Path $env:LOCALAPPDATA 'wordcel'
+          $settingsKey = 'HKCU:\Software\wordcel\wordcel'
+          $marker = [guid]::NewGuid().ToString()
+          New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+          New-Item -Path $settingsKey -Force | Out-Null
+          Set-ItemProperty -Path $settingsKey -Name release_install_smoke -Value $marker
+          $markerFile = Join-Path $dataDir 'release-install-smoke.txt'
+          Set-Content -Path $markerFile -Value $marker
+          foreach ($attempt in 1..2) {
+            $process = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+            if ($process.ExitCode -ne 0) { throw "Installation $attempt failed: $($process.ExitCode)" }
+            & (Join-Path $installDir 'wordcel-cli.exe') --check-runtime
+            if ($LASTEXITCODE -ne 0) { throw 'Installed runtime check failed' }
+            if ((Get-Content $markerFile -Raw).Trim() -ne $marker) { throw 'Installation changed saved data' }
+            if ((Get-ItemPropertyValue -Path $settingsKey -Name release_install_smoke) -ne $marker) { throw 'Installation changed settings' }
+          }
+
       - name: upload windows artifact
         id: upload
         uses: actions/upload-artifact@v4
