@@ -62,13 +62,14 @@ class MacStartupTests(unittest.TestCase):
             self.addCleanup(replacement.stop)
 
     def test_packaged_app_opens_in_background_at_login_and_can_be_disabled(self):
-        executable = "/Applications/Wordcel Test.app/Contents/MacOS/wordcel"
-        with patch.object(startup.sys, "executable", executable), \
+        bundle = self.agent.parent.parent / "Wordcel Test.app"
+        executable = bundle / "Contents" / "MacOS" / "wordcel"
+        with patch.object(startup.sys, "executable", str(executable)), \
                 patch.object(startup.sys, "frozen", True, create=True):
             self.assertFalse(startup.is_startup_enabled())
             startup.set_startup_enabled(True)
         agent = plistlib.loads(self.agent.read_bytes())
-        self.assertEqual(agent["ProgramArguments"], ["/usr/bin/open", "-g", "/Applications/Wordcel Test.app"])
+        self.assertEqual(agent["ProgramArguments"], ["/usr/bin/open", "-g", str(bundle)])
         self.assertEqual(agent["LimitLoadToSessionType"], "Aqua")
         self.assertTrue(startup.is_startup_enabled())
         self.assertNotIn("KeepAlive", agent)

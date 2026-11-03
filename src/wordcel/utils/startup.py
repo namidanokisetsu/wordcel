@@ -75,14 +75,14 @@ def set_startup_enabled(enabled: bool) -> None:
         agent = dict(Label=LAUNCH_AGENT, ProgramArguments=arguments, RunAtLoad=True,
                      LimitLoadToSessionType="Aqua")
         path.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temporary:
-            staged = Path(temporary.name)
-            try:
+        temporary = tempfile.NamedTemporaryFile(dir=path.parent, delete=False)
+        staged = Path(temporary.name)
+        try:
+            with temporary:
                 plistlib.dump(agent, temporary)
-                temporary.close()
-                staged.replace(path)
-            finally:
-                staged.unlink(missing_ok=True)
+            staged.replace(path)
+        finally:
+            staged.unlink(missing_ok=True)
         return
     if not sys.platform.startswith("win"):
         return
