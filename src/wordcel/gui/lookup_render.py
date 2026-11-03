@@ -1,6 +1,7 @@
 """HTML rendering helpers for dictionary results."""
 from collections import OrderedDict
 from html import escape
+from itertools import product
 from urllib.parse import quote
 import re
 import unicodedata
@@ -12,7 +13,7 @@ from wordcel.config.config import config
 from wordcel.gui.action_icons import disclosure_html
 from wordcel.gui.gloss_content import _GlossConverter, normalize_definitions
 from wordcel.gui.popup_style import surface_colors
-from wordcel.gui.ruby import TAG_PREFIX, ruby_html
+from wordcel.gui.ruby import ruby_html
 
 
 def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch="", inline=False, show_inflections=True,
@@ -20,7 +21,7 @@ def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch=""
     size = max(10, min(config.font_size_definitions - 1, config.font_size_header - 4))
     font_style = f"font-size:{size}px;" if inline else ""
     frequencies, inflections = OrderedDict(), OrderedDict()
-    raw_frequencies = []
+    raw_frequencies, chains = [], []
     for entry in entries:
         raw_frequencies.extend(entry.frequencies if show_frequencies else ())
         for frequency in entry.frequencies if show_frequencies else ():
@@ -29,10 +30,15 @@ def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch=""
                     and re.fullmatch(r"[\d,.]+", label)):
                 label = f"#{label}"
             frequencies.setdefault((frequency.source, label), None)
+        chain = []
         for step in entry.inflection:
-            label = (re.sub(r"\([^)]*\)", "", str(step)) if entry.language == "ja" else str(step)).strip()
+            label = (re.sub(r"\([^)]*\)", lambda match: match[0] if " OR " in match[0] else "",
+                            str(step)) if entry.language == "ja" else str(step)).strip()
             if label and not label.startswith("stem-"):
                 inflections.setdefault(label, entry.language)
+                chain.append(label)
+        if chain:
+            chains.append(chain)
     parts = [pitch] if pitch else []
     body = ""
     if frequencies:
@@ -58,11 +64,13 @@ def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch=""
     if inflections and not inline and show_inflections:
         description = " · ".join(inflections)
         label = description
-        variants = list(dict.fromkeys(description.split(" OR ")))
-        if inflection_key and len(variants) > 1 and not {"ja", "tr"}.intersection(inflections.values()):
-            common = set.intersection(*(set(variant.split()) for variant in variants))
+        variants = list(dict.fromkeys(" · ".join(path) for chain in chains
+                                     for path in product(*(_inflection_options(step) for step in chain))))
+        if inflection_key and len(variants) > 1:
+            common = set.intersection(*(set(re.findall(r"[\w-]+", variant)) for variant in variants))
             features = [word for word in ("past", "non-past", "present", "future", "singular", "dual", "plural",
-                                         "definite", "indefinite") if word in common]
+                                         "definite", "indefinite", "locative", "accusative", "dative",
+                                         "genitive", "ablative", "instrumental") if word in common]
             summary = " · ".join((*features, f"{len(variants)} forms"))
             opened = inflection_key in details_expanded
             muted = surface_colors(config.color_background, config.color_foreground)["muted"]
@@ -72,17 +80,6 @@ def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch=""
             if opened:
                 body = (f'<div style="font-size:{size}px;color:{muted}"><ol>'
                         + "".join(f'<li>{escape(variant)}</li>' for variant in variants) + '</ol></div>')
-        elif len(description) > 120 and set(inflections.values()) == {"tr"}:
-            compact = []
-            for step in inflections:
-                variants = (step[1:-1] if step.startswith("(") and step.endswith(")") else step).split(" OR ")
-                compact.append(variants[0] + (f" (+{len(variants) - 1})" if len(variants) > 1 else ""))
-            label = " · ".join(compact)
-            if len(label) > 120:
-                label = label[:117].rsplit(" ", 1)[0].rstrip(" ·") + "…"
-            muted = surface_colors(config.color_background, config.color_foreground)["muted"]
-            parts.append(f'<a href="{TAG_PREFIX}{quote(description, safe="")}" '
-                         f'style="color:{muted};text-decoration:none">{escape(label)}</a>')
         else:
             parts.append(escape(label))
     if inline:
@@ -90,6 +87,18 @@ def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch=""
         return (f'<span style="font-size:{size}px;font-weight:normal;color:{muted}">'
                 + " ".join(parts) + '</span>') if parts else ""
     return '<p class="metadata"><small>' + " · ".join(parts) + '</small></p>' + body if parts else ""
+
+
+def _inflection_options(step):
+    if " OR " in step and step.startswith("(") and step.endswith(")"):
+        depth = 0
+        for index, char in enumerate(step):
+            depth += (char == "(") - (char == ")")
+            if depth == 0:
+                if index == len(step) - 1:
+                    step = step[1:-1]
+                break
+    return tuple(dict.fromkeys(option.strip() for option in step.split(" OR ") if option.strip()))
 
 
 def _source_name(source):

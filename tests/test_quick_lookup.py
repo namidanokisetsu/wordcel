@@ -2806,62 +2806,89 @@ class QuickLookupTests(unittest.TestCase):
         self.assertIn("sowing", self.window.browser.toPlainText())
         self.assertNotIn("first-person", self.window.browser.toPlainText())
         self.window.pin.setChecked(True)
-        self.assertIn("first-person singular form 0 (+29)", self.window.browser.toPlainText())
+        self.assertIn("singular · 30 forms", self.window.browser.toPlainText())
+        self.window._link(QUrl("inflections:1"))
+        self.assertIn("first-person singular form 29", self.window.browser.toPlainText())
 
-    def test_long_turkish_form_variants_keep_gloss_visible_and_full_tooltip(self):
+    def test_long_turkish_form_variants_expand_with_qualifiers_intact(self):
         variants = [f"their (poss.) · locative · relative form · adj. · variant {index}" for index in range(32)]
         full = "(" + " OR ".join(variants) + ")"
         word = replace(entry("avcı", definitions=("hunter",), language="tr"), inflection=(full,))
         self.window.show_entries((word,), "avcılarındakileri", "tr")
         browser = self.window.browser
         text = browser.toPlainText()
-        self.assertIn(variants[0] + " (+31)", text)
+        self.assertIn("locative · 32 forms", text)
         self.assertIn("hunter", text)
         self.assertLess(len(text), 200)
-        tooltips = []
-        block = browser.document().begin()
-        while block.isValid():
-            iterator = block.begin()
-            while not iterator.atEnd():
-                tooltips.append(iterator.fragment().charFormat().toolTip())
-                iterator += 1
-            block = block.next()
-        self.assertIn(full, tooltips)
+        self.window._link(QUrl("inflections:0"))
+        text = browser.toPlainText()
+        for variant in variants:
+            self.assertIn(variant, text)
+        self.assertNotIn("(their", text)
         browser.selectAll()
         self.assertEqual(browser.createMimeDataFromSelection().text(), text)
         japanese = replace(entry(), inflection=tuple(f"negative past variant {index}" for index in range(12)))
         self.window.show_entries((japanese,), "猫")
         self.assertIn(" · ".join(japanese.inflection), browser.toPlainText())
 
-    def test_arabic_grammar_alternatives_expand_without_changing_selection_or_geometry(self):
+    def test_grammar_alternatives_expand_in_every_language_without_moving_the_view(self):
         variants = [f"{person} singular past perfective {voice} indicative"
                     for person in ("first-person", "second-person", "third-person")
                     for voice in ("active", "passive")]
-        word = replace(entry("كتب", definitions=("write",), language="ar"),
-                       inflection=(" OR ".join(variants),))
-        self.window.show_entries((word,), "كتبت", "ar")
-        self.app.processEvents()
-        browser = self.window.browser
-        self.assertIn("past · singular · 6 forms", browser.toPlainText())
-        self.assertNotIn("first-person", browser.toPlainText())
-        self.assertIn("write", browser.toPlainText())
-        browser.setTextCursor(browser.document().find("write"))
-        scroll, geometry = browser.verticalScrollBar().value(), self.window.geometry()
-        with patch.object(self.window.worker, "request") as lookup:
-            self.window._link(QUrl("inflections:0"))
-            self.app.processEvents()
-            for variant in variants:
-                self.assertIn(variant, browser.toPlainText())
-            self.assertEqual(browser.textCursor().selectedText(), "write")
-            self.assertEqual(browser.verticalScrollBar().value(), scroll)
-            self.assertEqual(self.window.geometry(), geometry)
-            self.assertEqual(self.window._result.entries, (word,))
-            self.window._link(QUrl("inflections:0"))
-            self.assertNotIn("first-person", browser.toPlainText())
-            lookup.assert_not_called()
-        with patch.object(browser, "setHtml") as render:
-            self.window._link(QUrl("inflections:999"))
-            render.assert_not_called()
+        for language in ("ar", "tr", "en", "ja"):
+            for peek in (False, True):
+                with self.subTest(language=language, peek=peek):
+                    self.window.hide()
+                    word = replace(entry("word", definitions=("write",), language=language),
+                                   inflection=(" OR ".join(variants),))
+                    self.window.show_entries((word,), "word-form", language, peek=peek)
+                    if peek:
+                        self.window.pin.setChecked(True)
+                    self.app.processEvents()
+                    browser = self.window.browser
+                    self.assertIn("past · singular · 6 forms", browser.toPlainText())
+                    self.assertNotIn("first-person", browser.toPlainText())
+                    self.assertIn("write", browser.toPlainText())
+                    browser.setTextCursor(browser.document().find("write"))
+                    scroll, geometry = browser.verticalScrollBar().value(), self.window.geometry()
+                    with patch.object(self.window.worker, "request") as lookup:
+                        self.window._link(QUrl("inflections:0"))
+                        self.app.processEvents()
+                        for variant in variants:
+                            self.assertIn(variant, browser.toPlainText())
+                        self.assertEqual(browser.textCursor().selectedText(), "write")
+                        self.assertEqual(browser.verticalScrollBar().value(), scroll)
+                        self.assertEqual(self.window.geometry(), geometry)
+                        self.assertEqual(self.window._result.entries, (word,))
+                        self.window._link(QUrl("inflections:0"))
+                        self.assertNotIn("first-person", browser.toPlainText())
+                        lookup.assert_not_called()
+                    with patch.object(browser, "setHtml") as render:
+                        self.window._link(QUrl("inflections:999"))
+                        render.assert_not_called()
+
+    def test_grammar_disclosure_keeps_complete_chains_and_deduplicates_dictionaries(self):
+        for language in ("en", "tr", "ja"):
+            with self.subTest(language=language):
+                word = replace(entry("word", language=language),
+                               inflection=("past", "(active OR passive)", "indicative"))
+                duplicate = replace(word, source="Other", inflection=("past", "passive", "indicative"))
+                result = SearchResult("word", language, "en", (word, duplicate))
+                self.window.browser.setHtml(render_result(result, details_expanded=("inflections:0",)))
+                text = self.window.browser.toPlainText()
+                self.assertIn("past · 2 forms", text)
+                self.assertIn("past · active · indicative", text)
+                self.assertEqual(text.count("past · passive · indicative"), 1)
+                distinct = replace(word, inflection=("present", "active", "indicative"))
+                self.window.browser.setHtml(render_result(replace(result, entries=(distinct, duplicate)),
+                                                         details_expanded=("inflections:0",)))
+                self.assertIn("2 forms", self.window.browser.toPlainText())
+                self.assertIn("present · active · indicative", self.window.browser.toPlainText())
+                self.assertIn("past · passive · indicative", self.window.browser.toPlainText())
+                single = replace(result, entries=(distinct,))
+                html = render_result(single)
+                self.assertNotIn('href="inflections:', html)
+                self.assertIn("present · active · indicative", html)
 
     def test_semantic_tooltips_show_escaped_descriptions_without_link_paths(self):
         from PyQt6.QtGui import QHelpEvent
