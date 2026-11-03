@@ -204,7 +204,9 @@ installer helpers are in [packaging](../packaging). Release policy is in AGENTS.
   Python and core libraries; install Stanza/Torch explicitly with their models.
   Paddle's pinned packages are collected into a separate runtime site and its
   OCR worker prepends that site before importing Paddle or OpenCV. Source setup
-  uses the same isolated site under app data. `packaging/optional_runtimes.py`
+  uses the same isolated site under app data. Worker replies contain only plain
+  recognition text and word boxes; PaddleX objects and images stay in the worker.
+  `packaging/optional_runtimes.py`
   records exact wheel URLs/hashes and removes optional engines from bundles.
   Validate core and optional engines separately, without model downloads. Torch
   is 2.2.2 on Intel macOS and 2.8.0 elsewhere.

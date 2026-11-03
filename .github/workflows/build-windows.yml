@@ -34,6 +34,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p test_first_run.py
           python -m unittest discover -s tests -p test_window_focus.py
+          python -m unittest discover -s tests -p test_paddle_worker.py
 
       - name: clean previous builds
         run: |

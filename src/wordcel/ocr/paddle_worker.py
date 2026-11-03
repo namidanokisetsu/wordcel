@@ -86,7 +86,11 @@ def serve(address, authkey, root, use_onnx, runtime_site=None):
                 connection.send(("error", f"Unknown Paddle worker command: {command}"))
                 continue
             try:
-                result = _plain(list(engine.predict(payload)))
+                # PaddleX also returns images and Font objects. Unpickling a
+                # Font would import PaddleX into the isolated desktop process.
+                result = [_plain({key: item.get(key, []) for key in
+                                  ("rec_texts", "text_word", "text_word_boxes")})
+                          for item in engine.predict(payload)]
             except Exception as error:
                 _LOGGER.exception("Paddle OCR inference failed")
                 connection.send(("error", f"{type(error).__name__}: {error}"))

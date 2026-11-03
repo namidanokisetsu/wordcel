@@ -12,6 +12,11 @@ from unittest.mock import patch
 from wordcel.ocr import paddle_worker
 
 
+def ocr_result(*texts):
+    return {"rec_texts": list(texts), "text_word": [[text] for text in texts],
+            "text_word_boxes": [[[0, 0, 50, 20]] for _ in texts]}
+
+
 class PaddleWorkerTests(unittest.TestCase):
     """Exercise the request boundary without downloading Paddle models."""
 
@@ -27,7 +32,7 @@ class PaddleWorkerTests(unittest.TestCase):
             def predict(self, pixels):
                 if pixels == "error":
                     raise RuntimeError("fixture inference error")
-                return [{"owner": self.owner, "value": pixels}]
+                return [ocr_result(self.owner, pixels)]
 
         fake_paddleocr.PaddleOCR = PaddleOCR
         with tempfile.TemporaryDirectory() as temporary:
@@ -59,9 +64,9 @@ class PaddleWorkerTests(unittest.TestCase):
                     expected = runtime.name
                     self.assertEqual(connection.recv()[0], "ready")
                     connection.send(("predict", expected))
-                    self.assertEqual(connection.recv(), ("result", [{"owner": expected, "value": expected}]))
+                    self.assertEqual(connection.recv(), ("result", [ocr_result(expected, expected)]))
                     connection.send(("predict", expected + "-again"))
-                    self.assertEqual(connection.recv(), ("result", [{"owner": expected, "value": expected + "-again"}]))
+                    self.assertEqual(connection.recv(), ("result", [ocr_result(expected, expected + "-again")]))
                     connection.send(("close", None))
                     self.assertEqual(connection.recv()[0], "closed")
                     connection.close()
@@ -79,7 +84,7 @@ class PaddleWorkerTests(unittest.TestCase):
             def predict(self, pixels):
                 if pixels == "error":
                     raise RuntimeError("fixture inference error")
-                return [{"value": pixels}]
+                return [ocr_result(pixels)]
 
         fake_paddleocr.PaddleOCR = PaddleOCR
         with tempfile.TemporaryDirectory() as temporary, patch.dict("sys.modules", {"paddleocr": fake_paddleocr}), \
@@ -99,7 +104,7 @@ class PaddleWorkerTests(unittest.TestCase):
             self.assertEqual(kind, "error")
             self.assertIn("fixture inference error", detail)
             connection.send(("predict", "retry"))
-            self.assertEqual(connection.recv(), ("result", [{"value": "retry"}]))
+            self.assertEqual(connection.recv(), ("result", [ocr_result("retry")]))
             connection.send(("close", None))
             self.assertEqual(connection.recv()[0], "closed")
             connection.close()
@@ -116,6 +121,7 @@ class PaddleWorkerTests(unittest.TestCase):
                 "HOME": str(root / "home"), "USERPROFILE": str(root / "home"),
                 "PYTHONPATH": os.pathsep.join((str(root / "headless"), str(Path(__file__).resolve().parents[1] / "src"))),
                 "XDG_DATA_HOME": str(data), "XDG_CACHE_HOME": str(cache),
+                "LOCALAPPDATA": str(data), "APPDATA": str(data),
             }
             base_site = root / "headless"
             base_cv2 = base_site / "cv2"
@@ -135,16 +141,26 @@ class PaddleWorkerTests(unittest.TestCase):
                 paddleocr.mkdir()
                 (paddleocr / "__init__.py").write_text(
                     "import cv2\n"
+                    "import numpy as np\n"
+                    "from paddlex.utils.fonts import Font\n"
                     "class PaddleOCR:\n"
                     "    def __init__(self, **options): self.owner = cv2.OWNER\n"
                     "    def predict(self, pixels):\n"
                     "        if pixels == 'error': raise RuntimeError('fixture inference error')\n"
-                    "        return [{'owner': self.owner, 'value': pixels}]\n",
+                    "        return [{'rec_texts': [self.owner, pixels],\n"
+                    "                 'text_word': [[self.owner], [pixels]],\n"
+                    "                 'text_word_boxes': [np.array([[0, 0, 50, 20]])] * 2,\n"
+                    "                 'vis_fonts': [Font()],\n"
+                    "                 'input_img': np.zeros((20, 80, 3), dtype=np.uint8)}]\n",
                     encoding="utf-8",
                 )
                 for package in ("paddle", "paddlex"):
                     (site / package).mkdir()
                     (site / package / "__init__.py").write_text("\n", encoding="utf-8")
+                fonts = site / "paddlex/utils"
+                fonts.mkdir()
+                (fonts / "__init__.py").write_text("\n", encoding="utf-8")
+                (fonts / "fonts.py").write_text("class Font: pass\n", encoding="utf-8")
                 for distribution, version in {
                         "opencv_contrib_python": "4.10.0.84", "paddlepaddle": "3.2.2",
                         "paddleocr": "3.7.0", "paddlex": "3.7.2"}.items():
@@ -154,13 +170,14 @@ class PaddleWorkerTests(unittest.TestCase):
                 (runtime / "complete.json").write_text(json.dumps(SOURCE_PADDLE_MARKER), encoding="utf-8")
                 worker = paddle_worker.PaddleWorker(root / "models", False, site, startup_timeout=10)
                 self.addCleanup(worker.close)
-                self.assertEqual(worker.predict("first"), [{"owner": "contrib", "value": "first"}])
+                self.assertEqual(worker.predict("first"), [ocr_result("contrib", "first")])
                 with self.assertRaisesRegex(RuntimeError, "fixture inference error") as raised:
                     worker.predict("error")
                 self.assertNotIn("Traceback", str(raised.exception))
-                self.assertEqual(worker.predict("retry"), [{"owner": "contrib", "value": "retry"}])
+                self.assertEqual(worker.predict("retry"), [ocr_result("contrib", "retry")])
                 worker.close()
                 self.assertIs(sys.modules["cv2"], parent_cv2)
+                self.assertNotIn("paddlex.utils.fonts", sys.modules)
 
     def test_quick_lookup_worker_hook_forwards_runtime_site(self):
         from wordcel.scripts import quick_lookup
