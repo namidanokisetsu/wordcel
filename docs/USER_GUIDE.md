@@ -69,6 +69,9 @@ Choose a profile under **Editing** to change its settings without activating it.
 
 - **Downloads:** continue when setup closes. Use **Cancel** to stop them.
 - **Dictionaries:** extract ZIPs containing other ZIPs first. Removing a dictionary affects every profile.
+- **Popup:** Compact view shows the first headword and dictionary without labels
+  or extra details. The preview definition limit applies with Compact view on or off;
+  pin to see full definitions.
 - **Shortcuts:** change or disable bindings independently. Grab text, Hover scan
   and Translate have optional presets.
 - **Translation:** enable automatic translation per profile for submitted text.

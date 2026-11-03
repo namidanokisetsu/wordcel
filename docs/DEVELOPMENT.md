@@ -66,6 +66,9 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   endings and plural particles and restore dictionary predicate endings.
   Arabic/Persian model lemmas reuse spelling recovery. Keep NLP imports lazy and runtime analysis offline. LLM output belongs
   only in translation, never dictionary definitions or ranking.
+  Display normalization recognizes numbered plain-text `pos:`, `ex:` and `syn:`
+  records by format, including Wordset, and feeds shared structured definitions
+  to the renderer. Unrecognized text and original records for Anki stay intact.
 - **Workers:** capture, OCR, lookup, downloads, history and Anki preparation stay
   off the UI thread. Reuse analyzers/providers and reject stale results by request,
   profile and resource revision. OCR preloading uses installed resources only and

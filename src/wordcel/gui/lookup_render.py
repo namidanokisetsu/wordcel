@@ -110,9 +110,10 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                   definition_furigana=False, collapsed=(), kanji_details=(),
                   preview_frequency=True, preview_pitch=True, preview_definitions=1,
                   pinned_frequency=True, pinned_pitch=True, grammar=None, separate_headwords=False,
-                  headword_actions=0, hidden_sections=None, dictionary_labels=True):
+                  headword_actions=0, hidden_sections=None, dictionary_labels=True, compact=None):
     """Share lexical headings while preserving the configured dictionary order."""
     preview_definitions = max(0, min(50, preview_definitions))
+    compact = preview if compact is None else preview and compact
     maximum = preview_definitions if preview else 0
     grammar_tags = not preview if grammar is None else grammar
     show_inflections = grammar is not False
@@ -123,7 +124,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
     heading_clearance = max(headword_actions, 0 if show_source and source_text else clearance)
     groups, sources = OrderedDict(), list(dict.fromkeys(entry.source for entry in result.entries))
     for entry in result.entries:
-        if preview and (entry.source != sources[0] or groups and (entry.term, entry.reading) not in groups):
+        if compact and (entry.source != sources[0] or groups and (entry.term, entry.reading) not in groups):
             continue
         groups.setdefault((entry.term, entry.reading), OrderedDict()).setdefault(entry.source, []).append(entry)
     parts = [f'<style>body {{color:{config.color_foreground};}} '
@@ -159,7 +160,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
         display_term_html = "".join(
             f'<a href="headkanji:{group_index}:{quote(character, safe="")}" title="Kanji" '
             f'style="color:{config.color_highlight_word}">{escape(character)}</a>'
-            if character in kanji and not preview else escape(character) for character in display_term)
+            if character in kanji and not compact else escape(character) for character in display_term)
         group_entries = tuple(entry for entries in dictionaries.values() for entry in entries)
         pitches = (tuple(pitch for entry in group_entries for pitch in entry.pitches)
                    if result.source == "ja" and (preview_pitch if preview else pinned_pitch) else ())
@@ -176,7 +177,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                         if reading and reading != term and not any(pitch.reading == reading for pitch in pitches) else "")
         if result.source == "ja" and headword_furigana and reading and reading != term:
             parts.append(f'<h2><a name="scroll-headword-{group_index}"></a>'
-                         f'{ruby_html(escape(term), escape(reading), config.color_highlight_word, kanji=kanji if not preview else (), kanji_group=group_index)}{metadata}</h2>')
+                         f'{ruby_html(escape(term), escape(reading), config.color_highlight_word, kanji=kanji if not compact else (), kanji_group=group_index)}{metadata}</h2>')
         else:
             parts.append(f'<h2><a name="scroll-headword-{group_index}"></a>{display_term_html}{reading_html}{metadata}</h2>')
         parts.append(_metadata(group_entries, show_frequencies=False, show_inflections=show_inflections))
@@ -187,14 +188,14 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
             section_key = _dictionary_section_key(term, reading, source)
             full = not maximum or (source in expanded or section_key in expanded) and not preview
             more = bool(maximum and len(entries) > maximum)
-            hidden = dictionary_labels and (source in collapsed or section_key in collapsed) and not preview
+            hidden = dictionary_labels and (source in collapsed or section_key in collapsed) and not compact
             generic_source = source in ("Turkish Bilingual", "Turkish Monolingual", "Turkish Etymology")
             normalized = [normalize_definitions(entry.definitions, source) for entry in entries]
-            limit = 240 if result.source == "ja" and not full else None
+            limit = 240 if result.source == "ja" and compact and not full else None
             from wordcel.dictionary.wiktionary_sections import is_wiktionary
             hidden_details = (hidden_sections or {}).get(source, ()) if is_wiktionary(source) else ()
             converter = _GlossConverter(expanded=full, limit=limit, hidden_sections=hidden_details,
-                                        preview=preview, preview_definitions=preview_definitions,
+                                        preview=preview, compact=compact, preview_definitions=preview_definitions,
                                         generic_source=generic_source, term=term,
                                         details_expanded=details_expanded, detail_prefix=f"{group_index}:{index}",
                                         definition_furigana=definition_furigana,
@@ -212,7 +213,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
             if source not in anchored:
                 parts.append(f'<a name="dictionary-{index}"></a>')
                 anchored.add(source)
-            if not preview:
+            if not compact:
                 section = (f'<a name="scroll-section-{group_index}-{index}"></a>'
                            if source != first_source else "")
                 if dictionary_labels:
@@ -252,7 +253,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
         parts.append(f'<p>{escape(unmatched_text).replace(chr(10), "<br>")}</p>')
     if result.message and not (unmatched_text and result.message == "No entry found."):
         parts.append(f"<p>{escape(result.message)}</p>")
-    if result.kanji and not preview:
+    if result.kanji and not compact:
         from wordcel.gui.kanji_panel import render_kanji
         parts.append('<a name="kanji"></a>'
                      + render_kanji(result.kanji, compact_only=True))

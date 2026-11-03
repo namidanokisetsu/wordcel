@@ -57,7 +57,7 @@ class _GlossConverter(StructuredContentConverter):
 
     def __init__(self, expanded=False, limit=360, preview=False, generic_source=False, term="",
                  details_expanded=(), detail_prefix="", definitions=(), definition_furigana=False, preview_definitions=1,
-                 grammar=True, hidden_sections=()):
+                 grammar=True, hidden_sections=(), compact=None):
         super().__init__()
         self.preview_definitions = preview_definitions
         self.definition_furigana = definition_furigana
@@ -66,6 +66,7 @@ class _GlossConverter(StructuredContentConverter):
         self.colors = surface_colors(config.color_background, config.color_foreground)
         self.expanded = expanded
         self.preview = preview
+        self.compact = preview if compact is None else compact
         self.generic_source = generic_source
         self.term = term
         self.first_source = ""
@@ -89,7 +90,7 @@ class _GlossConverter(StructuredContentConverter):
         from wordcel.dictionary.wiktionary_sections import section_kind
         if section_kind(node) in self.hidden_sections:
             return ""
-        if self.preview:
+        if self.compact:
             self.clipped = True
             return ""
         key = self._detail_keys[id(node)]
@@ -178,17 +179,17 @@ class _GlossConverter(StructuredContentConverter):
                 return ""
             if semantic_kind in ("forms", "formstable", "formslist"):
                 self.clipped = True
-                if self.expanded:
+                if self.expanded or not self.compact:
                     supplement = dict(node, data={})
                     self.supplements.append(("Forms", self._node_to_html(supplement)))
                 return ""
             if semantic_kind == "attribution":
                 return ""
-            if not self.expanded and semantic_kind in ("explanation", "extrainfo"):
+            if not self.expanded and self.compact and semantic_kind in ("explanation", "extrainfo"):
                 self.clipped = True
                 return ""
             if kind == "section-heading":
-                if not self.expanded:
+                if not self.expanded and self.compact:
                     return ""
                 return f'<p style="margin:6px 0 2px;font-weight:bold">{self._node_to_html(content)}</p>'
             style = node.get("style", {})
@@ -206,7 +207,7 @@ class _GlossConverter(StructuredContentConverter):
                 if not self.first_source:
                     self.first_source = heading_text.strip()
                     return ""
-                if self.preview:
+                if self.compact:
                     self._preview_source_complete = True
                     self.clipped = True
                     return ""
@@ -216,10 +217,10 @@ class _GlossConverter(StructuredContentConverter):
             turkdict_example = (tag == "div" and style.get("fontSize") == "0.9em"
                                 and style.get("marginTop") == "0.1em")
             if not self.expanded:
-                if self.preview and kind in ("forms", "attribution", "extra-info"):
+                if self.compact and kind in ("forms", "attribution", "extra-info"):
                     self.clipped = True
                     return ""
-                if "example" in kind.lower() or turkdict_example:
+                if self.compact and ("example" in kind.lower() or turkdict_example):
                     self.clipped = True
                     return ""
                 # Turkdict exports numbered senses as divs rather than list items.
@@ -328,6 +329,11 @@ def _section(label, content):
 def normalize_definitions(definitions, source):
     result = []
     for definition in definitions:
+        if isinstance(definition, str):
+            senses = _numbered_text_senses(definition)
+            if senses:
+                result.extend(senses)
+                continue
         if source == "Bunpro Dictionary" and isinstance(definition, dict):
             content = definition.get("content")
             if definition.get("type") == "structured-content" and isinstance(content, list):
@@ -358,3 +364,29 @@ def normalize_definitions(definitions, source):
                 definition = {"type": "structured-content", "content": sections}
         result.append(definition)
     return tuple(result)
+
+
+def _numbered_text_senses(text):
+    # Some exports, including Wordset, pack numbered POS-marked senses into one string.
+    headings = list(re.finditer(r"(?m)^[ \t]*(\d+)\. pos: ([^\r\n]+)\r?\n", text))
+    if (not headings or text[:headings[0].start()].strip()
+            or [int(match[1]) for match in headings] != list(range(1, len(headings) + 1))):
+        return ()
+    senses = []
+    for index, heading in enumerate(headings):
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        lines = [line.strip() for line in text[heading.end():end].splitlines() if line.strip()]
+        if not lines or lines[0].startswith(("ex:", "syn:")):
+            return ()
+        content = [{"tag": "span", "data": {"class": "tag"}, "content": heading[2].strip()}]
+        for line in lines:
+            if line.startswith("ex:"):
+                content.append({"tag": "div", "data": {"content": "examples"},
+                                "style": {"fontStyle": "italic"}, "content": line[3:].strip()})
+            elif line.startswith("syn:"):
+                content.append({"tag": "div", "data": {"content": "extra-info"},
+                                "content": "Synonyms: " + line[4:].strip()})
+            else:
+                content.append({"tag": "div", "content": line})
+        senses.append({"type": "structured-content", "content": content})
+    return tuple(senses)

@@ -3667,17 +3667,64 @@ class QuickLookupTests(unittest.TestCase):
         self.assertTrue(self.window.show_entries((entry("犬"),), "犬", peek=True))
         self.assertEqual(self.window._result.text, "犬")
 
-    def test_always_expanded_hover_setting_retains_unpinned_state(self):
+    def test_noncompact_preview_keeps_limits_and_preview_metadata(self):
         self.window.set_compact_preview(False)
-        self.window.show_entries((entry(source="First"),
+        self.settings.setValue("profiles/ja/preview_frequency", False)
+        self.settings.setValue("profiles/ja/pinned_frequency", True)
+        first = replace(entry(source="First"), frequencies=(Frequency("Rank", 123, "123"),))
+        self.window.show_entries((first,
                                   entry(source="Second", definitions=("one", "two", "three", "Fourth sense"))),
                                  "猫", peek=True)
         self.assertFalse(self.window.is_pinned)
         self.assertIn("Second", self.window.browser.toPlainText())
+        self.assertIn("one", self.window.browser.toPlainText())
+        self.assertNotIn("two", self.window.browser.toPlainText())
+        self.assertNotIn("#123", self.window.browser.toPlainText())
+        self.settings.setValue("profiles/ja/preview_definitions", 2)
+        self.window._render()
+        self.assertIn("two", self.window.browser.toPlainText())
+        self.assertNotIn("three", self.window.browser.toPlainText())
+        self.settings.setValue("profiles/ja/preview_definitions", 0)
+        self.window._render()
         self.assertIn("Fourth sense", self.window.browser.toPlainText())
+        self.settings.setValue("profiles/ja/preview_definitions", 1)
         self.window.set_compact_preview(True)
         self.assertNotIn("Second", self.window.browser.toPlainText())
         self.assertEqual(len(self.window._result.entries), 2)
+        self.window.pin.setChecked(True)
+        self.assertIn("Fourth sense", self.window.browser.toPlainText())
+        self.assertIn("#123", self.window.browser.toPlainText())
+
+    def test_wordset_plain_text_senses_use_shared_formatting_and_preview_limit(self):
+        raw = ("1. pos: noun\n\tFirst meaning\n\tex: First example\n\tsyn: first synonym\n\t"
+               "2. pos: verb\n\tSecond meaning\n\tex: Second example\n\t"
+               "3. pos: noun\n\tThird meaning\n\t")
+        word = entry("word", source="Wordset", definitions=(raw,), language="en")
+        result = SearchResult("word", "en", "en", (word,))
+        for compact in (True, False):
+            with self.subTest(compact=compact):
+                self.window.browser.setHtml(render_result(result, preview=True, compact=compact,
+                                                           preview_definitions=2))
+                text = self.window.browser.toPlainText()
+                self.assertIn("First meaning", text)
+                self.assertIn("Second meaning", text)
+                self.assertNotIn("Third meaning", text)
+                self.assertNotIn("pos:", text)
+                self.assertNotIn("ex:", text)
+                self.assertEqual("First example" in text, not compact)
+                self.assertEqual("Synonyms: first synonym" in text, not compact)
+        for options in ({}, {"preview": True, "preview_definitions": 0}):
+            self.window.browser.setHtml(render_result(result, **options))
+            self.assertIn("Third meaning", self.window.browser.toPlainText())
+        self.assertEqual(word.definitions, (raw,))
+        from wordcel.gui.gloss_content import normalize_definitions
+        self.assertEqual(normalize_definitions((raw,), "Other dictionary"),
+                         normalize_definitions((raw,), "Wordset"))
+        malformed = raw.replace("2. pos:", "4. pos:")
+        self.assertEqual(normalize_definitions((malformed,), "Wordset"), (malformed,))
+        for plain in ("1. First meaning\n2. Second meaning", "pos: noun\nA meaning",
+                      "Introduction\n" + raw, raw.replace("First meaning", "ex: Missing meaning", 1)):
+            self.assertEqual(normalize_definitions((plain,), "Other dictionary"), (plain,))
 
     def test_kanji_and_dictionary_expansion_are_independent(self):
         kanji = (KanjiEntry("猫", source="Kanji pack", meanings=("cat",), stats=(("strokes", 11),)),)

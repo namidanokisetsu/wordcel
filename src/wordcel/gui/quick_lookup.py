@@ -1428,7 +1428,7 @@ class QuickLookupWindow(QDialog):
             self.browser.setHtml(render_result(dictionary_result, expanded, **preview_options,
                                                overlay_actions=self._action_clearance(),
                                                headword_actions=self._headword_clearance(),
-                                               preview=self._peek and not self.is_pinned and compact,
+                                               preview=self._peek and not self.is_pinned, compact=compact,
                                                show_source=show_source, source_text=source_text,
                                                details_expanded=self._details_expanded,
                                                headword_furigana=self.settings.value(f"profiles/{self.active_profile}/headword_furigana", False, bool),
