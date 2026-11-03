@@ -145,13 +145,16 @@ class LocalOCR:
         prepare_environment()
         use_onnx = all(f"{name}/inference.onnx" in manifest["files"] for name in MODELS.values())
         from wordcel.optional_runtimes import runtime_site
-        self._worker = PaddleWorker(root, use_onnx, runtime_site("paddle"))
+        self._worker_options = (root, use_onnx, runtime_site("paddle"))
+        self._worker = PaddleWorker(*self._worker_options)
         self.scan_cache = ScanCache()
 
     def recognize(self, pixels):
         """Recognize a BGR uint8 array; returned boxes use these input pixels."""
         worker = getattr(self, "_worker", None)
         if worker is not None:
+            if worker.closed:
+                self._worker = worker = PaddleWorker(*self._worker_options)
             return worker.predict(pixels)
         return list(self.engine.predict(pixels))
 

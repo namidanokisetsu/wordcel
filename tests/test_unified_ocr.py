@@ -57,6 +57,50 @@ class ScanWorkerTests(unittest.TestCase):
         self.assertEqual(sink.emit.call_count, 1)
         self.assertEqual(sink.emit.call_args.args[-1], "")
 
+    def test_paddle_restarts_after_timeout_or_exit_and_reuses_successful_scan(self):
+        from pathlib import Path
+        from wordcel.ocr.paddle_worker import PaddleWorker
+        from wordcel.ocr.turkish_paddle import LocalOCR
+
+        for failure in ("timeout", "exit"):
+            with self.subTest(failure=failure):
+                clients = []
+                for _ in range(2):
+                    client = PaddleWorker.__new__(PaddleWorker)
+                    client._lock = threading.Lock()
+                    client._process = None
+                    client._connection = Mock()
+                    clients.append(client)
+                failed, recovered = clients
+                failed._connection.poll.return_value = failure != "timeout"
+                failed._connection.recv.side_effect = EOFError
+                connection = recovered._connection
+                connection.poll.return_value = True
+                connection.recv.return_value = ("result", [dict(
+                    rec_texts=["kitap"], text_word=[["kitap"]], text_word_boxes=[[[0, 0, 100, 50]]])])
+                image = image_bytes()
+                worker, sink = self.make_worker([
+                    (revision, image, (.2, .5), "tr", ("paddle", "")) for revision in (1, 2, 3)] + [None])
+                with patch("wordcel.ocr.turkish_paddle.validate_models", return_value={"files": {}}) as validate, \
+                        patch("wordcel.ocr.turkish_paddle.prepare_environment"), \
+                        patch("wordcel.optional_runtimes.runtime_site", return_value=Path("runtime")), \
+                        patch("wordcel.ocr.turkish_paddle.PaddleWorker", side_effect=clients) as factory, \
+                        patch("wordcel.dictionary.search.SearchEngine"):
+                    provider = LocalOCR(Path("models"))
+                    try:
+                        with patch.object(worker, "provider", return_value=PaddleScan(provider, "tr")) as load:
+                            worker.run()
+                    finally:
+                        provider.close()
+                errors = [call.args[-1] for call in sink.emit.call_args_list]
+                self.assertEqual(errors, ["Paddle OCR worker timed out." if failure == "timeout"
+                                          else "Paddle OCR worker stopped.", "", ""])
+                self.assertEqual(factory.call_count, 2)
+                self.assertEqual(factory.call_args_list[0], factory.call_args_list[1])
+                validate.assert_called_once_with(Path("models"))
+                load.assert_called_once()
+                self.assertEqual(sum(call.args[0][0] == "predict" for call in connection.send.call_args_list), 1)
+
     def test_preloaded_paddle_is_shared_after_language_switch(self):
         worker, _ = self.make_worker(["preload", (1, image_bytes(), (0.2, 0.5), "en", ("paddle", "")), None])
         worker.queue.put_if_empty = Mock()

@@ -192,6 +192,10 @@ class PaddleWorker:
         except (OSError, EOFError):
             pass
 
+    @property
+    def closed(self):
+        return self._connection is None
+
     def predict(self, pixels):
         with self._lock:
             if self._connection is None:
