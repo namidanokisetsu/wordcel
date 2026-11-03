@@ -1,7 +1,7 @@
 """Shared dictionary selection without touching the system clipboard."""
-from PyQt6.QtCore import pyqtSignal, Qt, QPointF
+from PyQt6.QtCore import pyqtSignal, Qt, QPointF, QUrl
 from PyQt6.QtGui import QTextCursor
-from PyQt6.QtWidgets import QTextBrowser
+from PyQt6.QtWidgets import QApplication, QTextBrowser
 
 
 class DictionaryBrowser(QTextBrowser):
@@ -12,11 +12,33 @@ class DictionaryBrowser(QTextBrowser):
         self.selection_lookup = selection_lookup
         self.selecting = False
         self._selection_emitted = False
+        self._control_press = None
+        self.selectionChanged.connect(self._clear_control_selection)
+
+    def _clear_control_selection(self):
+        cursor = self.textCursor()
+        if not cursor.hasSelection():
+            return
+        block = self.document().findBlock(cursor.selectionStart())
+        if cursor.selectionEnd() > block.position() + block.length() - 1:
+            return
+        iterator = block.begin()
+        while not iterator.atEnd():
+            fragment = iterator.fragment()
+            if (fragment.position() < cursor.selectionEnd()
+                    and fragment.position() + fragment.length() > cursor.selectionStart()
+                    and not fragment.charFormat().anchorHref().startswith("collapse:")):
+                return
+            iterator += 1
+        # QTextBrowser can also select a focused link when it is shown again.
+        cursor.clearSelection()
+        self.setTextCursor(cursor)
 
     def hideEvent(self, event):
         # A native dismissal can consume the mouse release during selection.
         self.selecting = False
         self._selection_emitted = False
+        self._control_press = None
         super().hideEvent(event)
 
     def contextMenuEvent(self, event):
@@ -29,10 +51,24 @@ class DictionaryBrowser(QTextBrowser):
 
     def mousePressEvent(self, event):
         self._selection_emitted = False
+        self._control_press = None
+        point = event.position().toPoint()
+        anchor = self.anchorAt(point)
+        if event.button() == Qt.MouseButton.LeftButton and anchor.startswith("collapse:"):
+            self._control_press = (anchor, point)
+            self.selecting = False
+            event.accept()
+            return
         self.selecting = event.button() == Qt.MouseButton.LeftButton
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        if self._control_press is not None:
+            anchor, origin = self._control_press
+            if (event.position().toPoint() - origin).manhattanLength() >= QApplication.startDragDistance():
+                self._control_press = ("", origin)
+            event.accept()
+            return
         super().mouseMoveEvent(event)
         point = event.position().toPoint()
         flags = self.textInteractionFlags()
@@ -71,6 +107,9 @@ class DictionaryBrowser(QTextBrowser):
             self.word_selected.emit(text)
 
     def mouseDoubleClickEvent(self, event):
+        if self.anchorAt(event.position().toPoint()).startswith("collapse:"):
+            self.mousePressEvent(event)
+            return
         self.selecting = event.button() == Qt.MouseButton.LeftButton
         super().mouseDoubleClickEvent(event)
         if self.selection_lookup and self.selecting and not self.anchorAt(event.position().toPoint()):
@@ -78,6 +117,15 @@ class DictionaryBrowser(QTextBrowser):
             self.lookup_selection()
 
     def mouseReleaseEvent(self, event):
+        if self._control_press is not None and event.button() == Qt.MouseButton.LeftButton:
+            anchor, origin = self._control_press
+            self._control_press = None
+            point = event.position().toPoint()
+            if (anchor and self.anchorAt(point) == anchor
+                    and (point - origin).manhattanLength() < QApplication.startDragDistance()):
+                self.anchorClicked.emit(QUrl(anchor))
+            event.accept()
+            return
         # A link handler can scroll or replace the document during Qt's release.
         anchor = self.anchorAt(event.position().toPoint())
         self.selecting = False
