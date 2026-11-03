@@ -4,6 +4,9 @@ from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWidgets import QApplication, QTextBrowser
 
 
+DISCLOSURE_LINKS = ("collapse:", "expand:", "details:", "inflections:")
+
+
 class DictionaryBrowser(QTextBrowser):
     word_selected = pyqtSignal(str)
 
@@ -27,7 +30,7 @@ class DictionaryBrowser(QTextBrowser):
             fragment = iterator.fragment()
             if (fragment.position() < cursor.selectionEnd()
                     and fragment.position() + fragment.length() > cursor.selectionStart()
-                    and not fragment.charFormat().anchorHref().startswith("collapse:")):
+                    and not fragment.charFormat().anchorHref().startswith(DISCLOSURE_LINKS)):
                 return
             iterator += 1
         # QTextBrowser can also select a focused link when it is shown again.
@@ -54,7 +57,7 @@ class DictionaryBrowser(QTextBrowser):
         self._control_press = None
         point = event.position().toPoint()
         anchor = self.anchorAt(point)
-        if event.button() == Qt.MouseButton.LeftButton and anchor.startswith("collapse:"):
+        if event.button() == Qt.MouseButton.LeftButton and anchor.startswith(DISCLOSURE_LINKS):
             self._control_press = (anchor, point)
             self.selecting = False
             event.accept()
@@ -107,7 +110,7 @@ class DictionaryBrowser(QTextBrowser):
             self.word_selected.emit(text)
 
     def mouseDoubleClickEvent(self, event):
-        if self.anchorAt(event.position().toPoint()).startswith("collapse:"):
+        if self.anchorAt(event.position().toPoint()).startswith(DISCLOSURE_LINKS):
             self.mousePressEvent(event)
             return
         self.selecting = event.button() == Qt.MouseButton.LeftButton

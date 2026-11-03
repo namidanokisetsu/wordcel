@@ -1526,27 +1526,38 @@ class QuickLookupTests(unittest.TestCase):
                     self.assertEqual(cursor.selectedText(), "Second")
                     self.assertEqual(bar.value(), scroll)
 
-    def test_dictionary_labels_are_click_controls_in_manual_and_pinned_ocr(self):
+    def test_disclosure_labels_are_click_controls_in_manual_and_pinned_ocr(self):
         browser = self.window.browser
         browser.selection_lookup = True
         looked_up = []
         browser.word_selected.connect(looked_up.append)
-        for peek in (False, True):
+        cases = ((peek, label) for peek in (False, True)
+                 for label in ("Dictionary", "past · 2 forms", "More"))
+        for peek, label in cases:
             for gesture in ("drag", "double_click", "click"):
-                with self.subTest(peek=peek, gesture=gesture):
+                with self.subTest(peek=peek, label=label, gesture=gesture):
                     self.window.hide()
-                    self.window.show_entries((entry(definitions=("Definition text",)),), "cat", peek=peek)
+                    word = replace(entry(definitions=(disclosure("Extra detail", "Definition text"),)),
+                                   inflection=("first-person past OR second-person past",))
+                    self.window.show_entries((word,), "cat", peek=peek)
                     if peek:
                         self.window.pin.setChecked(True)
                     self.window._collapsed.clear()
+                    self.window._details_expanded.clear()
                     self.window._render()
                     self.app.processEvents()
-                    cursor = browser.document().find("Dictionary")
+                    cursor = browser.document().find(label)
+                    self.assertFalse(cursor.isNull())
+                    if label == "past · 2 forms":
+                        dictionary = browser.document().find("Dictionary")
+                        self.assertEqual(cursor.charFormat().foreground().color(),
+                                         dictionary.charFormat().foreground().color())
                     end = QTextCursor(cursor)
                     end.setPosition(cursor.selectionEnd() - 1)
                     cursor.setPosition(cursor.selectionStart() + 1)
                     start, finish = browser.cursorRect(cursor).center(), browser.cursorRect(end).center()
-                    self.assertTrue(browser.anchorAt(start).startswith("collapse:"))
+                    prefix = {"Dictionary": "collapse:", "past · 2 forms": "inflections:", "More": "details:"}[label]
+                    self.assertTrue(browser.anchorAt(start).startswith(prefix))
                     if gesture == "drag":
                         QTest.mousePress(browser.viewport(), Qt.MouseButton.LeftButton, pos=start)
                         event = QMouseEvent(QEvent.Type.MouseMove, QPointF(finish),
@@ -1562,10 +1573,19 @@ class QuickLookupTests(unittest.TestCase):
                     self.app.processEvents()
                     self.assertFalse(browser.textCursor().hasSelection())
                     self.assertFalse(looked_up)
-                    if gesture == "drag":
-                        self.assertIn("Definition text", browser.toPlainText())
-                    else:
+                    if label == "Dictionary" and gesture != "drag":
                         self.assertNotIn("Definition text", browser.toPlainText())
+                    else:
+                        self.assertIn("Definition text", browser.toPlainText())
+                    if label != "Dictionary":
+                        detail = "first-person past" if label == "past · 2 forms" else "Extra detail"
+                        self.assertEqual(detail in browser.toPlainText(), gesture != "drag")
+                        if gesture != "drag":
+                            browser.setTextCursor(browser.document().find(detail))
+                            self.assertEqual(browser.selected_text(), detail)
+                            cursor = browser.textCursor()
+                            cursor.clearSelection()
+                            browser.setTextCursor(cursor)
                     browser.hide()
                     self.assertIsNone(browser._control_press)
                     browser.show()

@@ -74,7 +74,8 @@ def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch=""
             summary = " · ".join((*features, f"{len(variants)} forms"))
             opened = inflection_key in details_expanded
             muted = surface_colors(config.color_background, config.color_foreground)["muted"]
-            parts.append(f'<a href="{inflection_key}" title="{"Collapse" if opened else "Expand"}">'
+            parts.append(f'<a href="{inflection_key}" title="{"Collapse" if opened else "Expand"}" '
+                         f'style="color:{muted}">'
                          f'{disclosure_html(opened, muted, round(config.font_size_definitions * .6))} '
                          f'{escape(summary)}</a>')
             if opened:
