@@ -32,6 +32,9 @@ class ResourceTests(unittest.TestCase):
             dialog = SetupDialog(directory, settings, Mock())
             try:
                 self.assertFalse(any(group.title() == "All languages" for group in dialog.findChildren(QGroupBox)))
+                self.assertTrue(dialog.close_on_cursor_leave.isChecked())
+                dialog.close_on_cursor_leave.setChecked(False)
+                self.assertFalse(settings.value("profiles/ja/close_on_cursor_leave", True, bool))
                 dialog.close_on_cursor_leave.setChecked(True)
                 self.assertTrue(settings.value("profiles/ja/close_on_cursor_leave", False, bool))
                 asset = DataAsset("dictionary:fixture", "Words", "ja", "dictionary", "fixture", size=10, status="Enabled")

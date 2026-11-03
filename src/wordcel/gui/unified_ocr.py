@@ -1097,7 +1097,7 @@ class UnifiedOCR(QObject):
         if (getattr(self.window, "_peek", False) and not self.session.scanning(self.window.is_pinned) and not self.window.is_pinned and
                 not self.window.geometry().contains(QCursor.pos())):
             settings = getattr(self.window, "settings", None)
-            if settings is not None and settings.value(f"profiles/{getattr(self.window, 'active_profile', self.window.preferred_foreign)}/close_on_cursor_leave", False, bool):
+            if settings is not None and settings.value(f"profiles/{getattr(self.window, 'active_profile', self.window.preferred_foreign)}/close_on_cursor_leave", True, bool):
                 self.window._check_cursor_leave()
             else:
                 self.window.hide()

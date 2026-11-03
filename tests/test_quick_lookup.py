@@ -842,6 +842,10 @@ class QuickLookupTests(unittest.TestCase):
         with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
                 patch.object(self.window, "hide") as hide:
             self.window.leaveEvent(leave)
+            hide.assert_called_once_with()
+            hide.reset_mock()
+            self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", False)
+            self.window.leaveEvent(leave)
             hide.assert_not_called()
             self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
             with patch.object(QApplication, "activePopupWidget", return_value=Mock()):
@@ -968,10 +972,8 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_cursor_grace_area_setting_is_shared_and_saved(self):
         dialog = SetupDialog(self.temp.name, self.settings, self.window.apply_shortcut, self.window)
-        self.assertFalse(dialog.cursor_close_margin.isEnabled())
-        self.assertEqual(dialog.cursor_close_margin.value(), 24)
-        dialog.close_on_cursor_leave.setChecked(True)
         self.assertTrue(dialog.cursor_close_margin.isEnabled())
+        self.assertEqual(dialog.cursor_close_margin.value(), 24)
         dialog.cursor_close_margin.setValue(48)
         self.assertEqual(self.settings.value(f'profiles/{self.window.active_profile}/cursor_close_margin', type=int), 48)
         dialog.close_on_cursor_leave.setChecked(False)
@@ -2944,6 +2946,7 @@ class QuickLookupTests(unittest.TestCase):
         self.window.show_entries((entry(),), "猫", peek=True)
         self.window._source_overlay = False
         with patch("wordcel.gui.quick_lookup.sys.platform", "win32"), \
+                patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
                 patch.object(self.window, "isActiveWindow", return_value=False):
             self.window.pin.setChecked(True)
             self.window._dismiss_if_inactive()

@@ -2718,7 +2718,7 @@ class QuickLookupWindow(QDialog):
 
     def _check_cursor_leave(self):
         point = QCursor.pos()
-        if (not self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", False, bool) or not self.isVisible()
+        if (not self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", True, bool) or not self.isVisible()
                 or not (self._peek or self._manual_at_cursor) or self._capture_visibility
                 or self._shutting_down or self.frameGeometry().contains(point)):
             self.cursor_leave_timer.stop()
@@ -2744,7 +2744,7 @@ class QuickLookupWindow(QDialog):
     def _dismiss_if_inactive(self):
         if self._opening_search or self._passive_text or self._source_overlay:
             return
-        bounds = self.cursor_close_bounds() if self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", False, bool) else self.geometry()
+        bounds = self.cursor_close_bounds() if self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", True, bool) else self.geometry()
         if bounds.contains(QCursor.pos()):
             return
         setup_open = self._setup is not None and self._setup.isVisible()

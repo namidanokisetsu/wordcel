@@ -289,7 +289,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         shared_layout.addRow(self.hover_startup)
         self.close_on_cursor_leave = QCheckBox("Close popup when cursor leaves")
         self.close_on_cursor_leave.setToolTip("Includes pinned popups")
-        self.close_on_cursor_leave.setChecked(settings.value(f"profiles/{self.profile.currentData()}/close_on_cursor_leave", False, bool))
+        self.close_on_cursor_leave.setChecked(settings.value(f"profiles/{self.profile.currentData()}/close_on_cursor_leave", True, bool))
         self.close_on_cursor_leave.toggled.connect(lambda enabled: self.autosave(lambda: settings.setValue(f"profiles/{self.profile.currentData()}/close_on_cursor_leave", enabled)))
         shared_layout.addRow(self.close_on_cursor_leave)
         self.cursor_close_margin = QSpinBox()
@@ -1085,7 +1085,7 @@ class SetupDialog(SettingsNavigation, QDialog):
                 self.load_translation_controls(code)
             if only_page in (None, "Popup"):
                 self.translation_split.setChecked(self.settings.value(f"profiles/{code}/translation_side_by_side", False, bool))
-                self.close_on_cursor_leave.setChecked(self.settings.value(f"profiles/{code}/close_on_cursor_leave", False, bool))
+                self.close_on_cursor_leave.setChecked(self.settings.value(f"profiles/{code}/close_on_cursor_leave", True, bool))
                 self.cursor_close_margin.setValue(self.settings.value(f"profiles/{code}/cursor_close_margin", 24, int))
                 self.appearance.reload()
             if only_page in (None, "Audio"):
