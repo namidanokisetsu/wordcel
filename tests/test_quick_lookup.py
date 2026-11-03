@@ -2833,6 +2833,36 @@ class QuickLookupTests(unittest.TestCase):
         self.window.show_entries((japanese,), "猫")
         self.assertIn(" · ".join(japanese.inflection), browser.toPlainText())
 
+    def test_arabic_grammar_alternatives_expand_without_changing_selection_or_geometry(self):
+        variants = [f"{person} singular past perfective {voice} indicative"
+                    for person in ("first-person", "second-person", "third-person")
+                    for voice in ("active", "passive")]
+        word = replace(entry("كتب", definitions=("write",), language="ar"),
+                       inflection=(" OR ".join(variants),))
+        self.window.show_entries((word,), "كتبت", "ar")
+        self.app.processEvents()
+        browser = self.window.browser
+        self.assertIn("past · singular · 6 forms", browser.toPlainText())
+        self.assertNotIn("first-person", browser.toPlainText())
+        self.assertIn("write", browser.toPlainText())
+        browser.setTextCursor(browser.document().find("write"))
+        scroll, geometry = browser.verticalScrollBar().value(), self.window.geometry()
+        with patch.object(self.window.worker, "request") as lookup:
+            self.window._link(QUrl("inflections:0"))
+            self.app.processEvents()
+            for variant in variants:
+                self.assertIn(variant, browser.toPlainText())
+            self.assertEqual(browser.textCursor().selectedText(), "write")
+            self.assertEqual(browser.verticalScrollBar().value(), scroll)
+            self.assertEqual(self.window.geometry(), geometry)
+            self.assertEqual(self.window._result.entries, (word,))
+            self.window._link(QUrl("inflections:0"))
+            self.assertNotIn("first-person", browser.toPlainText())
+            lookup.assert_not_called()
+        with patch.object(browser, "setHtml") as render:
+            self.window._link(QUrl("inflections:999"))
+            render.assert_not_called()
+
     def test_semantic_tooltips_show_escaped_descriptions_without_link_paths(self):
         from PyQt6.QtGui import QHelpEvent
         browser = self.window.browser

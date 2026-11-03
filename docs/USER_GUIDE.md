@@ -69,6 +69,10 @@ Choose a profile under **Editing** to change its settings without activating it.
 
 - **Downloads:** continue when setup closes. Use **Cancel** to stop them.
 - **Dictionaries:** extract ZIPs containing other ZIPs first. Removing a dictionary affects every profile.
+- **Word forms:** install the language's word-form model for attached words in
+  Arabic/Hebrew, French elisions and Korean endings. Arabic dictionary reimport
+  adds vowelled-form matching to older imports. Click a grammar summary to see
+  its alternative forms.
 - **Popup:** Compact view shows the first headword and dictionary without labels
   or extra details. The preview definition limit applies with Compact view on or off;
   pin to see full definitions.

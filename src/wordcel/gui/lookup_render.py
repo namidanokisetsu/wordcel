@@ -15,7 +15,8 @@ from wordcel.gui.popup_style import surface_colors
 from wordcel.gui.ruby import TAG_PREFIX, ruby_html
 
 
-def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch="", inline=False, show_inflections=True):
+def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch="", inline=False, show_inflections=True,
+              inflection_key="", details_expanded=()):
     size = max(10, min(config.font_size_definitions - 1, config.font_size_header - 4))
     font_style = f"font-size:{size}px;" if inline else ""
     frequencies, inflections = OrderedDict(), OrderedDict()
@@ -33,6 +34,7 @@ def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch=""
             if label and not label.startswith("stem-"):
                 inflections.setdefault(label, entry.language)
     parts = [pitch] if pitch else []
+    body = ""
     if frequencies:
         muted = surface_colors(config.color_background, config.color_foreground)["muted"]
         if combine_frequencies:
@@ -56,7 +58,21 @@ def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch=""
     if inflections and not inline and show_inflections:
         description = " · ".join(inflections)
         label = description
-        if len(description) > 120 and set(inflections.values()) == {"tr"}:
+        variants = list(dict.fromkeys(description.split(" OR ")))
+        if inflection_key and len(variants) > 1 and not {"ja", "tr"}.intersection(inflections.values()):
+            common = set.intersection(*(set(variant.split()) for variant in variants))
+            features = [word for word in ("past", "non-past", "present", "future", "singular", "dual", "plural",
+                                         "definite", "indefinite") if word in common]
+            summary = " · ".join((*features, f"{len(variants)} forms"))
+            opened = inflection_key in details_expanded
+            muted = surface_colors(config.color_background, config.color_foreground)["muted"]
+            parts.append(f'<a href="{inflection_key}" title="{"Collapse" if opened else "Expand"}">'
+                         f'{disclosure_html(opened, muted, round(config.font_size_definitions * .6))} '
+                         f'{escape(summary)}</a>')
+            if opened:
+                body = (f'<div style="font-size:{size}px;color:{muted}"><ol>'
+                        + "".join(f'<li>{escape(variant)}</li>' for variant in variants) + '</ol></div>')
+        elif len(description) > 120 and set(inflections.values()) == {"tr"}:
             compact = []
             for step in inflections:
                 variants = (step[1:-1] if step.startswith("(") and step.endswith(")") else step).split(" OR ")
@@ -73,7 +89,7 @@ def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch=""
         muted = surface_colors(config.color_background, config.color_foreground)["muted"]
         return (f'<span style="font-size:{size}px;font-weight:normal;color:{muted}">'
                 + " ".join(parts) + '</span>') if parts else ""
-    return '<p class="metadata"><small>' + " · ".join(parts) + '</small></p>' if parts else ""
+    return '<p class="metadata"><small>' + " · ".join(parts) + '</small></p>' + body if parts else ""
 
 
 def _source_name(source):
@@ -180,7 +196,8 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                          f'{ruby_html(escape(term), escape(reading), config.color_highlight_word, kanji=kanji if not compact else (), kanji_group=group_index)}{metadata}</h2>')
         else:
             parts.append(f'<h2><a name="scroll-headword-{group_index}"></a>{display_term_html}{reading_html}{metadata}</h2>')
-        parts.append(_metadata(group_entries, show_frequencies=False, show_inflections=show_inflections))
+        parts.append(_metadata(group_entries, show_frequencies=False, show_inflections=show_inflections,
+                               inflection_key=f"inflections:{group_index}", details_expanded=details_expanded))
         for source in sources:
             if source not in dictionaries:
                 continue

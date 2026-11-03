@@ -1766,6 +1766,12 @@ class QuickLookupWindow(QDialog):
             self._details_expanded.symmetric_difference_update((key,))
             self._render(static=True, preserve_scroll=True)
             return
+        if url.scheme() == "inflections" and url.path().isdigit():
+            groups = tuple(dict.fromkeys((entry.term, entry.reading) for entry in self._result.entries))
+            if int(url.path()) < len(groups):
+                self._details_expanded.symmetric_difference_update((f"inflections:{int(url.path())}",))
+                self._render(static=True, preserve_scroll=True)
+            return
         if url.scheme() in ("expand", "collapse") and re.fullmatch(r"\d+:\d+", url.path()):
             group_index, source_index = map(int, url.path().split(":"))
             sources = list(dict.fromkeys(entry.source for entry in self._result.entries))

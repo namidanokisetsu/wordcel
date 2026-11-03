@@ -92,6 +92,8 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   Separate ranks from multiple frequency dictionaries occupy a new line;
   single-dictionary and combined ranks stay inline without source labels.
   Pitch has no source labels.
+  Shared non-Japanese/non-Turkish grammar alternatives use explicit disclosure
+  keyed to the headword group; expansion keeps the existing reading position.
 - **Input:** Windows OCR keeps source-app focus; manual search accepts focus.
   Unhandled `nativeEvent` must return `(False, 0)` directly because the PyQt base
   call can crash. macOS uses a narrow Cocoa tray adapter; listeners confirm
