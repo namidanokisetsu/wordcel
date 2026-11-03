@@ -11,6 +11,46 @@ from wordcel.dictionary.search import SearchEngine
 
 
 class LibraryTests(unittest.TestCase):
+    def test_arabic_forms_keep_parts_of_speech_readings_and_terminal_headwords(self):
+        self.pack("Arabic", [self.row("علم", ["knowledge"], "عِلْم", "n"),
+                             self.row("علم", ["know"], "عَلِمَ", "v"),
+                             self.row("كتب", ["write"], "كَتَبَ", "v"),
+                             self.row("كتاب", ["book"], "كِتَاب", "n"),
+                             self.row("العلم", [["علم", ["definite singular"]]], "الْعِلْم", "n"),
+                             self.row("يكتبون", [["كتب", ["plural indicative active"]]], "يَكْتُبُونَ", "v"),
+                             self.row("يكتبون", [["كتب", ["plural indicative passive"]]], "يُكْتَبُونَ", "v"),
+                             self.row("كتب", [["كتاب", ["plural indefinite"]]], "كُتُب", "n"),
+                             self.row("الكتب", [["كتب", ["definite plural"]]], "الْكُتُب", "n")], language="ar")
+        self.library = Library(self.directory)
+        self.assertEqual([(e.term, e.reading) for e in self.library.lookup("العلم", "ar")], [("علم", "عِلْم")])
+        self.assertEqual([e.term for e in self.library.lookup("يكتبون", "ar")], ["كتب"])
+        self.assertEqual([e.term for e in self.library.lookup("يَكْتُبُونَ", "ar")], ["كتب"])
+        self.assertEqual(self.library.lookup("يَكْتُبُونَ", "ar")[0].inflection, ("plural indicative active",))
+        self.assertEqual(self.library.lookup("يكتبون", "ar")[0].inflection,
+                         ("plural indicative active OR plural indicative passive",))
+        self.assertEqual([e.term for e in self.library.lookup("كُتُب", "ar")], ["كتاب"])
+        self.assertEqual([e.term for e in self.library.lookup("كتب", "ar")], ["كتب", "كتاب"])
+        self.assertEqual(self.library.lookup("الكتب", "ar")[0].inflection,
+                         ("definite plural", "plural indefinite"))
+
+    def test_legacy_arabic_packs_stay_readable_and_explicit_reimport_adds_form_metadata(self):
+        import sqlite3
+        path = self.pack("Arabic", [self.row("علم", ["knowledge"], "عِلْم", "n"),
+                                    self.row("علم", ["know"], "عَلِمَ", "v"),
+                                    self.row("العلم", [["علم", ["definite singular"]]], "الْعِلْم", "n")], language="ar")
+        with sqlite3.connect(path) as db:
+            db.execute("DROP INDEX form_reading_key")
+            db.execute("ALTER TABLE forms DROP COLUMN reading_key")
+            db.execute("ALTER TABLE forms DROP COLUMN rules")
+            db.execute("DELETE FROM metadata WHERE key='form_metadata_version'")
+        db.close()
+        self.library = Library(self.directory)
+        self.assertEqual([e.reading for e in self.library.lookup("العلم", "ar")], ["عِلْم"])
+        self.assertFalse(self.library.errors)
+        import_yomitan(self.root / "Arabic1.zip", self.directory)
+        self.library.refresh()
+        self.assertEqual([e.reading for e in self.library.lookup("الْعِلْم", "ar")], ["عِلْم"])
+
     def test_arabic_vocalization_recovery_preserves_exact_readings_letters_and_offsets(self):
         self.pack("Arabic", [self.row("كتاب", ["book"], "كِتَاب"),
                              self.row("كتب", ["wrote"], "كَتَبَ"),

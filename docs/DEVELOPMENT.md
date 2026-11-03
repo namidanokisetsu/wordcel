@@ -64,8 +64,12 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   Stanza. Expanded clitics prefer lexical words over function words; contiguous
   elisions retain their original span. Korean KAIST morphemes use XPOS to remove
   endings and plural particles and restore dictionary predicate endings.
-  Arabic/Persian model lemmas reuse spelling recovery. Keep NLP imports lazy and runtime analysis offline. LLM output belongs
-  only in translation, never dictionary definitions or ranking.
+  Arabic/Persian model lemmas reuse spelling recovery. Arabic form traversal
+  retains source readings and grammatical rules and stops at compatible lexical
+  entries. Older packs use available grammar labels until explicit reimport adds
+  form metadata; no runtime migration or corpus scan is needed.
+  Keep NLP imports lazy and runtime analysis offline. LLM output belongs only in
+  translation, never dictionary definitions or ranking.
   Display normalization recognizes numbered plain-text `pos:`, `ex:` and `syn:`
   records by format, including Wordset, and feeds shared structured definitions
   to the renderer. Unrecognized text and original records for Anki stay intact.

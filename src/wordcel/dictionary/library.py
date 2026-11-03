@@ -134,7 +134,8 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
             from .media import IMAGE_SUFFIXES, assets_ready
             has_images = any(Path(name).suffix.lower() in IMAGE_SUFFIXES for name in zf.namelist())
             media_ready = assets_ready(existing_metadata, directory, destination.stem)
-            if existing_metadata.get("schema_version") == "3" and (not has_images or media_ready):
+            forms_ready = source_language != "ar" or existing_metadata.get("form_metadata_version") == "1"
+            if existing_metadata.get("schema_version") == "3" and forms_ready and (not has_images or media_ready):
                 if progress:
                     progress(f"Importing {title} · 100%")
                 return destination
@@ -178,7 +179,7 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                 CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 CREATE TABLE terms(id INTEGER PRIMARY KEY, term TEXT, reading TEXT,
                     key TEXT, reading_key TEXT, folded TEXT, score REAL, rules TEXT, definitions TEXT);
-                CREATE TABLE forms(key TEXT, folded TEXT, target TEXT, labels TEXT);
+                CREATE TABLE forms(key TEXT, folded TEXT, target TEXT, labels TEXT, reading_key TEXT, rules TEXT);
                 CREATE TABLE frequencies(key TEXT, reading_key TEXT, rank REAL, label TEXT);
                 CREATE TABLE kanji(character TEXT PRIMARY KEY, data TEXT);
                 CREATE TABLE pitches(key TEXT, reading_key TEXT, reading TEXT, data TEXT);
@@ -213,7 +214,8 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                             if definition and isinstance(definition[0], str):
                                 labels = definition[1] if len(definition) > 1 and isinstance(definition[1], list) else []
                                 forms.append((canonical, term_folded, lookup_key(definition[0]),
-                                              form_labels(tuple(s for s in labels if isinstance(s, str)))))
+                                              form_labels(tuple(s for s in labels if isinstance(s, str))),
+                                              lookup_key(reading), str(row[3] or "")))
                                 redirects += 1
                         else:
                             regular.append(definition)
@@ -227,7 +229,7 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                                   json.dumps(regular, ensure_ascii=False, separators=(",", ":"))))
                     glosses.append((count, plain_gloss))
                 db.executemany("INSERT INTO terms VALUES(?,?,?,?,?,?,?,?,?)", terms)
-                db.executemany("INSERT INTO forms VALUES(?,?,?,?)", forms)
+                db.executemany("INSERT INTO forms VALUES(?,?,?,?,?,?)", forms)
                 db.executemany("INSERT INTO gloss_search(rowid,gloss) VALUES(?,?)", glosses)
                 bank_progress(len(rows), len(rows))
             from .metadata import frequency_rows, kanji_rows
@@ -265,6 +267,7 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                 CREATE INDEX term_reading ON terms(reading_key);
                 CREATE INDEX term_folded ON terms(folded);
                 CREATE INDEX form_key ON forms(key);
+                CREATE INDEX form_reading_key ON forms(reading_key);
                 CREATE INDEX form_folded ON forms(folded);
                 CREATE INDEX frequency_key ON frequencies(key,reading_key);
                 CREATE INDEX pitch_key ON pitches(key,reading_key);
@@ -283,7 +286,7 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                             target_language=str(index.get("targetLanguage", "")),
                             frequency_mode=str(index.get("frequencyMode", "rank-based")),
                             revision=str(index.get("revision", "")), sha256=sha,
-                            entries=str(count), forms=str(redirects),
+                            entries=str(count), forms=str(redirects), form_metadata_version="1",
                             frequencies=str(frequency_count), kanji=str(kanji_count), pitches=str(pitch_count))
             metadata.update(index_url=str(index.get("indexUrl", "")), download_url=str(index.get("downloadUrl", "")),
                             source=str(source or index.get("url", "")), publisher=str(index.get("author", "")))
@@ -451,6 +454,9 @@ class Library:
         if not term or len(term) > 2000:
             return ()
         packs = self._active(language, target_language)
+        if language == "ar":
+            from .arabic_forms import lookup_forms
+            return self._with_frequencies(lookup_forms(self, packs, term, limit), language)
         keys = {term: "exact"}
         if language == "ja":
             hiragana = "".join(chr(ord(c) - 0x60) if "ァ" <= c <= "ヶ" else c for c in term)
