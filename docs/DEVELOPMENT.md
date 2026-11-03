@@ -72,6 +72,8 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   model words also try their attested surface forms after their proposed lemma.
   Keep NLP imports lazy and runtime analysis offline. LLM output belongs only in
   translation, never dictionary definitions or ranking.
+  OCR previews require dictionary entries, kanji or spelling suggestions;
+  standalone Turkish analysis remains available in manual search.
   Display normalization recognizes numbered plain-text `pos:`, `ex:` and `syn:`
   records by format, including Wordset, and feeds shared structured definitions
   to the renderer. Unrecognized text and original records for Anki stay intact.

@@ -1256,12 +1256,26 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.window.show_entries.assert_called_once_with(result.entries, text="kitap", source="tr",
                                                          peek=True, kanji=[])
 
+    def test_ocr_hides_analysis_only_misses(self):
+        from wordcel.dictionary.search import SearchResult
+        from wordcel.language.turkish_analyzer import TrAnalysis
+        for word, lemma in (('Turkish', 'Turkish'), ('cevrimizi', 'cevir')):
+            with self.subTest(word=word):
+                self.window.show()
+                result = SearchResult(word, 'tr', 'en', analyses=(TrAnalysis(lemma, 'NOUN'),),
+                                      message='No dictionary entry.')
+                hit = ContextHit(word, word, 0, len(word), 'tr')
+                with patch.object(QApplication, 'activeWindow', return_value=None):
+                    self.controller.deliver(self.controller.generation, result, hit, '')
+                self.window.show_entries.assert_not_called()
+                self.assertFalse(self.window.isVisible())
+
     def test_ocr_keeps_suggestions_and_grammar_without_a_definition(self):
         from wordcel.dictionary.search import SearchResult
         from wordcel.language.turkish_analyzer import TrAnalysis
         hit = ContextHit('cevrimizi', 'cevrimizi', 0, 9, 'tr')
         result = SearchResult('cevrimizi', 'tr', 'en', analyses=(TrAnalysis('cevir', 'NOUN'),),
-                              message='No dictionary entry.')
+                              suggestions=('çevirmek',), message='No dictionary entry.')
         with patch.object(QApplication, 'activeWindow', return_value=None):
             self.controller.deliver(self.controller.generation, result, hit, '')
         self.assertEqual(self.window.show_entries.call_args.kwargs['analyses'], result.analyses)

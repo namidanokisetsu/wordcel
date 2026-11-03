@@ -1451,12 +1451,21 @@ class QuickLookupWindow(QDialog):
                     if self._action_clearance():
                         reservations[block.position()] = (block, self.audio_actions.sizeHint().height())
                 block = block.next()
+            if action_heading is None and self._action_clearance():
+                block = self.browser.document().begin()
+                while block.isValid() and not block.text().strip():
+                    block = block.next()
+                if block.isValid():
+                    action_heading = block
+                    reservations[block.position()] = (block, self.audio_actions.sizeHint().height())
             document = self.browser.document()
             formats = []
             for block, height in reservations.values():
                 document.documentLayout().blockBoundingRect(block)
                 line = block.layout().lineAt(0) if block.layout().lineCount() else None
                 fmt = block.blockFormat()
+                if block == action_heading:
+                    fmt.setRightMargin(max(fmt.rightMargin(), self._action_clearance()))
                 if line is not None:
                     # Taller actions need room below the text, not extra leading
                     # that changes the heading baseline when pinning.
@@ -1524,7 +1533,10 @@ class QuickLookupWindow(QDialog):
             return
         self._fit_identity = identity
         mark("fit", self.revision)
-        self.setMinimumHeight(72 if preview else 190)
+        minimum_height = 72 if preview else 190
+        if reading and self._inline_actions() and not self._result.entries:
+            minimum_height = 0
+        self.setMinimumHeight(minimum_height)
         self.layout().activate()
         document = self.browser.document()
         document.setTextWidth(self.browser.viewport().width())
@@ -2034,7 +2046,9 @@ class QuickLookupWindow(QDialog):
         self._position_actions()
 
     def _inline_actions(self):
-        return bool(not self._translation_view and not self._kanji_view and self._peek and self.is_pinned and self._result and self._result.entries)
+        return bool(not self._translation_view and not self._kanji_view and self._peek and self.is_pinned and self._result
+                    and (self._result.entries or not self._result.translation
+                         and (self._result.analyses or self._result.suggestions)))
 
     def _action_clearance(self):
         if not self._inline_actions():

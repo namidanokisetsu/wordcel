@@ -1990,6 +1990,27 @@ class QuickLookupTests(unittest.TestCase):
         self.app.processEvents()
         self.assertEqual(self.window.height(), 420)
 
+    def test_pinned_turkish_misses_fit_content_with_inline_audio(self):
+        from wordcel.language.turkish_analyzer import TrAnalysis
+        self.window.set_mode('tr')
+        for extras in (dict(analyses=(TrAnalysis('Turkish', 'PROPN'),), message='No dictionary entry.'),
+                       dict(suggestions=('Türkçe',))):
+            with self.subTest(extras=extras):
+                self.window.hide()
+                self.window.show_entries((), 'Turkish', source='tr', peek=True, **extras)
+                self.app.processEvents()
+                browser = self.window.browser
+                first = QTextCursor(browser.document().begin())
+                preview_top = browser.mapTo(self.window, browser.cursorRect(first).topLeft()).y()
+                self.window.pin.setChecked(True)
+                self.app.processEvents()
+                self.assertTrue(self.window.header.isHidden())
+                self.assertTrue(self.window.audio_actions.isVisible())
+                first = QTextCursor(browser.document().begin())
+                self.assertEqual(browser.mapTo(self.window, browser.cursorRect(first).topLeft()).y(), preview_top)
+                self.assertLessEqual(browser.viewport().height(), browser.document().size().height() + 2)
+                self.assertEqual(browser.verticalScrollBar().maximum(), 0)
+
     def test_short_auto_fitted_result_does_not_shrink_later_pinned_content(self):
         self.window.show_entries((entry(),), "cat", peek=True)
         self.app.processEvents()

@@ -1340,7 +1340,7 @@ class UnifiedOCR(QObject):
             return
         extras = {key: getattr(result, key) for key in ("analyses", "suggestions", "message")
                   if getattr(result, key, None)} if result is not None else {}
-        if result is None or not (result.entries or result.kanji or extras.get("analyses") or extras.get("suggestions")):
+        if result is None or not (result.entries or result.kanji or extras.get("suggestions")):
             self._hide_preview()
             return
         if self.window.show_entries(result.entries, text=result.text, source=result.source,
