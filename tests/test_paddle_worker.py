@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 import unittest
 import sys
 from unittest.mock import patch
@@ -127,10 +127,20 @@ class PaddleWorkerTests(unittest.TestCase):
             base_cv2 = base_site / "cv2"
             base_cv2.mkdir(parents=True)
             (base_cv2 / "__init__.py").write_text("OWNER = 'headless'\n", encoding="utf-8")
+            # Windows shell folders ignore redirected environment variables.
+            # Isolate both interpreters so fixtures cannot touch installed engines.
+            directories = SimpleNamespace(user_data_dir=str(data), user_cache_dir=str(cache))
+            (base_site / "sitecustomize.py").write_text(
+                "from types import SimpleNamespace\n"
+                "from wordcel.utils.paths import paths\n"
+                f"paths._platform_dirs = SimpleNamespace(**{vars(directories)!r})\n",
+                encoding="utf-8",
+            )
 
             parent_cv2 = ModuleType("cv2")
             parent_cv2.OWNER = "parent-headless"
-            with patch.dict(os.environ, environment, clear=False), patch.dict(sys.modules, {"cv2": parent_cv2}):
+            with patch.dict(os.environ, environment, clear=False), patch.dict(sys.modules, {"cv2": parent_cv2}), \
+                    patch("wordcel.utils.paths.paths._platform_dirs", directories):
                 from wordcel.optional_runtimes import SOURCE_PADDLE_MARKER, source_runtime_root
                 runtime = source_runtime_root("paddle")
                 site = runtime / "site"
