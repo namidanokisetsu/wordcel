@@ -37,6 +37,16 @@ class MorphologyTests(unittest.TestCase):
         analyzer.analyze.return_value = (Token(0, 2, "le", "DET"), Token(3, 9, "homme", "NOUN"))
         self.assertFalse(self.engine.search("un humain", source="fr", morphology=True).entries)
 
+    def test_attested_clitic_components_survive_a_bad_model_lemma(self):
+        self.pack("ar", [("و", ["and"], ""), ("كتب", ["write"], "v"),
+                         ("يكتبون", [["كتب", ["plural"]]], "v")])
+        analyzer = Mock()
+        self.engine._analyzer = ("ar", analyzer)
+        analyzer.analyze.return_value = (Token(0, 7, "وَ", "CCONJ", (
+            WordAnalysis("و", "وَ", "CCONJ"), WordAnalysis("يكتبون", "اِكتَبَى", "VERB"))),)
+        result = self.engine.search("ويكتبون", source="ar", morphology=True)
+        self.assertEqual([entry.term for entry in result.entries], ["كتب", "و"])
+
     def test_korean_kaist_morphemes_resolve_dictionary_nouns_and_predicates(self):
         analyzer = StanzaAnalyzer.__new__(StanzaAnalyzer)
         analyzer.language = "ko"

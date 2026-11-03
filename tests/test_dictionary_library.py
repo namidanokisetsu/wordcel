@@ -11,6 +11,27 @@ from wordcel.dictionary.search import SearchEngine
 
 
 class LibraryTests(unittest.TestCase):
+    def test_arabic_future_prefix_requires_dictionary_verbs_without_loading_models(self):
+        self.pack("Arabic", [self.row("كتب", ["write"], "كَتَبَ", "v"),
+                             self.row("أكتب", ["dictate"], "أَكْتَبَ", "v"),
+                             self.row("أكتب", [["كتب", ["first-person"]]], rules="v"),
+                             self.row("يكتبون", [["كتب", ["plural"]]], rules="v"),
+                             self.row("يد", ["hand"], rules="n"),
+                             self.row("سيارة", ["car"], rules="n")], language="ar")
+        engine = SearchEngine(self.directory)
+        try:
+            with patch.object(engine, "_lemma_lookup", side_effect=AssertionError("Dictionary first")):
+                for text in ("سيكتبون", "فسأكتب", "وسأكتب", "سَيَكْتُبُونَ"):
+                    result = engine.search(text, source="ar", morphology=True)
+                    self.assertEqual([entry.term for entry in result.entries], ["كتب"])
+                    self.assertEqual(result.entries[0].inflection[0], "future")
+                    self.assertEqual(result.matched_length, len(text))
+                self.assertEqual(engine.search("سيارة", source="ar").entries[0].term, "سيارة")
+            self.assertFalse(engine.search("سيد", source="ar").entries)
+            self.assertFalse(engine.search("فسيد", source="ar").entries)
+        finally:
+            engine.close()
+
     def test_arabic_forms_keep_parts_of_speech_readings_and_terminal_headwords(self):
         self.pack("Arabic", [self.row("علم", ["knowledge"], "عِلْم", "n"),
                              self.row("علم", ["know"], "عَلِمَ", "v"),

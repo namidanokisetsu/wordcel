@@ -275,7 +275,10 @@ class SearchEngine:
             words = [word for token in tokens for word in
                      (token.words or (WordAnalysis(original[token.start:token.end], token.lemma, token.pos),))]
             lexical = {"NOUN", "PROPN", "VERB", "ADJ", "ADV", "NUM"}
-            candidates.extend(word.lemma for word in sorted(words, key=lambda word: word.pos not in lexical))
+            for word in sorted(words, key=lambda word: word.pos not in lexical):
+                candidates.append(word.lemma)
+                if word.text in text:
+                    candidates.append(word.text)
         entries = {}
         for candidate in dict.fromkeys(candidates):
             if not candidate or candidate in {text, "_"}:
@@ -337,6 +340,14 @@ class SearchEngine:
             if entries:
                 return tuple(replace(entry, route="form spelling" if entry.route == "form" else "spelling")
                              for entry in entries)
+        # سـ attaches to an imperfect verb, optionally after و/ف. Require a
+        # dictionary verb: do not turn nouns such as سيارة or سيد into guesses.
+        surface = candidates[-1]
+        future = re.fullmatch(r"[وف]?س([أنيت].+)", surface)
+        if future:
+            entries = self.library.lookup(future[1], "ar", tolerant=False)
+            return tuple(replace(entry, route="form", inflection=("future", *entry.inflection))
+                         for entry in entries if "v" in entry.rules and entry.route.startswith("form"))
         return ()
 
     def _prefix_lookup(self, text, language, max_lookup_length):

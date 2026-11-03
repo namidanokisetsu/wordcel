@@ -68,6 +68,8 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   retains source readings and grammatical rules and stops at compatible lexical
   entries. Older packs use available grammar labels until explicit reimport adds
   form metadata; no runtime migration or corpus scan is needed.
+  Arabic future-prefix recovery requires an attested verb-form redirect. Expanded
+  model words also try their attested surface forms after their proposed lemma.
   Keep NLP imports lazy and runtime analysis offline. LLM output belongs only in
   translation, never dictionary definitions or ranking.
   Display normalization recognizes numbered plain-text `pos:`, `ex:` and `syn:`
