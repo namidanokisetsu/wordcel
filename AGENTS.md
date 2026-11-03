@@ -2,7 +2,7 @@
 
 - Keep responses and code concise. Comment only non-obvious decisions.
 - Never edit README.md unless the user explicitly asks for a README change. Cleanup, documentation work and releases do not authorize README edits.
-- Keep writing concise. No em dashes, hype, filler, AI stock phrases or repeated explanations. Release notes stay empty or one short sentence; desktop releases contain only the Windows EXE and the two macOS DMGs.
+- Keep writing concise. No em dashes, hype, filler, AI stock phrases or repeated explanations. Follow the previous release's changelog style: short bullets for user-visible changes, grouping related fixes and omitting internal work. Keep the changelog in GitHub release notes; desktop releases contain only the Windows EXE and the two macOS DMGs.
 - Keep UI copy compact: no instructional clutter, implementation diagnostics, redundant labels, or em dashes. Prefer obvious controls with short tooltips.
 - Make UI behavior logical and geometry-driven: derive placement and size from layouts, content bounds and stable anchors. Do not patch visual problems with arbitrary pixel offsets, delayed repositioning or viewport jumps. Preserve scroll, selection and window geometry during disclosure; avoid rebuilding unchanged content and batch necessary document/layout updates once. Meaning cutoffs must be explicit settings, not hidden constants. Labels must describe user-facing behavior.
 - Keep initialization, corpus scans and other expensive preparation out of hover and click handlers. Reuse prepared analyzers and stable OCR/cache identities; check both cold-start and repeated interaction paths when fixing latency. Measure the reported path before claiming a performance issue is resolved.
