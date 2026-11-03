@@ -268,14 +268,27 @@ class SearchEngine:
                 lemma = " ".join(word.lemma for word in token.words) if token.words else token.lemma
                 candidate = candidate[:token.start-start] + lemma + candidate[token.end-start:]
         candidates = [candidate]
-        # Expanded clitics share their parent token's span, never invented subspans.
-        if len(tokens) == 1 and len(tokens[0].words) > 1:
-            candidates.extend(word.lemma for word in tokens[0].words)
+        # Clitics may be expanded words (Arabic/Hebrew) or adjacent tokens
+        # (French l'homme). Never split an ordinary space-separated phrase.
+        if len(tokens) == 1 or all(a.end == b.start for a, b in zip(tokens, tokens[1:])):
+            from wordcel.language.analyzer import WordAnalysis
+            words = [word for token in tokens for word in
+                     (token.words or (WordAnalysis(original[token.start:token.end], token.lemma, token.pos),))]
+            lexical = {"NOUN", "PROPN", "VERB", "ADJ", "ADV", "NUM"}
+            candidates.extend(word.lemma for word in sorted(words, key=lambda word: word.pos not in lexical))
         entries = {}
         for candidate in dict.fromkeys(candidates):
             if not candidate or candidate in {text, "_"}:
                 continue
-            for entry in self.library.lookup(candidate, language, tolerant=False):
+            found = self.library.lookup(candidate, language, tolerant=False)
+            if not found and language == "ar":
+                found = self._arabic_lookup(candidate)
+            if not found and language == "fa":
+                found = self._persian_lookup(candidate)
+            # A resolved lemma must not follow unrelated form redirects through
+            # a homographic headword. Retain redirects when they are the only hit.
+            direct = tuple(entry for entry in found if entry.route in {"exact", "spelling"})
+            for entry in direct or found:
                 entries.setdefault(entry.id, replace(entry, route="lemma", inflection=("lemma",)))
         return tuple(entries.values())
 

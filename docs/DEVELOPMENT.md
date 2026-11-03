@@ -61,7 +61,10 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   offsets, dictionary order and full records for Anki. Unspaced lookup starts at
   the pointed character. Japanese uses bundled deconjugation; Turkish uses shared
   Zeyrek analysis and precomputed rankings, never Stanza. Other languages may use
-  Stanza. Keep NLP imports lazy and runtime analysis offline. LLM output belongs
+  Stanza. Expanded clitics prefer lexical words over function words; contiguous
+  elisions retain their original span. Korean KAIST morphemes use XPOS to remove
+  endings and plural particles and restore dictionary predicate endings.
+  Arabic/Persian model lemmas reuse spelling recovery. Keep NLP imports lazy and runtime analysis offline. LLM output belongs
   only in translation, never dictionary definitions or ranking.
 - **Workers:** capture, OCR, lookup, downloads, history and Anki preparation stay
   off the UI thread. Reuse analyzers/providers and reject stale results by request,

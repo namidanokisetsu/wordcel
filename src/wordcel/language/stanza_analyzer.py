@@ -103,7 +103,7 @@ class StanzaAnalyzer:
         seen = set()
         for sentence in doc.sentences:
             for token in sentence.tokens:
-                words = tuple(WordAnalysis(word.text, word.lemma if word.lemma not in {None, "", "_"} else word.text, word.upos)
+                words = tuple(WordAnalysis(word.text, self._lemma(word), word.upos)
                               for word in token.words if word.upos != "PUNCT")
                 if not words:
                     continue
@@ -112,3 +112,23 @@ class StanzaAnalyzer:
                     tokens.append(Token(start, end, words[0].lemma, words[0].pos, words))
                     seen.add((start, end))
         return tuple(tokens)
+
+    def _lemma(self, word):
+        lemma = word.lemma if word.lemma not in {None, "", "_"} else word.text
+        if getattr(self, "language", None) == "ko" and "+" in lemma:
+            # KAIST lemmas include particles/endings. XPOS identifies the lexical
+            # stem and derivational suffixes; a bare verb stem needs dictionary 다.
+            parts = lemma.split("+")
+            tags = (getattr(word, "xpos", None) or "").lower().split("+")
+            if len(parts) == len(tags):
+                stem = []
+                for part, tag in zip(parts, tags):
+                    if tag.startswith(("j", "e")):
+                        break
+                    if not (tag == "xsn" and part == "들"):
+                        stem.append((part, tag))
+                if stem and len(stem) < len(parts):
+                    lemma = "".join(part for part, _ in stem)
+                    if stem[-1][1].startswith(("p", "xsv", "xsm")):
+                        lemma += "다"
+        return lemma

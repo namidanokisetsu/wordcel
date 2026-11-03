@@ -13,6 +13,52 @@ from wordcel.language.stanza_analyzer import StanzaAnalyzer, setup_models
 
 
 class MorphologyTests(unittest.TestCase):
+    def test_arabic_clitics_prioritize_content_and_normalize_model_vowels(self):
+        self.pack("ar", [("و", ["and"], ""), ("اشترى", ["buy"], "v", "اِشْتَرَى"),
+                         ("كتاب", ["book"], "n", "كِتَاب")])
+        analyzer = Mock()
+        self.engine._analyzer = ("ar", analyzer)
+        for surface, lemma, expected in (("واشتريت", "اِشتَرَى", "اشترى"),
+                                         ("والكتاب", "كِتَاب", "كتاب")):
+            with self.subTest(surface=surface):
+                analyzer.analyze.return_value = (Token(0, len(surface), "وَ", "CCONJ", (
+                    WordAnalysis("و", "وَ", "CCONJ"), WordAnalysis(surface[1:], lemma, "NOUN"))),)
+                result = self.engine.search(surface, source="ar", morphology=True)
+                self.assertEqual([e.term for e in result.entries], [expected, "و"])
+                self.assertEqual(result.matched_length, len(surface))
+
+    def test_french_elision_recovers_content_without_splitting_phrases(self):
+        self.pack("fr", [("le", ["the"], ""), ("homme", ["man"], "")])
+        analyzer = Mock()
+        self.engine._analyzer = ("fr", analyzer)
+        analyzer.analyze.return_value = (Token(0, 2, "le", "DET"), Token(2, 7, "homme", "NOUN"))
+        self.assertEqual([e.term for e in self.engine.search("l’homme", source="fr", morphology=True).entries],
+                         ["homme", "le"])
+        analyzer.analyze.return_value = (Token(0, 2, "le", "DET"), Token(3, 9, "homme", "NOUN"))
+        self.assertFalse(self.engine.search("un humain", source="fr", morphology=True).entries)
+
+    def test_korean_kaist_morphemes_resolve_dictionary_nouns_and_predicates(self):
+        analyzer = StanzaAnalyzer.__new__(StanzaAnalyzer)
+        analyzer.language = "ko"
+        self.pack("ko", [("책", ["book"], ""), ("사람", ["person"], ""),
+                         ("학교", ["school"], ""), ("읽다", ["read"], ""), ("공부하다", ["study"], "")])
+        self.engine._analyzer = ("ko", analyzer)
+        for surface, lemma, xpos, pos, expected in (
+            ("책을", "책+을", "ncn+jco", "NOUN", "책"),
+            ("책에서", "책+에서", "ncn+jca", "ADV", "책"),
+            ("사람들이", "사람+들+이", "ncn+xsn+jcs", "NOUN", "사람"),
+            ("학교에", "학교+에", "ncn+jca", "ADV", "학교"),
+            ("읽습니다", "읽+습니다", "pvg+ef", "VERB", "읽다"),
+            ("공부합니다", "공부+하+ㅂ니다", "ncpa+xsv+ef", "VERB", "공부하다"),
+        ):
+            with self.subTest(surface=surface):
+                word = SimpleNamespace(text=surface, lemma=lemma, xpos=xpos, upos=pos)
+                token = SimpleNamespace(start_char=0, end_char=len(surface), words=[word])
+                analyzer.pipeline = Mock(return_value=SimpleNamespace(sentences=[SimpleNamespace(tokens=[token])]))
+                result = self.engine.search(surface, source="ko", morphology=True)
+                self.assertEqual([e.term for e in result.entries], [expected])
+                self.assertEqual(result.text, surface)
+
     def test_single_token_fallback_is_dictionary_bound_across_representative_languages(self):
         for language, surface, lemma in (("ru", "книгами", "книга"), ("uk", "книгами", "книга"),
                                          ("ko", "책을", "책"), ("de", "Bücher", "Buch")):
@@ -89,8 +135,8 @@ class MorphologyTests(unittest.TestCase):
         archive = self.root / (language + ".zip")
         with zipfile.ZipFile(archive, "w") as zf:
             zf.writestr("index.json", json.dumps(dict(title=language, format=3, sourceLanguage=language)))
-            zf.writestr("term_bank_1.json", json.dumps([[term, "", "", rules, 0, definitions, -1, ""]
-                                                      for term, definitions, rules in rows]))
+            zf.writestr("term_bank_1.json", json.dumps([[term, reading[0] if reading else "", "", rules, 0, definitions, -1, ""]
+                                                      for term, definitions, rules, *reading in rows]))
         import_yomitan(archive, self.root / "library")
         self.engine.refresh()
 
