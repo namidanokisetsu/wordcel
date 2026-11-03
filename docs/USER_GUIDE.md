@@ -113,10 +113,3 @@ terminal or app. Manual Search needs none.
 
 [Open an issue](https://github.com/namidanokisetsu/wordcel/issues/new) for bugs,
 suggestions or feature requests. Include reproduction steps and OCR engines tried.
-
-## Dictionary credits
-
-[Jiten frequency data](https://jiten.moe/frequency-dictionaries):
-[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
-[WaDoku](https://www.wadoku.de):
-[data licence](https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten+Lizenz).

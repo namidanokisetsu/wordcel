@@ -234,7 +234,10 @@ Rules and integration references:
 [Chibipop](https://github.com/stellarie/chibipop),
 [Mangatan](https://github.com/1Selxo/Mangatan/tree/6022576909b2cbc9a97286822f801d316b30371b/lib/services/mining),
 [Meikikai](https://github.com/hectahertz/meikikai/tree/50efb401/src/meikikai/ocr/providers/chrome_screen_ai).
-WaDoku pitch data uses the
+
+[Jiten frequency data](https://jiten.moe/frequency-dictionaries):
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+[WaDoku](https://www.wadoku.de) pitch data uses the
 [conversion](https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan) and
 [WaDoku data licence](https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten+Lizenz).
 Licences and attributions ship in `src/wordcel/resources/licenses/`.
