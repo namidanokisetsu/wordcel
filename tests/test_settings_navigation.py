@@ -31,6 +31,7 @@ class SettingsNavigationTests(unittest.TestCase):
         dialog = SetupDialog(self.root / "library", self.settings, Mock())
         self.addCleanup(dialog.deleteLater)
         self.addCleanup(dialog.audio_sources.shutdown)
+        self.addCleanup(dialog.history_settings.service.shutdown)
         self.addCleanup(dialog.close)
         return dialog
 

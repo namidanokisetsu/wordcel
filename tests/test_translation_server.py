@@ -184,6 +184,7 @@ class InstallerTests(unittest.TestCase):
                     self.assertEqual(server._platform_key(), expected)
 
     def test_explicit_bootstrap_install_publishes_complete_manifest_without_network(self):
+        from wordcel.translation_hardware import Capabilities
         downloads = self.root / "downloads"
         downloads.mkdir()
         archive = downloads / "runtime.zip"
@@ -198,7 +199,8 @@ class InstallerTests(unittest.TestCase):
         with patch.object(server, "MODELS", models), patch.object(server, "RUNTIMES", runtimes), \
                 patch.object(server, "_platform_key", return_value="win-x64"), \
                 patch.object(server, "urlopen", side_effect=AssertionError("network")):
-            registry = server.install_model(directory=self.root / "installed", downloads=downloads)
+            registry = server.install_model(directory=self.root / "installed", downloads=downloads,
+                                            capabilities=Capabilities())
         installed = self.root / "installed"
         self.assertEqual((installed / registry["models"]["quality"]["path"]).read_bytes(), b"model")
         self.assertTrue((installed / registry["executable"]).is_file())

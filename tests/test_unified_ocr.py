@@ -1089,9 +1089,9 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.assertTrue(self.window.search.isEnabled())
         self.window.show_message.assert_called_once_with("Screen Recording")
 
+    @patch("wordcel.gui.unified_ocr.sys.platform", "darwin")
     def test_permission_failure_retries_once_after_returning_from_settings(self):
-        with patch("wordcel.gui.unified_ocr.sys.platform", "darwin"), \
-                patch("wordcel.utils.macos.require_screen_capture_permission",
+        with patch("wordcel.utils.macos.require_screen_capture_permission",
                       side_effect=RuntimeError("Screen Recording")):
             self.controller.set_enabled(True)
         self.assertTrue(self.controller._permission_retry_pending)
