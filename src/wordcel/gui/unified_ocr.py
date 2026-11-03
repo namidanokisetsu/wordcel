@@ -447,6 +447,8 @@ class UnifiedOCR(QObject):
             browser.selectionChanged.connect(self._sync_pin_ready)
         if hasattr(window, "dismiss_button"):
             window.dismiss_button.clicked.connect(self.dismiss)
+        if hasattr(window, "translation_panel"):
+            window.translation_panel.language_picker_changed.connect(self._sync_escape_state)
         window.installEventFilter(self)
         self._application = QApplication.instance()
         self._application.installEventFilter(self)
@@ -812,7 +814,9 @@ class UnifiedOCR(QObject):
 
     def _escape_is_blocked(self):
         modal = QApplication.activeModalWidget()
-        return (QApplication.activePopupWidget() is not None
+        panel = getattr(self.window, "translation_panel", None)
+        return (panel is not None and panel.language_picker.isVisible()
+                or QApplication.activePopupWidget() is not None
                 or (modal is not None and modal is not self.window)
                 or (QApplication.activeWindow() is not None
                     and QApplication.activeWindow() is not self.window))

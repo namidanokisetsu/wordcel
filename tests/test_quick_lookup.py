@@ -813,6 +813,53 @@ class QuickLookupTests(unittest.TestCase):
         self.window._leave_translation()
         self.assertFalse(panel.language_picker.isVisible())
 
+    def test_native_escape_closes_language_picker_before_translation_window(self):
+        from pynput import keyboard
+        from wordcel.gui.desktop_input import DesktopInput
+        from wordcel.gui.unified_ocr import UnifiedOCR
+
+        self.settings.setValue("ocr/preload", False)
+        self.settings.setValue("profiles/ja/scan_bindings", "")
+        for name, value in (("activeWindow", self.window), ("activeModalWidget", None), ("activePopupWidget", None)):
+            self.enterContext(patch.object(QApplication, name, return_value=value))
+        controller = UnifiedOCR(self.window)
+        with patch("wordcel.gui.desktop_input.KeyboardListener"), \
+                patch("wordcel.gui.desktop_input.TextHotKeys"), patch("pynput.mouse.Listener"):
+            inputs = DesktopInput("shift", "", "", 400, controller)
+        controller.input = inputs
+        inputs.dismissed.connect(controller._dismiss_from_input)
+        try:
+            for platform in ("win32", "darwin"):
+                with self.subTest(platform=platform):
+                    self.window.open_translation()
+                    panel = self.window.translation_panel
+                    self.window._translation_language_menu("target")
+                    self.assertTrue(inputs.escape_dismiss_blocked.is_set())
+
+                    def press_escape():
+                        with patch("wordcel.gui.desktop_input.sys.platform", platform):
+                            if platform == "win32":
+                                inputs.filter_key(0x100, SimpleNamespace(vkCode=27))
+                                inputs.filter_key(0x101, SimpleNamespace(vkCode=27))
+                            else:
+                                inputs.key(keyboard.Key.esc, True)
+                                inputs.key(keyboard.Key.esc, False)
+
+                    press_escape()
+                    inputs.keys.suppress_event.assert_not_called()
+                    QTest.keyClick(panel.language_picker.search, Qt.Key.Key_Escape)
+                    self.app.processEvents()
+                    self.assertFalse(panel.language_picker.isVisible())
+                    self.assertTrue(self.window.isVisible())
+                    self.assertFalse(inputs.escape_dismiss_blocked.is_set())
+                    press_escape()
+                    self.app.processEvents()
+                    self.assertFalse(self.window.isVisible())
+                    inputs.keys.suppress_event.reset_mock()
+        finally:
+            controller.shutdown()
+            controller.deleteLater()
+
     def test_translation_stream_and_resize_continue_with_language_picker_open(self):
         self.window.open_translation()
         self.window._show_translation("Hello", "en", "ja")

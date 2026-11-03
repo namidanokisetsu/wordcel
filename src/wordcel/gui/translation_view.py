@@ -140,6 +140,7 @@ class TranslationPanel(QWidget):
     translate_requested = pyqtSignal()
     language_requested = pyqtSignal(str)
     language_selected = pyqtSignal(str, str)
+    language_picker_changed = pyqtSignal()
     swap_requested = pyqtSignal()
 
     def __init__(self, settings=None):
@@ -210,12 +211,14 @@ class TranslationPanel(QWidget):
         picker.raise_()
         QApplication.instance().installEventFilter(self)
         picker.search.setFocus()
+        self.language_picker_changed.emit()
 
     def close_language_picker(self):
         if self._language_role is not None:
             self._language_role = None
             self.language_picker.hide()
             QApplication.instance().removeEventFilter(self)
+            self.language_picker_changed.emit()
 
     def _select_language(self, *_):
         code = self.language_picker.selected_code()
