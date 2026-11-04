@@ -295,7 +295,7 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.cursor_close_margin = QSpinBox()
         self.cursor_close_margin.setRange(0, 300)
         self.cursor_close_margin.setSuffix(" px")
-        self.cursor_close_margin.setValue(settings.value(f"profiles/{self.profile.currentData()}/cursor_close_margin", 24, int))
+        self.cursor_close_margin.setValue(settings.value(f"profiles/{self.profile.currentData()}/cursor_close_margin", 60, int))
         self.cursor_close_margin.setEnabled(self.close_on_cursor_leave.isChecked())
         self.close_on_cursor_leave.toggled.connect(self.cursor_close_margin.setEnabled)
         self.cursor_close_margin.valueChanged.connect(lambda value: self.autosave(lambda: settings.setValue(f"profiles/{self.profile.currentData()}/cursor_close_margin", value)))
@@ -1090,7 +1090,7 @@ class SetupDialog(SettingsNavigation, QDialog):
             if only_page in (None, "Popup"):
                 self.translation_split.setChecked(self.settings.value(f"profiles/{code}/translation_side_by_side", False, bool))
                 self.close_on_cursor_leave.setChecked(self.settings.value(f"profiles/{code}/close_on_cursor_leave", True, bool))
-                self.cursor_close_margin.setValue(self.settings.value(f"profiles/{code}/cursor_close_margin", 24, int))
+                self.cursor_close_margin.setValue(self.settings.value(f"profiles/{code}/cursor_close_margin", 60, int))
                 self.vertical_popup_sides.setChecked(self.settings.value(f"profiles/{code}/vertical_popup_sides", True, bool))
                 self.appearance.reload()
             if only_page in (None, "Audio"):

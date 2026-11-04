@@ -1092,7 +1092,7 @@ class QuickLookupTests(unittest.TestCase):
     def test_cursor_grace_area_setting_is_shared_and_saved(self):
         dialog = SetupDialog(self.temp.name, self.settings, self.window.apply_shortcut, self.window)
         self.assertTrue(dialog.cursor_close_margin.isEnabled())
-        self.assertEqual(dialog.cursor_close_margin.value(), 24)
+        self.assertEqual(dialog.cursor_close_margin.value(), 60)
         dialog.cursor_close_margin.setValue(48)
         self.assertEqual(self.settings.value(f'profiles/{self.window.active_profile}/cursor_close_margin', type=int), 48)
         dialog.close_on_cursor_leave.setChecked(False)

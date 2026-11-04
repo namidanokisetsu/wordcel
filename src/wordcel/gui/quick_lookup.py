@@ -2825,7 +2825,7 @@ class QuickLookupWindow(QDialog):
         super().enterEvent(event)
 
     def cursor_close_bounds(self):
-        margin = max(0, self.settings.value(f"profiles/{self.active_profile}/cursor_close_margin", 24, int))
+        margin = max(0, self.settings.value(f"profiles/{self.active_profile}/cursor_close_margin", 60, int))
         return self.frameGeometry().adjusted(-margin, -margin, margin, margin)
 
     def lookup_entry_path_contains(self, point):
