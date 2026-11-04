@@ -1235,13 +1235,17 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
             self.controller.restore_capture_visibility()
             self.assertEqual([c.args[1] for c in exclude.call_args_list], [True, False])
 
-    def test_failed_exclusion_never_hides_popup_on_repeated_windows_scans(self):
-        self.enable_hover()
+    def test_failed_exclusion_clears_old_preview_once_for_hover_but_not_shift(self):
         controller = self.controller
         controller.worker = SimpleNamespace(queue=Queue(), stop=Mock(), join=Mock())
         screen = QApplication.primaryScreen()
-        for overlapping in (True, False):
-            with self.subTest(overlapping=overlapping), \
+        for hover, overlapping in ((True, True), (True, False), (False, True), (False, False)):
+            if hover:
+                self.enable_hover()
+            else:
+                controller.hover_enabled = controller.session.hovering = False
+                controller.holding = True
+            with self.subTest(hover=hover, overlapping=overlapping), \
                     patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
                     patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
                     patch.object(QApplication, "activeWindow", return_value=None), \
@@ -1249,7 +1253,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                     patch("wordcel.utils.window_capture.window_at_point", side_effect=AssertionError("Unexpected WGC")), \
                     patch("wordcel.utils.capture.exclude_from_capture", return_value=False) as exclude, \
                     patch("wordcel.gui.unified_ocr.QTimer.singleShot") as dispatch, \
-                    patch.object(self.window, "hide") as hide, \
+                    patch.object(self.window, "hide", wraps=self.window.hide) as hide, \
                     patch.object(type(screen), "grabWindow") as grab:
                 self.window.setGeometry(QRect(200, 100, 300, 200) if overlapping else QRect(400, 350, 300, 200))
                 self.window.show()
@@ -1264,9 +1268,9 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                     job = controller.worker.queue.get_nowait()
                     self.assertEqual(job[1].source_window, 0)
                     self.assertEqual(job[1].mask_window, int(self.window.winId()))
-                    self.assertTrue(self.window.isVisible())
+                    self.assertEqual(self.window.isVisible(), not hover)
                 exclude.assert_called_once()
-                hide.assert_not_called()
+                self.assertEqual(hide.call_count, int(hover))
                 grab.assert_not_called()
 
     def test_capture_error_is_visible_when_popup_is_hidden(self):

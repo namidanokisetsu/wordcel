@@ -402,6 +402,7 @@ class UnifiedOCR(QObject):
         self.worker = None
         self.hit_worker = None
         self.frame = None
+        self._hover_frame = None
         self._copy_revision = 0
         self._copy_pending = None
         self._selecting_text = False
@@ -680,7 +681,7 @@ class UnifiedOCR(QObject):
                   not (self.window.isVisible() and not self.window._peek))
         was_scanning = self.session.scanning(self.window.is_pinned)
         if self.session.hover(active):
-            self.invalidate()
+            self.invalidate(keep_preview=not active)
             self._last_capture_at = 0
             scanning = self.session.scanning(self.window.is_pinned)
             if not self.holding and hasattr(self.window, "scan_hold_changed"):
@@ -701,6 +702,9 @@ class UnifiedOCR(QObject):
             if is_top_level:
                 QTimer.singleShot(0, self._sync_escape_state)
         if watched is self.window:
+            if event.type() == QEvent.Type.Hide and self._hover_frame is not None:
+                self.invalidate()
+                self._last_capture_at = 0
             if event.type() == QEvent.Type.Enter:
                 self.leave_timer.stop()
             elif event.type() == QEvent.Type.Leave and not self.window.is_pinned and not self.holding:
@@ -882,7 +886,11 @@ class UnifiedOCR(QObject):
         # A new lookup result places the popup beside its word.
         self._sync_pin_ready()
 
-    def invalidate(self):
+    def invalidate(self, *, keep_preview=False):
+        retained, self._hover_frame = self._hover_frame, None
+        if (retained is not None and not keep_preview and self.window.isVisible()
+                and getattr(self.window, "_peek", False) and not self.window.is_pinned):
+            self._hide_preview()
         self.session.invalidate()
         if self._capture_hidden:
             self._capture_hidden = False
@@ -977,6 +985,7 @@ class UnifiedOCR(QObject):
                 self.input.hold_changed.connect(self.hold_changed)
                 self.input.dismissed.connect(self._dismiss_from_input)
                 self.input.clicked.connect(self.outside_click)
+                self.input.source_changed.connect(self.source_changed)
                 self.input.pointer_moved.connect(self.check_popup_cursor)
                 self.input.pin_requested.connect(self.pin_requested)
                 self.input.navigation_requested.connect(self.navigate_overlay)
@@ -1105,6 +1114,12 @@ class UnifiedOCR(QObject):
             self.dismiss(resume_hover=self.session.hovering and not self.holding
                          and getattr(self.window, "_peek", False))
 
+    def source_changed(self):
+        if (self._hover_frame is not None and not self.window.is_pinned
+                and QApplication.activeModalWidget() is None and QApplication.activePopupWidget() is None):
+            self.invalidate()
+            self._last_capture_at = 0
+
     def finish_peek(self):
         if QApplication.activeModalWidget() or QApplication.activePopupWidget():
             self.leave_timer.start()
@@ -1136,6 +1151,11 @@ class UnifiedOCR(QObject):
             self._hide_preview()
         now = monotonic()
         self.hit_latest(point, now)
+        if self._hover_frame is not None:
+            if self._valid_frame(self._hover_frame, point, now):
+                return
+            self.invalidate()
+            self._last_capture_at = 0
         if self.freeze_capture:
             if self.frame is not None and self._valid_frame(self.frame, point, now):
                 return
@@ -1164,6 +1184,11 @@ class UnifiedOCR(QObject):
                 sys.platform != "win32" or self._capture_exclusion_handle != handle):
             self._capture_excluded = exclude_from_capture(self.window, True)
             self._capture_exclusion_handle = handle
+        if (sys.platform == "win32" and self.session.hovering and not self._capture_excluded
+                and not self._fallback_capture and visible and not self.window.is_pinned
+                and getattr(self.window, "_peek", False)):
+            # A new hover session needs clean pixels before opening its preview.
+            self._hide_preview()
         if visible and not self._capture_excluded and sys.platform != "win32":
             self._capture_hidden = True
             self.window._capture_visibility = True
@@ -1178,6 +1203,9 @@ class UnifiedOCR(QObject):
     def capture(self, generation, point):
         self._update_hover(QCursor.pos())
         if generation != self.generation:
+            return
+        if self._hover_frame is not None:
+            self.busy = False
             return
         if not self.session.accepts(generation, self.window.is_pinned):
             self.restore_capture_visibility()
@@ -1264,7 +1292,7 @@ class UnifiedOCR(QObject):
     def _valid_frame(self, frame, point, now):
         if (frame is None or frame.request.generation != self.generation or
                 frame.language != self.window.preferred_foreign or
-                not frame.request.frozen and now - frame.captured_at > 2):
+                not frame.request.frozen and frame is not self._hover_frame and now - frame.captured_at > 2):
             return False
         screen = QApplication.screenAt(point) or QApplication.primaryScreen()
         return (screen is not None and screen.name() == frame.request.screen
@@ -1280,6 +1308,9 @@ class UnifiedOCR(QObject):
         self.session.finish_capture(generation)
         if not self.session.accepts(generation, self.window.is_pinned):
             mark("discard", generation, reason="obsolete_frame")
+            return
+        if self._hover_frame is not None:
+            mark("discard", generation, reason="retained_hover")
             return
         if error:
             self.frame = None
@@ -1394,6 +1425,13 @@ class UnifiedOCR(QObject):
             self.window.record_encounter()
             self.window._result_screenshot = frame.snapshot if frame is not None else None
             self._sync_pin_ready()
+        if (sys.platform == "win32" and self.session.hovering and not self._capture_excluded
+                and isinstance(frame, RecognizedFrame) and frame.request.mask_window
+                and not frame.request.source_window and not frame.request.frozen
+                and self.window.isVisible() and getattr(self.window, "_peek", False)
+                and not self.window.is_pinned):
+            # Match upstream's static-page behavior when live exclusion is unavailable.
+            self.frame = self._hover_frame = frame
 
     def shutdown(self):
         self.restore_capture_visibility()

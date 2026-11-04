@@ -81,9 +81,13 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   off the UI thread. Reuse analyzers/providers and reject stale results by request,
   profile and resource revision. OCR preloading uses installed resources only and
   yields to scans. Shortcut changes must not block the UI.
-  Windows capture never hides the popup. Screen capture uses popup exclusion;
-  if unavailable, the worker blanks the popup's physical bounds in desktop pixels.
-  Covered source text is unavailable in this fallback, including in Anki snapshots.
+  Windows screen capture uses popup exclusion. If unavailable, hover retains the
+  clean OCR frame while its preview is visible, including its Anki snapshot, and
+  ignores captures already in flight. Dismissal, source clicks, wheel input and
+  unconsumed source keys discard that frame and allow fresh capture. Popup input
+  and pinning retain their normal behavior. Source changes without input remain
+  frozen until dismissal. Other desktop captures blank the popup's physical bounds;
+  covered source text is unavailable in those captures, including Anki snapshots.
   A desktop capture failure can use a worker-owned Windows Graphics Capture
   session for the source window. Source captures retain screen coordinates and
   blank pixels outside that window, including in Anki snapshots. Capture failures
@@ -209,6 +213,13 @@ or source text and does not load app settings or OCR models. Other windows cover
 the fixtures can invalidate the pixel checks. Build the standalone checker with
 `python -m PyInstaller --noconfirm packaging/capture-check.win.spec`; the EXE writes
 its report beside itself. This checks capture only, not the full hover/OCR workflow.
+For the native Windows workflow check, set `WORDCEL_NATIVE_CAPTURE_TEST=1` and run
+`python -m unittest discover -s tests -p test_native_capture_workflow.py`.
+It uses temporary settings/dictionaries and installed Japanese OCR, with native
+capture/rendering and injected shortcut events. It briefly covers the primary screen.
+It checks failed exclusion with retained hover, source refresh, pinning and Shift,
+plus normal live capture. `WORDCEL_TEST_OCR=windows` selects Windows OCR instead
+of MeikiOCR.
 
 ## OCR providers
 

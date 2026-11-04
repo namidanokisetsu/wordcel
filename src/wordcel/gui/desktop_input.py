@@ -54,6 +54,7 @@ class DesktopInput(QObject):
     navigation_requested = pyqtSignal(int)
     popup_action_requested = pyqtSignal(str)
     pointer_moved = pyqtSignal()
+    source_changed = pyqtSignal()
 
     def __init__(self, bindings, clipboard_hotkey, search_hotkey, double_click_ms, parent=None):
         super().__init__(parent)
@@ -231,6 +232,9 @@ class DesktopInput(QObject):
                 self.keys.suppress_event()
                 return False
             return True
+        if (down and scan_key is None and data.vkCode != 0x1B and self.visible.is_set()
+                and not self.popup_controls_active.is_set()):
+            self.source_changed.emit()
         if data.vkCode == 0x1B and (self.visible.is_set() or self._escape_down):
             if down and not self._escape_down:
                 self.dismissed.emit()
@@ -253,6 +257,7 @@ class DesktopInput(QObject):
             if route_popup_wheel(self.popup_handle, message, data):
                 self.clicks.suppress_event()
                 return False
+            self.source_changed.emit()
         event = {0x201: ("left", True), 0x202: ("left", False),
                  0x207: ("middle", True), 0x208: ("middle", False)}.get(message)
         if event is not None:
