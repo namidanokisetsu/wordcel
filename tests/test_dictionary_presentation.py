@@ -8,6 +8,7 @@ from PyQt6.QtGui import QFontMetricsF, QTextCursor, QTextFormat
 from PyQt6.QtWidgets import QApplication
 
 from wordcel.dictionary.library import Entry
+from wordcel.dictionary.pitch import PITCH_OBJECT, Pitch
 from wordcel.dictionary.search import SearchResult
 from wordcel.gui.quick_lookup import LocalDictionaryBrowser, render_result
 from wordcel.gui.typography import document_font
@@ -168,6 +169,32 @@ class DictionaryPresentationTests(unittest.TestCase):
         self.assertNotIn("Other readings", text)
         for i in range(5):
             self.assertIn(f"Meaning {i}", text)
+
+    def test_pitch_and_plain_readings_keep_the_same_size(self):
+        value = SearchResult("猫", "ja", "en", (
+            Entry("cat", "猫", "ねこ", "Fixture", "ja", ("cat",),
+                  pitches=(Pitch("Pitch", "ねこ", 1),)),))
+        for header, definitions in ((14, 24), (18, 14), (32, 12)):
+            for preview in (False, True):
+                with self.subTest(header=header, definitions=definitions, preview=preview), \
+                        patch.object(config, "font_size_header", header), \
+                        patch.object(config, "font_size_definitions", definitions):
+                    self.render(value, preview=preview)
+                    block = self.browser.document().begin()
+                    iterator = block.begin()
+                    pitch_format = None
+                    while not iterator.atEnd():
+                        fmt = iterator.fragment().charFormat()
+                        if fmt.objectType() == PITCH_OBJECT:
+                            pitch_format = fmt
+                            break
+                        iterator += 1
+                    self.assertIsNotNone(pitch_format)
+                    self.render(value, preview=preview, preview_pitch=False, pinned_pitch=False)
+                    plain = self.browser.document().find("[ねこ]")
+                    self.assertFalse(plain.isNull())
+                    self.assertEqual(plain.charFormat().font().pixelSize(), max(12, header - 3))
+                    self.assertEqual(pitch_format.font().pixelSize(), plain.charFormat().font().pixelSize())
 
     def test_headword_does_not_keep_qt_relative_font_enlargement(self):
         self.render(result(("Meaning",)))

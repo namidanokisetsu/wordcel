@@ -158,9 +158,11 @@ class RubyTests(unittest.TestCase):
                 self.assertEqual(tooltips, [combined_detail] if combined else list(details))
                 self.assertIn("#160" if combined else "#100/900㋕", self.browser.toPlainText())
 
-    def test_inline_pitch_then_frequency_stay_small_and_wrap_with_headword_ruby(self):
+    def test_inline_pitch_and_small_frequency_wrap_with_headword_ruby(self):
         from wordcel.dictionary.metadata import Frequency
         from wordcel.dictionary.pitch import Pitch, PITCH_OBJECT, PITCH_PREFIX
+        from wordcel.gui.typography import document_font
+        self.browser.setFont(document_font("Noto Sans JP", 14, "ja"))
         word = Entry("1", "祈願", "きがん", "Words", "ja", ("prayer",), inflection=("past",),
                      frequencies=(Frequency("Corpus <one>", 123, "123"),), pitches=(Pitch("NHK", "きがん", 1),))
         result = SearchResult("祈願", "ja", "en", (word,))
@@ -188,7 +190,7 @@ class RubyTests(unittest.TestCase):
                             if fmt.objectType() == PITCH_OBJECT:
                                 pitch_sizes.append(fmt.font().pixelSize())
                             iterator += 1
-                        self.assertEqual(pitch_sizes, [13])
+                        self.assertEqual(pitch_sizes, [21])
                         if furigana:
                             self.assertEqual(self.objects()[0].charFormat().font().pixelSize(), 24)
                         self.browser.setLineWrapMode(self.browser.LineWrapMode.FixedPixelWidth)

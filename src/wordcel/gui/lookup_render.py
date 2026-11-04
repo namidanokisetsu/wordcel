@@ -143,6 +143,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
     maximum = preview_definitions if preview else 0
     grammar_tags = not preview if grammar is None else grammar
     show_inflections = grammar is not False
+    reading_size = max(12, config.font_size_header - 3)
     muted = surface_colors(config.color_background, config.color_foreground)["muted"]
     clearance = 96 if overlay_actions is True else int(overlay_actions)
     if source_text is None:
@@ -194,12 +195,12 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
         if pitches:
             from wordcel.dictionary.pitch import render_pitches
             pitch = render_pitches(pitches, inline=True, separator=" ",
-                                   font_size=max(10, min(config.font_size_definitions - 1, config.font_size_header - 4)))
+                                   font_size=reading_size)
         metadata = _metadata(group_entries, combine_frequencies, show_frequencies=preview_frequency if preview else pinned_frequency,
                              pitch=pitch, inline=True)
         metadata = " " + metadata if metadata else ""
         reading_html = (f' <span style="color:{config.color_highlight_reading};font-size:'
-                        f'{max(12, config.font_size_header - 3)}px">{escape(display_reading)}</span>'
+                        f'{reading_size}px">{escape(display_reading)}</span>'
                         if reading and reading != term and not any(pitch.reading == reading for pitch in pitches) else "")
         if result.source == "ja" and headword_furigana and reading and reading != term:
             parts.append(f'<h2><a name="scroll-headword-{group_index}"></a>'
