@@ -266,6 +266,7 @@ class QuickLookupWindow(QDialog):
         self._drag_start = None
         self._dragging = False
         self._resize_start = None
+        self._resize_close_guard = False
         self._engage_press = None
         self._setup = None
         self._engine_factory = engine_factory
@@ -2570,9 +2571,12 @@ class QuickLookupWindow(QDialog):
                     bar = self.browser.verticalScrollBar()
                     bar.setValue(bar.value() + direction * bar.pageStep())
             return True
-        if (event.type() == QEvent.Type.MouseButtonPress and isinstance(watched, QWidget)
-                and watched.inherits("QSizeGrip") and (self._peek or self._manual_at_cursor)):
-            self._reading_size_custom = True
+        if (event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton
+                and isinstance(watched, QWidget) and watched.inherits("QSizeGrip")):
+            self._resize_close_guard = True
+            self.cursor_leave_timer.start()
+            if self._peek or self._manual_at_cursor:
+                self._reading_size_custom = True
         if (event.type() == QEvent.Type.KeyPress and watched is getattr(self, "search", None)
                 and self.browser.section_scroll.enabled
                 and event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_PageUp, Qt.Key.Key_PageDown)
@@ -2675,6 +2679,8 @@ class QuickLookupWindow(QDialog):
                        Qt.CursorShape.SizeHorCursor if horizontal else Qt.CursorShape.SizeVerCursor if vertical else
                        Qt.CursorShape.ArrowCursor)
         if event.type() == QEvent.Type.MouseButtonPress and edges and event.button() == Qt.MouseButton.LeftButton:
+            self._resize_close_guard = True
+            self.cursor_leave_timer.start()
             if self._peek or self._manual_at_cursor:
                 self._reading_size_custom = True
             # Windows' native sizing loop also receives the OCR hook's routed
@@ -2732,7 +2738,10 @@ class QuickLookupWindow(QDialog):
         self._check_cursor_leave()
 
     def enterEvent(self, event):
-        self.cursor_leave_timer.stop()
+        if self._resize_close_guard:
+            self._check_cursor_leave()
+        else:
+            self.cursor_leave_timer.stop()
         super().enterEvent(event)
 
     def cursor_close_bounds(self):
@@ -2741,9 +2750,13 @@ class QuickLookupWindow(QDialog):
 
     def _check_cursor_leave(self):
         point = QCursor.pos()
-        if (not self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", True, bool) or not self.isVisible()
-                or not (self._peek or self._manual_at_cursor) or self._capture_visibility
-                or self._shutting_down or self.frameGeometry().contains(point)):
+        if not self.isVisible() or self._capture_visibility or self._shutting_down:
+            self.cursor_leave_timer.stop()
+            return
+        inside = self.frameGeometry().contains(point)
+        close_on_leave = ((self._peek or self._manual_at_cursor)
+                          and self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", True, bool))
+        if not self._resize_close_guard and (inside or not close_on_leave):
             self.cursor_leave_timer.stop()
             return
         if not self.cursor_leave_timer.isActive():
@@ -2753,6 +2766,13 @@ class QuickLookupWindow(QDialog):
         if dragging is None:
             dragging = (QApplication.mouseButtons() != Qt.MouseButton.NoButton
                         or any(browser.selecting for browser in self._reading_browsers()))
+        if self._resize_close_guard:
+            # A clamped resize can end outside the window. Resume dismissal only
+            # after the pointer returns, including when native release precedes Qt.
+            if inside and not dragging and self._resize_start is None:
+                self._resize_close_guard = False
+                self.cursor_leave_timer.stop()
+            return
         if (not self.cursor_close_bounds().contains(point)
                 and not dragging
                 and QApplication.activeModalWidget() is None and QApplication.activePopupWidget() is None
@@ -2765,7 +2785,7 @@ class QuickLookupWindow(QDialog):
             QTimer.singleShot(0, self._dismiss_if_inactive)
 
     def _dismiss_if_inactive(self):
-        if self._opening_search or self._passive_text or self._source_overlay:
+        if self._opening_search or self._passive_text or self._source_overlay or self._resize_close_guard:
             return
         bounds = self.cursor_close_bounds() if self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", True, bool) else self.geometry()
         if bounds.contains(QCursor.pos()):
@@ -2789,6 +2809,8 @@ class QuickLookupWindow(QDialog):
         if self._capture_visibility:
             super().hideEvent(event)
             return
+        self._resize_start = None
+        self._resize_close_guard = False
         self.lookup_history.reset()
         if hasattr(self, "worker"):
             self._invalidate()

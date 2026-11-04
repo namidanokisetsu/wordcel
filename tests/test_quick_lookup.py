@@ -15,7 +15,7 @@ import zipfile
 from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, QSettings, QSize, Qt, QUrl
 from PyQt6.QtGui import QKeyEvent, QMouseEvent, QTextCursor, QTextFormat
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QMessageBox, QToolButton
+from PyQt6.QtWidgets import QApplication, QMessageBox, QToolButton, QWidget
 
 from wordcel.config.profiles import create_profile, dictionary_preferences, profile_ids, profile_language
 from wordcel.dictionary.library import Entry, Library
@@ -1016,6 +1016,78 @@ class QuickLookupTests(unittest.TestCase):
                 patch.object(self.window, 'hide') as hide:
             self.window.leaveEvent(QEvent(QEvent.Type.Leave))
             hide.assert_called_once_with()
+
+    def test_resize_keeps_popup_open_until_released_pointer_returns(self):
+        for pinned in (False, True):
+            for kind in ("edge", "native", "grip"):
+                with self.subTest(pinned=pinned, kind=kind):
+                    self.window.show_entries((entry(),), peek=pinned)
+                    self.window.pin.setChecked(pinned)
+                    self.window._manual_at_cursor = not pinned
+                    self.window.move(100, 100)
+                    origin = self.window.mapToGlobal(QPoint(self.window.width() - 2, self.window.height() - 2))
+                    outside = QPoint(-500, -500)
+
+                    def mouse(event_type, point, buttons):
+                        return QMouseEvent(event_type, QPointF(self.window.mapFromGlobal(point)), QPointF(point),
+                                           Qt.MouseButton.LeftButton, buttons, Qt.KeyboardModifier.NoModifier)
+
+                    with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=outside) as cursor, \
+                            patch("wordcel.utils.window_focus.mouse_buttons_down", return_value=False) as buttons, \
+                            patch.object(QApplication, "mouseButtons", return_value=Qt.MouseButton.NoButton), \
+                            patch.object(self.window, "isActiveWindow", return_value=False):
+                        press = mouse(QEvent.Type.MouseButtonPress, origin, Qt.MouseButton.LeftButton)
+                        if kind == "grip":
+                            grip = next(widget for widget in self.window.findChildren(QWidget)
+                                        if widget.inherits("QSizeGrip"))
+                            with patch.object(self.window, "_edge_event", return_value=False):
+                                self.window.eventFilter(grip, press)
+                        else:
+                            with patch("wordcel.gui.quick_lookup.sys.platform", "darwin" if kind == "native" else "win32"), \
+                                    patch.object(self.window, "windowHandle") as handle:
+                                handle.return_value.startSystemResize.return_value = True
+                                self.assertTrue(self.window._edge_event(press))
+
+                        # Native button state may advance before queued Qt drag/release events.
+                        self.window.leaveEvent(QEvent(QEvent.Type.Leave))
+                        self.window._source_overlay = False
+                        self.window._dismiss_if_inactive()
+                        self.assertTrue(self.window.isVisible())
+                        if kind == "edge":
+                            self.window._edge_event(mouse(QEvent.Type.MouseButtonRelease, outside, Qt.MouseButton.NoButton))
+                        self.window._check_cursor_leave()
+                        self.assertTrue(self.window.isVisible())
+
+                        cursor.return_value = self.window.frameGeometry().center()
+                        buttons.return_value = True
+                        self.window._check_cursor_leave()
+                        cursor.return_value = outside
+                        buttons.return_value = False
+                        self.window._check_cursor_leave()
+                        self.assertTrue(self.window.isVisible())
+
+                        cursor.return_value = self.window.frameGeometry().center()
+                        self.window._check_cursor_leave()
+                        cursor.return_value = outside
+                        self.window._check_cursor_leave()
+                        self.assertFalse(self.window.isVisible())
+
+    def test_hiding_during_resize_restores_cursor_dismissal_on_reopen(self):
+        self.window.show_entries((entry(),), peek=True)
+        self.window.pin.setChecked(True)
+        origin = self.window.mapToGlobal(QPoint(self.window.width() - 2, self.window.height() - 2))
+        press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(self.window.mapFromGlobal(origin)), QPointF(origin),
+                            Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+        with patch("wordcel.gui.quick_lookup.sys.platform", "win32"):
+            self.window._edge_event(press)
+        self.window.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+        self.assertFalse(self.window.isVisible())
+        self.assertIsNone(self.window._resize_start)
+        self.window.show_entries((entry(),), peek=True)
+        with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
+                patch("wordcel.utils.window_focus.mouse_buttons_down", return_value=False):
+            self.window._check_cursor_leave()
+        self.assertFalse(self.window.isVisible())
 
     def test_cursor_grace_area_setting_is_shared_and_saved(self):
         dialog = SetupDialog(self.temp.name, self.settings, self.window.apply_shortcut, self.window)
