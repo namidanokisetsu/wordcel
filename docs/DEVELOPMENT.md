@@ -201,6 +201,15 @@ for analysis changes or specific failures. Global input, OCR accuracy, fullscree
 scaling and installation need manual acceptance. `WORDCEL_TIMING=1` logs stage
 timings without text, screenshots or paths. Handoff rules are in AGENTS.md.
 
+Windows capture can be checked independently with
+`python -m wordcel.scripts.diagnose_capture`. It compares opaque/translucent popup
+exclusion, masked desktop capture and WGC against controlled windows, using the
+production capture code. It writes `wordcel-capture-report.txt` without screenshots
+or source text and does not load app settings or OCR models. Other windows covering
+the fixtures can invalidate the pixel checks. Build the standalone checker with
+`python -m PyInstaller --noconfirm packaging/capture-check.win.spec`; the EXE writes
+its report beside itself. This checks capture only, not the full hover/OCR workflow.
+
 ## OCR providers
 
 Register providers in `gui/unified_ocr.py` (`ScanWorker.provider`), language
