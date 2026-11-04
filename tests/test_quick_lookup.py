@@ -3993,26 +3993,29 @@ class QuickLookupTests(unittest.TestCase):
                     self.app.processEvents()
                     self.assertEqual(self.window._headword_anchor(self.window.browser, self.window._headword_blocks[0]), before)
 
-    def test_kanji_glyph_fits_height_and_grows_with_window_up_to_cap(self):
-        from wordcel.gui.ruby import GLYPH_FONT, MAX_GLYPH_SIZE
+    def test_kanji_glyph_fits_height_without_enlarging_with_window(self):
+        from wordcel.gui.ruby import GLYPH_FONT
         self.window.show_entries((entry("敷島"),), "敷島",
                                  kanji=(KanjiEntry("敷", meanings=("spread",)),))
         self.app.processEvents()
         self.window._link(QUrl("headkanji:0:敷"))
         sizes = []
-        for width, height in ((360, 220), (900, 700), (360, 220)):
+        for width, height in ((360, 190), (900, 700), (1200, 900), (360, 190)):
             self.window.resize(width, height)
             self.app.processEvents()
             browser = self.window.kanji_browser
-            cursor, _ = browser._glyphs[0]
+            cursor, original = browser._glyphs[0]
             bounds = browser._glyph_object.bounds(cursor.charFormat())
             top = browser.document().documentLayout().frameBoundingRect(cursor.currentTable()).top()
             self.assertLessEqual(top + bounds.height(), browser.viewport().height())
             self.assertLessEqual(bounds.width(), browser.viewport().width() / 2)
-            self.assertLessEqual(cursor.charFormat().property(GLYPH_FONT).pixelSize(), MAX_GLYPH_SIZE)
+            font = cursor.charFormat().property(GLYPH_FONT)
+            self.assertLessEqual(font.pixelSize(), original.pixelSize())
+            if height >= 700:
+                self.assertEqual(font.pixelSize(), original.pixelSize())
             sizes.append(bounds.height())
-        self.assertGreater(sizes[1], sizes[0])
-        self.assertAlmostEqual(sizes[0], sizes[2], delta=1)
+        self.assertEqual(sizes[1], sizes[2])
+        self.assertAlmostEqual(sizes[0], sizes[3], delta=1)
 
     def test_kanji_source_tooltips_and_render_preserve_selection(self):
         from PyQt6.QtGui import QHelpEvent

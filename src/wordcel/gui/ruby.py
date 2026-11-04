@@ -27,7 +27,6 @@ GLYPH_PREFIX = "wordcel-glyph:"
 GLYPH = QTextFormat.ObjectTypes.UserObject.value + 3
 GLYPH_FONT = KANJI_GROUP + 1
 ACTIVE_KANJI = GLYPH_FONT + 1
-MAX_GLYPH_SIZE = 256
 _ruby_ids = count()
 
 
@@ -301,7 +300,7 @@ class RubyBrowser(DictionaryBrowser):
                 available_width = max(1, self.viewport().width() / 2 - padding)
                 fmt = QTextCharFormat(cursor.charFormat())
                 bounds = QFontMetricsF(original).tightBoundingRect(fmt.property(BASE))
-                scale = min(MAX_GLYPH_SIZE / original.pixelSize(), available_width / max(1, bounds.width()),
+                scale = min(1.0, available_width / max(1, bounds.width()),
                             available_height / max(1, bounds.height()))
                 font = QFont(original)
                 font.setPixelSize(max(1, math.floor(original.pixelSize() * scale)))

@@ -87,8 +87,9 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   Kanji uses the shared content stack; the existing breadcrumb and Back restore
   the word document, selection and scroll. Copy only the clicked headword and
   furigana, keeping its visible baseline anchored across the transition. Switch
-  between prepared kanji records without a new lookup. Fit glyph ink bounds to
-  the remaining height and half the content width, capped at a 256 px font size.
+  between prepared kanji records without a new lookup. Shrink glyph ink bounds to
+  fit the remaining height and half the content width; never enlarge past the
+  rendered font size (96 px, or 128 px for stroke order).
   Retain the originating headword through history and translation.
   Derive layout from content bounds;
   batch updates instead of rebuilding unchanged content. Autoplay runs on new
