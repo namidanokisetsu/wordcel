@@ -99,6 +99,7 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   rendered font size (96 px, or 128 px for stroke order).
   Pad the glyph beside separate paragraphs for meanings, Japanese glosses,
   examples and readings, with spacing derived from definition text size.
+  Align glyph ink to the first rendered text line using its shaped glyph bounds.
   Retain the originating headword through history and translation.
   Derive layout from content bounds;
   batch updates instead of rebuilding unchanged content. Autoplay runs on new

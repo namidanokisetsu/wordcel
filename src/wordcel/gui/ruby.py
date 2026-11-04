@@ -27,6 +27,7 @@ GLYPH_PREFIX = "wordcel-glyph:"
 GLYPH = QTextFormat.ObjectTypes.UserObject.value + 3
 GLYPH_FONT = KANJI_GROUP + 1
 ACTIVE_KANJI = GLYPH_FONT + 1
+GLYPH_TOP_SPACE = ACTIVE_KANJI + 1
 _ruby_ids = count()
 
 
@@ -121,14 +122,33 @@ class GlyphObject(QObject, QTextObjectInterface):
     def bounds(fmt):
         return QFontMetricsF(fmt.property(GLYPH_FONT)).tightBoundingRect(fmt.property(BASE))
 
+    @staticmethod
+    def text_ink_top(document, cell):
+        if not cell.isValid():
+            return 0
+        block = cell.firstCursorPosition().block()
+        end = cell.lastCursorPosition().position()
+        while block.isValid() and block.position() <= end:
+            document.documentLayout().blockBoundingRect(block)
+            if block.text().strip() and block.layout().lineCount():
+                ink = [run.rawFont().boundingRect(glyph).translated(position)
+                       for run in block.layout().lineAt(0).glyphRuns()
+                       for glyph, position in zip(run.glyphIndexes(), run.positions())]
+                return max(0, min((rect.top() for rect in ink if not rect.isEmpty()), default=0))
+            block = block.next()
+        return 0
+
     def intrinsicSize(self, document, pos, fmt):
-        return self.bounds(fmt).size()
+        size = self.bounds(fmt).size()
+        size.setHeight(size.height() + (fmt.property(GLYPH_TOP_SPACE) or 0))
+        return size
 
     def drawObject(self, painter, rect, document, pos, fmt):
         painter.save()
         painter.setFont(fmt.property(GLYPH_FONT))
         painter.setPen(fmt.foreground().color())
-        painter.drawText(rect.topLeft() - self.bounds(fmt).topLeft(), fmt.property(BASE))
+        top = rect.topLeft() + QPointF(0, fmt.property(GLYPH_TOP_SPACE) or 0)
+        painter.drawText(top - self.bounds(fmt).topLeft(), fmt.property(BASE))
         painter.restore()
 
 
@@ -265,7 +285,7 @@ class RubyBrowser(DictionaryBrowser):
                     cursor.setCharFormat(fmt)
                 iterator += 1
         self._glyphs = []
-        block = document.begin() if self.adaptive_glyphs else document.end()
+        block = document.begin()
         while block.isValid():
             iterator = block.begin()
             while not iterator.atEnd():
@@ -284,12 +304,14 @@ class RubyBrowser(DictionaryBrowser):
         self.fit_glyphs()
 
     def fit_glyphs(self):
-        if not self.adaptive_glyphs or not self._glyphs or self._fitting_glyphs:
+        if not self._glyphs or self._fitting_glyphs or not self.document().isLayoutEnabled():
             return
         self._fitting_glyphs = True
         try:
             document = self.document()
             for cursor, original in self._glyphs:
+                if not self.adaptive_glyphs:
+                    break
                 table = cursor.currentTable()
                 if table is None:
                     continue
@@ -317,6 +339,26 @@ class RubyBrowser(DictionaryBrowser):
                     QTextLength(QTextLength.Type.VariableLength, 1)])
                 table.setFormat(table_format)
                 cursor.endEditBlock()
+            updates = []
+            for cursor, _ in self._glyphs:
+                table = cursor.currentTable()
+                if table is None:
+                    continue
+                cell = table.cellAt(cursor)
+                text_cell = table.cellAt(cell.row(), cell.column() + 1)
+                top = self._glyph_object.text_ink_top(document, text_cell)
+                fmt = cursor.charFormat()
+                if top != (fmt.property(GLYPH_TOP_SPACE) or 0):
+                    fmt.setProperty(GLYPH_TOP_SPACE, top)
+                    updates.append((cursor, fmt))
+            if updates:
+                edit = QTextCursor(document)
+                edit.beginEditBlock()
+                try:
+                    for cursor, fmt in updates:
+                        cursor.setCharFormat(fmt)
+                finally:
+                    edit.endEditBlock()
         finally:
             self._fitting_glyphs = False
 

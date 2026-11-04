@@ -84,6 +84,48 @@ class RubyTests(unittest.TestCase):
                 self.assertIn(character, self.browser.selected_text())
                 self.assertNotIn("\ufffc", self.browser.createMimeDataFromSelection().text())
 
+    def test_kanji_and_first_text_line_align_their_visible_ink_across_fonts_and_reflows(self):
+        from wordcel.dictionary.kanji import KanjiEntry
+        from wordcel.gui.kanji_panel import render_kanji_details
+        from wordcel.gui.typography import document_font
+        browser = self.browser
+        browser.adaptive_glyphs = True
+        browser.setStyleSheet('QTextBrowser {background:#000;color:#fff;border:0;}')
+        for family in ("Noto Sans", "Noto Sans JP"):
+            for size in (14, 28):
+                for text, width in (("eye CLASS", 170), ("eye CLASS", 420), ("目標", 300)):
+                    with self.subTest(family=family, size=size, text=text, width=width), \
+                            patch("wordcel.utils.stroke_order_font.stroke_order_family", return_value=""), \
+                            patch.object(config, "color_highlight_word", "#ffffff"):
+                        browser.setFont(document_font(family, size, "ja"))
+                        browser.resize(width, 200)
+                        browser.setHtml(render_kanji_details((KanjiEntry("目", meanings=(text,)),)))
+                        browser.show()
+                        for target_width in (width, width + 150, width):
+                            browser.resize(target_width, 200)
+                            self.app.processEvents()
+                            cursor, _ = browser._glyphs[0]
+                            left = browser.cursorRect(cursor)
+                            bounds = browser._glyph_object.bounds(cursor.charFormat())
+                            meaning = browser.document().find(text)
+                            meaning.setPosition(meaning.selectionStart())
+                            right = browser.cursorRect(meaning)
+                            line = meaning.block().layout().lineAt(0)
+                            picture = browser.viewport().grab().toImage()
+                            ratio = picture.devicePixelRatio()
+
+                            def ink_top(start, end):
+                                return next(y for y in range(picture.height())
+                                            if any(picture.pixelColor(x, y).lightness() > 128
+                                                   for x in range(round(start * ratio), round(end * ratio))))
+
+                            glyph_top = ink_top(left.left(), left.left() + bounds.width())
+                            text_top = ink_top(right.left(), right.left() + line.naturalTextWidth())
+                            self.assertLessEqual(abs(glyph_top - text_top) / ratio, 1)
+                        revision = browser.document().revision()
+                        browser.fit_glyphs()
+                        self.assertEqual(browser.document().revision(), revision)
+
     def test_readings_default_to_brackets_with_independent_furigana_options(self):
         definition = {"type": "structured-content", "content": {"tag": "ruby", "content": [
             "食", {"tag": "rt", "content": "た"}, "べ", "物", {"tag": "rt", "content": "べもの"}]}}

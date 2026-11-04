@@ -57,6 +57,7 @@ class LocalDictionaryBrowser(RubyBrowser):
                     self._set_html(html)
                 finally:
                     document.setLayoutEnabled(True)
+                self.fit_glyphs()
             self.section_scroll._document_changed()
         finally:
             if updates:
