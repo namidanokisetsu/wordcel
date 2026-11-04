@@ -33,18 +33,17 @@ def frame_stylesheet(background, foreground, opacity, font_family):
     '''
 
 
-def popup_position(x, y, popup_size, screen_geo, mode, vertical_bounds=None):
+def popup_position(x, y, popup_size, screen_geo, mode, vertical=False):
     """Pointer-relative placement within the screen bounds."""
     offset = 15
     # --- Positioning logic based on mode ---
 
-    if vertical_bounds is not None:
-        right = screen_geo.right() - vertical_bounds.right() - offset
-        left = vertical_bounds.left() - screen_geo.left() - offset
+    if vertical:
+        right = screen_geo.right() + 1 - x - offset
+        left = x - screen_geo.left() - offset
         use_right = right >= popup_size.width() or right >= left
-        final_x = (vertical_bounds.right() + 1 + offset if use_right else
-                   vertical_bounds.left() - popup_size.width() - offset)
-        final_y = y
+        final_x = x + offset if use_right else x - popup_size.width() - offset
+        final_y = y - popup_size.height() / 2
 
     elif mode == 'visual_novel_mode':
         # --- Vertical Position (VN Mode) ---
@@ -115,14 +114,27 @@ def popup_position(x, y, popup_size, screen_geo, mode, vertical_bounds=None):
     return int(final_x), int(final_y)
 
 
-def expanded_geometry(previous, requested, area, anchor=None, vertical_bounds=None):
+def popup_entry_path_contains(geometry, anchor, point):
+    """The triangle from the lookup point to the facing popup edge."""
+    if anchor is None:
+        return False
+    edge = geometry.left() if anchor.x() < geometry.left() else geometry.right()
+    if geometry.left() <= anchor.x() <= geometry.right():
+        return False
+    progress = (point.x() - anchor.x()) / (edge - anchor.x())
+    return (0 <= progress <= 1
+            and anchor.y() + progress * (geometry.top() - anchor.y()) <= point.y()
+            <= anchor.y() + progress * (geometry.bottom() - anchor.y()))
+
+
+def expanded_geometry(previous, requested, area, anchor=None, vertical=False):
     from PyQt6.QtCore import QRect
     width, height = min(requested.width(), area.width()), min(requested.height(), area.height())
     x, y = previous.x(), previous.y()
     # Keep an above-text preview above the text; otherwise grow down if it fits.
     above = anchor is not None and previous.bottom() < anchor.y()
-    if vertical_bounds is not None:
-        if previous.right() < vertical_bounds.left():
+    if vertical and anchor is not None:
+        if previous.right() < anchor.x():
             x = previous.right() + 1 - width
     elif above:
         y = previous.bottom() + 1 - height

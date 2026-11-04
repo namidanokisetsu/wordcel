@@ -1,6 +1,6 @@
 import unittest
 from PyQt6.QtCore import QPoint, QRect, QSize
-from wordcel.gui.popup_style import expanded_geometry, popup_position
+from wordcel.gui.popup_style import expanded_geometry, popup_entry_path_contains, popup_position
 
 
 class PopupPlacementTests(unittest.TestCase):
@@ -8,33 +8,41 @@ class PopupPlacementTests(unittest.TestCase):
         for area in (QRect(0, 0, 1920, 1040), QRect(-1920, -200, 1920, 1040)):
             size = QSize(480, 340)
             for left, right_side in ((200, True), (1600, False)):
-                bounds = QRect(area.left() + left, area.bottom() - 100, 40, 80)
-                point = bounds.center()
-                x, y = popup_position(point.x(), point.y(), size, area, 'visual_novel_mode', bounds)
+                point = QPoint(area.left() + left, area.bottom() - 60)
+                x, y = popup_position(point.x(), point.y(), size, area, 'visual_novel_mode', vertical=True)
                 result = QRect(QPoint(x, y), size)
                 self.assertTrue(area.contains(result))
-                self.assertFalse(result.intersects(bounds))
-                self.assertEqual(result.left() > bounds.right(), right_side)
+                self.assertFalse(result.contains(point))
+                self.assertEqual(result.left() > point.x(), right_side)
+                gap = result.left() - point.x() if right_side else point.x() - result.right() - 1
+                self.assertEqual(gap, 15)
                 self.assertEqual(result.bottom(), area.bottom())
 
     def test_vertical_expansion_preserves_edge_beside_source(self):
         area = QRect(0, 0, 1920, 1040)
-        bounds = QRect(800, 200, 40, 600)
+        anchor = QPoint(820, 210)
         for previous in (QRect(855, 210, 300, 100), QRect(485, 210, 300, 100)):
-            result = expanded_geometry(previous, QSize(480, 340), area, QPoint(820, 210), bounds)
-            self.assertFalse(result.intersects(bounds))
+            result = expanded_geometry(previous, QSize(480, 340), area, anchor, vertical=True)
+            self.assertFalse(result.contains(anchor))
             self.assertEqual(result.top(), previous.top())
-            if previous.left() > bounds.right():
+            if previous.left() > anchor.x():
                 self.assertEqual(result.left(), previous.left())
             else:
                 self.assertEqual(result.right(), previous.right())
 
     def test_vertical_popup_stays_on_narrow_screen_when_neither_side_fits(self):
         area = QRect(-600, 0, 600, 800)
-        bounds = QRect(-320, 300, 40, 100)
         size = QSize(480, 340)
-        x, y = popup_position(-300, 350, size, area, 'visual_novel_mode', bounds)
+        x, y = popup_position(-300, 350, size, area, 'visual_novel_mode', vertical=True)
         self.assertTrue(area.contains(QRect(QPoint(x, y), size)))
+
+    def test_entry_path_connects_source_to_both_popup_edges_only(self):
+        anchor = QPoint(600, 400)
+        for geometry, direction in ((QRect(615, 200, 480, 400), 1), (QRect(105, 200, 480, 400), -1)):
+            self.assertTrue(popup_entry_path_contains(geometry, anchor, anchor))
+            self.assertTrue(popup_entry_path_contains(geometry, anchor, anchor + QPoint(direction * 8, 20)))
+            self.assertFalse(popup_entry_path_contains(geometry, anchor, anchor + QPoint(-direction * 8, 0)))
+            self.assertFalse(popup_entry_path_contains(geometry, anchor, anchor + QPoint(0, 30)))
 
     def test_clamps_flush_to_inclusive_screen_edges(self):
         for area in (QRect(0, 0, 1920, 1040), QRect(-1280, -200, 1280, 720)):

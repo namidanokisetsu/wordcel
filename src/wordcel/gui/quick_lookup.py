@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 
 from wordcel.config.config import config
 from wordcel.dictionary.search import SearchResult
-from wordcel.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, expanded_geometry, frame_stylesheet, popup_position, surface_colors
+from wordcel.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, expanded_geometry, frame_stylesheet, popup_entry_path_contains, popup_position, surface_colors
 from wordcel.gui.action_icons import action_button, action_icon
 from wordcel.gui.ruby import RubyBrowser
 from wordcel.gui.language_names import LANGUAGE_NAMES, language_name
@@ -315,7 +315,8 @@ class QuickLookupWindow(QDialog):
         self._auto_fit_size = None
         self._preview_viewport_height = 0
         self._lookup_anchor = None
-        self._vertical_bounds = None
+        self._lookup_vertical = False
+        self._lookup_entry_pending = False
         self._result_screenshot = None
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -1947,9 +1948,11 @@ class QuickLookupWindow(QDialog):
 
     def _place(self):
         mark("place", self.revision)
-        point = QCursor.pos()
+        point = (self._lookup_anchor if self._peek and self._lookup_vertical and self._lookup_anchor is not None
+                 else QCursor.pos())
         if self._peek:
             self._lookup_anchor = point
+        self._lookup_entry_pending = self._peek and self._lookup_vertical
         tray = self.tray_geometry() if not self._peek and not self._manual_at_cursor and self.tray_geometry else None
         if tray and not tray.isNull():
             point = tray.center()
@@ -1969,7 +1972,7 @@ class QuickLookupWindow(QDialog):
                           max(area.top(), min(y, area.bottom() + 1 - self.height())))
             else:
                 self.move(*popup_position(point.x(), point.y(), self.size(), area, config.popup_position_mode,
-                                          self._vertical_bounds if self._peek else None))
+                                          self._peek and self._lookup_vertical))
 
     def _set_peek(self, peek):
         from_corner = peek and not self._peek and not self._manual_at_cursor
@@ -2000,7 +2003,7 @@ class QuickLookupWindow(QDialog):
             return
         self.setGeometry(expanded_geometry(previous, requested, screen.availableGeometry(),
                                            self._lookup_anchor if self._peek else None,
-                                           self._vertical_bounds if self._peek else None))
+                                           self._peek and self._lookup_vertical))
         if not self._peek and not self._manual_at_cursor:
             rect = self.geometry()
             if sys.platform == "darwin":
@@ -2437,23 +2440,25 @@ class QuickLookupWindow(QDialog):
         self.audio.play_text(text, language, self.revision, self.settings, profile=self.active_profile)
 
     def show_entries(self, entries, text="", source="ja", peek=False, kanji=(), analyses=(), suggestions=(), message="",
-                     vertical_bounds=None):
+                     vertical=False):
         if peek and self.is_pinned:
             return False
-        previous_bounds = self._vertical_bounds
-        self._vertical_bounds = (vertical_bounds if peek and self.settings.value(
-            f"profiles/{self.active_profile}/vertical_popup_sides", True, bool) else None)
+        previous_vertical = self._lookup_vertical
+        self._lookup_vertical = bool(vertical and peek and self.settings.value(
+            f"profiles/{self.active_profile}/vertical_popup_sides", True, bool))
         entries = tuple(entries or ())
         if (peek and self._peek and not self._translation_view and self._result is not None and self._result.text == text
                 and self._result.source == source and self._result.entries == entries
                 and self._result.analyses == tuple(analyses) and self._result.suggestions == tuple(suggestions)
                 and self._result.message == message
                 and self._result.kanji == tuple(kanji) and self.isVisible()):
-            if self._vertical_bounds != previous_bounds:
+            if self._lookup_vertical != previous_vertical:
+                self._lookup_anchor = QCursor.pos()
                 self._place()
             if self._autoplayed is not None and audio_autoplay_mode(self.settings, self.active_profile) == "lookup":
                 self._autoplay()
             return True
+        self._lookup_anchor = QCursor.pos() if peek else None
         self.lookup_history.timer.stop()
         self._invalidate()
         self._result_screenshot = None
@@ -2812,6 +2817,7 @@ class QuickLookupWindow(QDialog):
         self._check_cursor_leave()
 
     def enterEvent(self, event):
+        self._lookup_entry_pending = False
         if self._resize_close_guard:
             self._check_cursor_leave()
         else:
@@ -2822,12 +2828,18 @@ class QuickLookupWindow(QDialog):
         margin = max(0, self.settings.value(f"profiles/{self.active_profile}/cursor_close_margin", 24, int))
         return self.frameGeometry().adjusted(-margin, -margin, margin, margin)
 
+    def lookup_entry_path_contains(self, point):
+        return (self.isVisible() and self._peek and self._lookup_vertical and self._lookup_entry_pending
+                and popup_entry_path_contains(self.frameGeometry(), self._lookup_anchor, point))
+
     def _check_cursor_leave(self):
         point = QCursor.pos()
         if not self.isVisible() or self._capture_visibility or self._shutting_down:
             self.cursor_leave_timer.stop()
             return
         inside = self.frameGeometry().contains(point)
+        if inside:
+            self._lookup_entry_pending = False
         close_on_leave = ((self._peek or self._manual_at_cursor)
                           and self.settings.value(f"profiles/{self.active_profile}/close_on_cursor_leave", True, bool))
         if not self._resize_close_guard and (inside or not close_on_leave):
@@ -2848,6 +2860,7 @@ class QuickLookupWindow(QDialog):
                 self.cursor_leave_timer.stop()
             return
         if (not self.cursor_close_bounds().contains(point)
+                and not self.lookup_entry_path_contains(point)
                 and not dragging
                 and QApplication.activeModalWidget() is None and QApplication.activePopupWidget() is None
                 and not (self._setup is not None and self._setup.isVisible())):

@@ -562,6 +562,7 @@ class FakeWindow(QWidget):
         self.set_context = Mock()
         self.lookup_history = Mock()
         self.record_encounter = Mock()
+        self.lookup_entry_path_contains = Mock(return_value=False)
 
     def hideEvent(self, event):
         if not getattr(self, '_capture_visibility', False):
@@ -1343,7 +1344,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.window.show_entries.assert_called_once_with(result.entries, text="kitap", source="tr",
                                                          peek=True, kanji=[])
 
-    def test_vertical_delivery_maps_bounds_to_logical_capture_coordinates(self):
+    def test_vertical_delivery_passes_orientation_without_ocr_box_placement(self):
         from wordcel.ocr.context import hit_paragraphs
         from wordcel.ocr.frames import RecognizedFrame
         from wordcel.utils.capture import CaptureRequest
@@ -1359,7 +1360,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                 patch.object(self.controller, '_valid_frame', return_value=True), \
                 patch.object(QApplication, 'activeWindow', return_value=None):
             self.controller.deliver(self.controller.generation, result, (frame, hit), '')
-        self.assertEqual(self.window.show_entries.call_args.kwargs['vertical_bounds'], QRect(-850, 200, 100, 200))
+        self.assertTrue(self.window.show_entries.call_args.kwargs['vertical'])
 
     def test_ocr_hides_analysis_only_misses(self):
         from wordcel.dictionary.search import SearchResult

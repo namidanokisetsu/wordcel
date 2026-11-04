@@ -3201,38 +3201,96 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_vertical_preview_pin_and_repeated_results_keep_side_anchor(self):
         area = QRect(0, 0, 1920, 1040)
-        bounds = QRect(1600, 300, 40, 500)
         screen = Mock(availableGeometry=Mock(return_value=area))
         point = QPoint(1620, 320)
         with patch.object(QApplication, 'screenAt', return_value=screen), \
                 patch('wordcel.gui.quick_lookup.QCursor.pos', return_value=point):
-            self.window.show_entries((entry(),), peek=True, vertical_bounds=bounds)
+            self.window.show_entries((entry(),), peek=True, vertical=True)
             self.app.processEvents()
             self.window._fit_preview()
             previous = self.window.geometry()
-            self.assertLess(previous.right(), bounds.left())
+            self.assertLess(previous.right(), point.x())
             with patch.object(self.window, '_place') as place, patch.object(self.window, '_display') as display:
-                self.window.show_entries((entry(),), peek=True, vertical_bounds=bounds)
+                self.window.show_entries((entry(),), peek=True, vertical=True)
                 place.assert_not_called()
                 display.assert_not_called()
             self.window.pin.setChecked(True)
             self.app.processEvents()
             self.assertEqual(self.window.geometry().right(), previous.right())
-            self.assertFalse(self.window.geometry().intersects(bounds))
+            self.assertLess(self.window.geometry().right(), point.x())
             self.window.pin.setChecked(False)
             self.settings.setValue(f'profiles/{self.window.active_profile}/vertical_popup_sides', False)
             with patch.object(self.window, '_place') as place, patch.object(self.window, '_display') as display:
-                self.window.show_entries((entry(),), peek=True, vertical_bounds=bounds)
-                self.assertIsNone(self.window._vertical_bounds)
+                self.window.show_entries((entry(),), peek=True, vertical=True)
+                self.assertFalse(self.window._lookup_vertical)
                 place.assert_called_once_with()
                 display.assert_not_called()
             self.settings.setValue(f'profiles/{self.window.active_profile}/vertical_popup_sides', True)
-            self.window.show_entries((entry(),), peek=True, vertical_bounds=bounds)
+            self.window.show_entries((entry(),), peek=True, vertical=True)
             with patch.object(self.window, '_place') as place, patch.object(self.window, '_display') as display:
                 self.window.show_entries((entry(),), peek=True)
-                self.assertIsNone(self.window._vertical_bounds)
+                self.assertFalse(self.window._lookup_vertical)
                 place.assert_called_once_with()
                 display.assert_not_called()
+
+    def test_vertical_ocr_source_pin_and_pointer_entry_cross_blank_space(self):
+        from wordcel.gui.unified_ocr import UnifiedOCR
+        from wordcel.ocr.context import hit_paragraphs
+        from wordcel.ocr.frames import RecognizedFrame
+        from wordcel.ocr.interface import BoundingBox, Paragraph, Word
+        from wordcel.utils.capture import CaptureRequest
+        with patch.object(UnifiedOCR, 'reload_settings'):
+            controller = UnifiedOCR(self.window)
+        self.addCleanup(controller.shutdown)
+        controller.enabled = controller.holding = True
+        area = QRect(0, 0, 1920, 1040)
+        screen = Mock(availableGeometry=Mock(return_value=area))
+        box = BoundingBox(.5, .5, .01, .2)
+        paragraphs = (Paragraph('猫', [Word('猫', '', box)], box, True),)
+        hit = hit_paragraphs(paragraphs, (.5, .5))
+        result = SearchResult('猫', 'ja', 'en', (entry(),))
+        self.settings.setValue('profiles/ja/cursor_close_margin', 0)
+        for x, direction in ((300, 1), (1620, -1)):
+            for pin_at_source in (False, True):
+                with self.subTest(x=x, pin_at_source=pin_at_source), \
+                        patch.object(QApplication, 'screenAt', return_value=screen), \
+                        patch.object(QApplication, 'activeWindow', return_value=None), \
+                        patch('wordcel.gui.quick_lookup.QCursor.pos', return_value=QPoint(x, 320)) as cursor, \
+                        patch('wordcel.utils.window_focus.mouse_buttons_down', return_value=False), \
+                        patch.object(controller, '_valid_frame', return_value=True):
+                    source = QPoint(x, 320)
+                    request = CaptureRequest(1, 'screen', area.getRect(), (x - 200, 120, 400, 400), 1,
+                                             controller.generation)
+                    frame = RecognizedFrame(request, paragraphs, 'ja', (), 1, 10)
+                    controller.frame = frame
+                    controller.deliver(controller.generation, result, (frame, hit), '')
+                    cursor.return_value = source + QPoint(direction * 8, 2)
+                    self.app.processEvents()
+                    self.window._fit_preview()
+                    self.assertEqual(self.window._lookup_anchor, source)
+                    geometry = self.window.geometry()
+                    gap = geometry.left() - x if direction > 0 else x - geometry.right() - 1
+                    self.assertEqual(gap, 15)
+                    controller.hit_latest(cursor.return_value, 10)
+                    self.window._check_cursor_leave()
+                    self.assertTrue(self.window.isVisible())
+                    if pin_at_source:
+                        cursor.return_value = source
+                        controller.pin_requested()
+                        self.window._check_cursor_leave()
+                        self.assertTrue(self.window.is_pinned)
+                        cursor.return_value = source + QPoint(direction * 8, 2)
+                        self.window._check_cursor_leave()
+                        self.assertTrue(self.window.isVisible())
+                    cursor.return_value = self.window.geometry().center()
+                    self.window._check_cursor_leave()
+                    self.assertFalse(self.window._lookup_entry_pending)
+                    if not pin_at_source:
+                        controller.pin_requested()
+                        self.assertTrue(self.window.is_pinned)
+                    cursor.return_value = source - QPoint(direction * 40, 0)
+                    self.window._check_cursor_leave()
+                    self.assertFalse(self.window.isVisible())
 
     def test_macos_pin_survives_focus_loss_while_native_activation_is_pending(self):
         with patch("wordcel.gui.quick_lookup.sys.platform", "darwin"):
