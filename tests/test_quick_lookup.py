@@ -1230,7 +1230,8 @@ class QuickLookupTests(unittest.TestCase):
         self.window.set_context("Original sentence")
         text = self.window.browser.toPlainText()
         self.assertIn("first", text)
-        self.assertNotIn("second", text)
+        self.assertIn("second", text)
+        self.assertNotIn("third", text)
         self.window.audio.play.assert_not_called()
         self.window.pin.setChecked(True)
         self.assertIn("fourth", self.window.browser.toPlainText())
@@ -3949,6 +3950,7 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_noncompact_preview_keeps_limits_and_preview_metadata(self):
         self.window.set_compact_preview(False)
+        self.settings.setValue("profiles/ja/preview_definitions", 1)
         self.settings.setValue("profiles/ja/preview_frequency", False)
         self.settings.setValue("profiles/ja/pinned_frequency", True)
         first = replace(entry(source="First"), frequencies=(Frequency("Rank", 123, "123"),))
@@ -5117,7 +5119,7 @@ class DictionaryManagerTests(unittest.TestCase):
         self.dialog.appearance.preview_definitions.setValue(0)
         self.assertEqual(self.settings.value('profiles/tr/preview_definitions', type=int), 0)
         self.dialog.sync_profile('ja')
-        self.assertEqual(self.dialog.appearance.preview_definitions.value(), 1)
+        self.assertEqual(self.dialog.appearance.preview_definitions.value(), 2)
         self.dialog.sync_profile('tr')
         self.assertEqual(self.dialog.appearance.preview_definitions.text(), 'All')
 

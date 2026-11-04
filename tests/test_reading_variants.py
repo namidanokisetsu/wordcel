@@ -173,7 +173,7 @@ class ReadingVariantRenderingTests(unittest.TestCase):
                     self.assertIn(READINGS[0], text)
                 self.assertIn(READINGS[1], text)
                 self.assertEqual(text.count("safe; all right"), 1 if preview and compact else 2)
-                self.assertEqual(text.count("second sense"), 0 if preview else 2)
+                self.assertEqual(text.count("second sense"), 1 if preview and compact else 2)
                 self.assertEqual("[3]" in text, pitch)
                 if not preview or not compact:
                     self.assertEqual(text.count("JMdict"), int(labels))

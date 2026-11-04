@@ -56,7 +56,7 @@ class _GlossConverter(StructuredContentConverter):
                 f'<small>[{escape(label)}]</small></a></div>')
 
     def __init__(self, expanded=False, limit=360, preview=False, generic_source=False, term="",
-                 details_expanded=(), detail_prefix="", definitions=(), definition_furigana=False, preview_definitions=1,
+                 details_expanded=(), detail_prefix="", definitions=(), definition_furigana=False, preview_definitions=2,
                  grammar=True, hidden_sections=(), compact=None):
         super().__init__()
         self.preview_definitions = preview_definitions

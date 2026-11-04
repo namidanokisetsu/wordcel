@@ -209,7 +209,7 @@ class ProfileAppearance(QWidget):
             control.setChecked(self.settings.value(prefix + "buttons/" + name, name != "audio_sentence", bool))
         for name in ("pinned_frequency", "pinned_pitch", "pinned_grammar", "dictionary_labels"):
             getattr(self, name).setChecked(self.settings.value(prefix + name, True, bool))
-        self.preview_definitions.setValue(self.settings.value(prefix + "preview_definitions", 1, int))
+        self.preview_definitions.setValue(self.settings.value(prefix + "preview_definitions", 2, int))
         self.preview_form.setRowVisible(self.preview_pitch, self.japanese_controls)
         self.pinned_form.setRowVisible(self.pinned_pitch, self.japanese_controls)
         custom = custom_palette(self.settings, self.profile())

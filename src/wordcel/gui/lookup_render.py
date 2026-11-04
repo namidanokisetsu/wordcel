@@ -154,7 +154,7 @@ def group_headwords(entries):
 def render_result(result, expanded=(), preview=False, overlay_actions=False, show_source=True,
                   headword_furigana=False, combine_frequencies=True, source_text=None, details_expanded=(),
                   definition_furigana=False, collapsed=(), kanji_details=(),
-                  preview_frequency=True, preview_pitch=True, preview_definitions=1,
+                  preview_frequency=True, preview_pitch=True, preview_definitions=2,
                   pinned_frequency=True, pinned_pitch=True, grammar=None, separate_headwords=False,
                   headword_actions=0, hidden_sections=None, dictionary_labels=True, compact=None, groups=None):
     """Share lexical headings while preserving the configured dictionary order."""
