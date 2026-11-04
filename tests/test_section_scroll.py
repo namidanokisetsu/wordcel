@@ -2,6 +2,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import unittest
+from unittest.mock import patch
 
 from PyQt6.QtCore import QEvent, QObject, QPoint, QPointF, Qt
 from PyQt6.QtGui import QWheelEvent
@@ -586,6 +587,45 @@ class SectionScrollTests(unittest.TestCase):
                             checked += 1
                     block = block.next()
         self.assertGreater(checked, 0)
+
+    def test_resize_reuses_sticky_heading_and_only_inspects_visible_lines(self):
+        self.render(lines=80)
+        self.scroller.set_enabled(True)
+        self.bar.setValue(100)
+        self.app.processEvents()
+        heading = self.scroller.header.document()
+        changes = []
+        heading.contentsChanged.connect(lambda: changes.append(True))
+        with patch.object(self.scroller, "line_spans", wraps=self.scroller.line_spans) as full_scan:
+            for width in (340, 280, 320):
+                self.browser.resize(width, 200)
+                self.app.processEvents()
+                self.assertTrue(self.scroller.header.isVisible())
+                self.assertLess(len(self.scroller.visible_line_spans(0, 200)), 20)
+            full_scan.assert_not_called()
+        self.assertFalse(changes)
+
+    def test_visible_line_clipping_matches_full_document_with_tables(self):
+        heading = '<h2><a name="scroll-headword-0"></a><a name="scroll-section-0"></a>word</h2>'
+        for body in ('<p>' + 'Wrapped explanation. ' * 150 + '</p>',
+                     '<table><tr><td>' + '<p>left column</p>' * 30 + '</td><td>'
+                     + '<p>right column wraps onto several lines of text</p>' * 25 + '</td></tr></table>'):
+            self.browser.setHtml(heading + body + '<p>End</p>')
+            self.scroller.set_enabled(True)
+            self.app.processEvents()
+            for width in (320, 260, 400):
+                self.browser.resize(width, 200)
+                self.app.processEvents()
+                for scroll in (0, 7, 90, self.bar.maximum() // 2, self.bar.maximum()):
+                    with self.subTest(table=body.startswith('<table>'), width=width, scroll=scroll):
+                        self.bar.setValue(scroll)
+                        self.scroller._update_clip()
+                        actual = self.browser.viewport().mask()
+                        # The previous full-document algorithm is the geometry oracle.
+                        with patch.object(self.scroller, 'visible_line_spans',
+                                          return_value=self.scroller.line_spans()):
+                            self.scroller._update_clip()
+                        self.assertEqual(actual, self.browser.viewport().mask())
 
     def test_document_replacement_and_resize_recompute_stops(self):
         self.scroller.set_enabled(True)

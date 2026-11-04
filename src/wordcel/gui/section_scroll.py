@@ -2,7 +2,7 @@
 from bisect import bisect_left, bisect_right
 import math
 
-from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPropertyAnimation, QSignalBlocker, QTimer, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, QSignalBlocker, QTimer, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QColor, QPainter, QRegion, QTextCursor, QTextFormat
 from PyQt6.QtWidgets import QApplication, QSlider
 
@@ -177,6 +177,7 @@ class SectionScroller(QObject):
         self._refresh.setSingleShot(True)
         self._refresh.timeout.connect(self._refresh_header)
         self.header = StickyHeading(browser.viewport(), selection_lookup=False)
+        self.header.setStyleSheet("QTextBrowser {background:transparent;border:0;}")
         self.header.document().setDocumentMargin(0)
         self.header.setAccessibleName("Current headword")
         self.header.setFrameShape(self.header.Shape.NoFrame)
@@ -328,7 +329,7 @@ class SectionScroller(QObject):
         top = max(0, self.header.geometry().bottom() + 1) if self.header.isVisible() else 0
         body_height = height - top
         bottom = height
-        for start, end, _ in self.line_spans():
+        for start, end, _ in self.visible_line_spans(top, height):
             start, end = start - scroll, end - scroll
             if end - start > body_height:
                 continue
@@ -341,21 +342,48 @@ class SectionScroller(QObject):
             region |= QRegion(self.header.geometry()).intersected(QRegion(viewport.rect()))
         viewport.setMask(region)
 
+    def visible_line_spans(self, top, bottom):
+        browser = self.browser
+        first = browser.cursorForPosition(QPoint(0, top))
+        last = browser.cursorForPosition(QPoint(browser.viewport().width(), bottom))
+        # Include every column when an edge crosses a table or nested text frame.
+        root = browser.document().rootFrame()
+        for cursor, start in ((first, True), (last, False)):
+            frame = cursor.currentFrame()
+            if frame != root:
+                while frame.parentFrame() != root:
+                    frame = frame.parentFrame()
+                cursor.setPosition(frame.firstPosition() if start else frame.lastPosition())
+        scroll = browser.verticalScrollBar().value()
+        return sorted(self._block_lines(first.block(), last.block().position(), top + scroll, bottom + scroll))
+
+    def _block_lines(self, block, end, top=None, bottom=None):
+        layout = self.browser.document().documentLayout()
+        while block.isValid() and block.position() <= end:
+            if block.text().strip():
+                rect = layout.blockBoundingRect(block)
+                text = block.layout()
+                first, last = 0, text.lineCount()
+                if top is not None:
+                    while first < last:
+                        middle = (first + last) // 2
+                        line = text.lineAt(middle)
+                        if math.ceil(rect.top() + line.y() + line.height()) <= top:
+                            first = middle + 1
+                        else:
+                            last = middle
+                for index in range(first, text.lineCount()):
+                    line = text.lineAt(index)
+                    start = rect.top() + line.y()
+                    if bottom is not None and math.ceil(start) >= bottom:
+                        break
+                    yield math.ceil(start), math.ceil(start + line.height()), block.position()
+            block = block.next()
+
     def line_spans(self):
         if self._lines is None:
             document = self.browser.document()
-            layout = document.documentLayout()
-            lines = []
-            block = document.begin()
-            while block.isValid():
-                if block.text().strip():
-                    rect = layout.blockBoundingRect(block)
-                    for index in range(block.layout().lineCount()):
-                        line = block.layout().lineAt(index)
-                        top = rect.top() + line.y()
-                        lines.append((math.ceil(top), math.ceil(top + line.height()), block.position()))
-                block = block.next()
-            self._lines = sorted(lines)
+            self._lines = sorted(self._block_lines(document.begin(), document.characterCount()))
         return self._lines
 
     def line_starts(self):
@@ -390,15 +418,6 @@ class SectionScroller(QObject):
         self._refresh.stop()
         self._index()
         self._align_section_end()
-        self._update_clip()
-        self._update_progress()
-        visible = self.enabled and not self.preview and bool(self._headings)
-        if not visible:
-            self.header.hide()
-            return
-        # Keep the original heading's typography, including Japanese ruby.
-        self.header.setStyleSheet("QTextBrowser {background:transparent;border:0;}")
-        self._heading = None
         self._update_header()
         self._update_progress()
 
