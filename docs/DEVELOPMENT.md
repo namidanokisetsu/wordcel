@@ -110,6 +110,9 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   single-dictionary and combined ranks stay inline without source labels.
   Pitch has no source labels. Pitch and plain readings share the profile's
   `font_size_reading`, independent of headword size; text scale applies to both.
+  Japanese readings share a heading only when complete dictionary sets, raw
+  definitions, usage rules and analyses match. Cache presentation groups per
+  result; retain original `(term, reading)` records for audio and Anki choices.
   Multiple grammar analysis chains use shared disclosure in every language,
   keyed to the headword group. Single chains stay inline; expansion keeps the
   existing reading position and requires no new analysis.

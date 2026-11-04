@@ -314,6 +314,7 @@ class YomitanSettingsTests(unittest.TestCase):
             settings = QSettings(str(Path(folder) / "settings.ini"), QSettings.Format.IniFormat)
             settings.setValue("profiles/tr/audio_priority", [descriptor()])
             window = SimpleNamespace(_result=SimpleNamespace(entries=[SimpleNamespace(language="tr")]),
+                                     revision=1, _presentation_groups=lambda: {},
                                      preferred_foreign="tr", settings=settings, audio_button=Mock(),
                                      audio=None, play_audio=Mock(), open_audio_settings=Mock())
             QuickLookupWindow.audio_source_menu(window, None)

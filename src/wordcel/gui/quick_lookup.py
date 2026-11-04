@@ -20,7 +20,7 @@ from wordcel.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, 
 from wordcel.gui.action_icons import action_button, action_icon
 from wordcel.gui.ruby import RubyBrowser
 from wordcel.gui.language_names import LANGUAGE_NAMES, language_name
-from wordcel.gui.lookup_render import (_compact_context, _dictionary_section_key, render_result)
+from wordcel.gui.lookup_render import (_compact_context, _dictionary_section_key, group_headwords, render_result)
 from wordcel.gui.lookup_worker import LookupWorker
 from wordcel.gui.profile_preferences import audio_autoplay_mode
 from wordcel.language.profiles import default_partner
@@ -1299,8 +1299,10 @@ class QuickLookupWindow(QDialog):
 
     def _section_keys(self, source_index):
         sources = list(dict.fromkeys(entry.source for entry in self._result.entries))
-        return {_dictionary_section_key(entry.term, entry.reading, entry.source)
-                for entry in self._result.entries if entry.source == sources[source_index]}
+        source = sources[source_index]
+        return {_dictionary_section_key(*min(variants), source)
+                for variants in self._presentation_groups().values()
+                if any(entry.source == source for entry in next(iter(variants.values())))}
 
     def _display(self, result, remember=True, expanded=None, details_expanded=None, collapsed=None,
                  kanji_details=None, kanji_origin=None):
@@ -1385,7 +1387,7 @@ class QuickLookupWindow(QDialog):
                 grammar=self.settings.value(prefix + "preview_grammar", False, bool)
                 if self._peek and not self.is_pinned else self.settings.value(prefix + "pinned_grammar", True, bool))
             separate_headwords = (not self.browser.section_scroll.enabled and
-                                  len({(entry.term, entry.reading) for entry in self._result.entries}) > 1)
+                                  len(self._presentation_groups()) > 1)
             self.browser.section_scroll.set_preview(self._peek and not self.is_pinned)
             expanded = self._expanded
             if self._peek and not self.is_pinned and not compact:
@@ -1436,6 +1438,7 @@ class QuickLookupWindow(QDialog):
                                                headword_furigana=self.settings.value(f"profiles/{self.active_profile}/headword_furigana", False, bool),
                                                definition_furigana=self.settings.value(f"profiles/{self.active_profile}/definition_furigana", True, bool),
                                                collapsed=self._collapsed,
+                                               groups=self._presentation_groups(),
                                                separate_headwords=separate_headwords,
                                                combine_frequencies=self.settings.value(f"profiles/{self.active_profile}/combine_frequencies", True, bool)))
             action_heading = None
@@ -1678,7 +1681,7 @@ class QuickLookupWindow(QDialog):
         if self._result is None or getattr(self, "_rendered_result_key", None) != (
                 self._result.text, self._result.source, self._result.target):
             return
-        groups = list(self._headword_groups())
+        groups = list(self._presentation_groups())
         index = next((index for index, (term, _) in enumerate(groups) if term == self._kanji_origin), None)
         if index is None or index >= len(self._headword_blocks):
             return
@@ -1760,7 +1763,7 @@ class QuickLookupWindow(QDialog):
             group, separator, character = url.path().partition(":")
             if not separator:
                 group, character = "0", group
-            groups = list(dict.fromkeys((entry.term, entry.reading) for entry in self._result.entries))
+            groups = list(self._presentation_groups())
             if (not group.isdigit() or int(group) >= len(groups) or character not in groups[int(group)][0]
                     or character not in {entry.character for entry in self._result.kanji}):
                 return
@@ -1781,7 +1784,7 @@ class QuickLookupWindow(QDialog):
             self._render(static=True, preserve_scroll=True)
             return
         if url.scheme() == "inflections" and url.path().isdigit():
-            groups = tuple(dict.fromkeys((entry.term, entry.reading) for entry in self._result.entries))
+            groups = tuple(self._presentation_groups())
             if int(url.path()) < len(groups):
                 self._details_expanded.symmetric_difference_update((f"inflections:{int(url.path())}",))
                 self._render(static=True, preserve_scroll=True)
@@ -1791,10 +1794,11 @@ class QuickLookupWindow(QDialog):
             sources = list(dict.fromkeys(entry.source for entry in self._result.entries))
             if not 0 <= source_index < len(sources):
                 return
-            groups = list(dict.fromkeys((entry.term, entry.reading) for entry in self._result.entries))
+            groups = list(self._presentation_groups())
             if not 0 <= group_index < len(groups):
                 return
-            key = _dictionary_section_key(*groups[group_index], sources[source_index])
+            variants = self._presentation_groups()[groups[group_index]]
+            key = _dictionary_section_key(*min(variants), sources[source_index])
             keys = self._section_keys(source_index)
             if key not in keys:
                 return
@@ -2100,8 +2104,15 @@ class QuickLookupWindow(QDialog):
             groups.setdefault((entry.term, entry.reading), []).append(entry)
         return groups
 
+    def _presentation_groups(self):
+        entries = self._result.entries if self._result else ()
+        if getattr(self, "_grouped_entries", None) is not entries:
+            self._grouped_headwords = group_headwords(entries)
+            self._grouped_entries = entries
+        return self._grouped_headwords
+
     def _sync_headword_actions(self):
-        groups = self._headword_groups()
+        groups = self._presentation_groups()
         if self._translation_view or self._peek and not self.is_pinned:
             groups = {}
         for key in list(self._headword_rows):
@@ -2117,8 +2128,8 @@ class QuickLookupWindow(QDialog):
                 layout.setSpacing(self.audio_actions.layout().spacing())
                 anki = self._action("anki", "Add to Anki")
                 audio = self._action("audio", "Play pronunciation")
-                anki.clicked.connect(lambda checked=False, key=key: self.add_to_anki(headword=key))
-                audio.clicked.connect(lambda checked=False, key=key: self.play_audio(headword=key))
+                anki.clicked.connect(lambda checked=False, key=key: self._headword_action("anki", key))
+                audio.clicked.connect(lambda checked=False, key=key: self._headword_action("audio", key))
                 audio.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                 audio.customContextMenuRequested.connect(
                     lambda point, key=key, button=audio: self.audio_source_menu(point, headword=key, button=button))
@@ -2132,9 +2143,36 @@ class QuickLookupWindow(QDialog):
             audio.setVisible(self.settings.value(prefix + "buttons/audio", True, bool))
             audio.setEnabled(self._display_revision == self.revision)
             audio.setIcon(action_icon("audio", config.color_foreground))
+        self._headword_rows = {key: self._headword_rows[key] for key in groups}
         if self._headword_rows:
             self.anki_button.hide()
             self.audio_button.hide()
+
+    def _headword_action(self, name, headword):
+        variants = self._presentation_groups().get(headword, {})
+        operation = self.add_to_anki if name == "anki" else self.play_audio
+        if len(variants) < 2:
+            operation(headword=headword)
+            return
+        button = self._headword_rows[headword][1 if name == "anki" else 2]
+        menu = QMenu(button)
+        revision = self.revision
+        entries = self._result.entries
+        states = self.lookup_anki.refresh(variants)[1] if name == "anki" else {}
+        for key in variants:
+            def invoke(checked=False, key=key):
+                if self.revision == revision and self._result is not None and self._result.entries is entries:
+                    operation(headword=key)
+            action = menu.addAction(key[1], invoke)
+            if name == "anki":
+                icon, description, ready = states[key]
+                action.setIcon(action_icon(icon, config.color_foreground))
+                action.setToolTip(description)
+                action.setEnabled(ready)
+        menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        menu.setToolTipsVisible(name == "anki")
+        menu.popup(button.mapToGlobal(button.rect().bottomLeft()))
+        return menu
 
     def _headword_clearance(self):
         width = max((row.sizeHint().width() for row, anki, audio in self._headword_rows.values()
@@ -2314,11 +2352,19 @@ class QuickLookupWindow(QDialog):
         profile = self.preferred_foreign
         button = button or self.audio_button
         menu = QMenu(button)
-        menu.addAction("Use source priority", lambda: self.play_audio(headword=headword))
-        menu.addSeparator()
-        for source in source_order(self.settings, profile):
-            action = menu.addAction(source_label(source), lambda checked=False, source=source: self.play_audio(source=source, headword=headword))
-            action.setEnabled(not is_local(source) or bool(database_path(self.settings, profile)))
+        revision, entries = self.revision, self._result.entries
+        def play(key, source=None):
+            if self.revision == revision and self._result is not None and self._result.entries is entries:
+                self.play_audio(headword=key, **({"source": source} if source else {}))
+        variants = self._presentation_groups().get(headword, {headword: ()})
+        for key in variants:
+            target = menu.addMenu(key[1]) if len(variants) > 1 else menu
+            target.addAction("Use source priority", lambda checked=False, key=key: play(key))
+            target.addSeparator()
+            for source in source_order(self.settings, profile):
+                action = target.addAction(source_label(source), lambda checked=False, source=source, key=key:
+                                          play(key, source))
+                action.setEnabled(not is_local(source) or bool(database_path(self.settings, profile)))
         clip = getattr(self.audio, "current_clip", None)
         if clip and clip.page_url.startswith("https://commons.wikimedia.org/"):
             from PyQt6.QtCore import QUrl
@@ -2331,17 +2377,24 @@ class QuickLookupWindow(QDialog):
         menu.addAction("Audio settings…", self.open_audio_settings)
         menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         menu.popup(button.mapToGlobal(point))
+        return menu
 
     def open_audio_settings(self):
         self.open_settings()
         self._setup.show_audio()
 
     def update_anki(self):
-        options, states = self.lookup_anki.refresh(self._headword_rows)
+        options, states = self.lookup_anki.refresh(self._headword_groups())
         buttons = [(None, self.anki_button)]
         buttons.extend((key, button) for key, (_, button, _) in self._headword_rows.items())
         for key, button in buttons:
             icon, description, ready = states[key]
+            variants = self._presentation_groups().get(key, {})
+            if len(variants) > 1:
+                statuses = [states[variant] for variant in variants]
+                if any(status[:2] != statuses[0][:2] for status in statuses[1:]):
+                    icon, description = "anki", "Add to Anki"
+                ready = any(status[2] for status in statuses)
             button.setProperty("action_name", icon)
             button.setIcon(action_icon(icon, config.color_foreground))
             button.setToolTip(description)

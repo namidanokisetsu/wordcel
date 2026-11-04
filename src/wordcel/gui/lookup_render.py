@@ -131,12 +131,32 @@ def _dictionary_section_key(term, reading, source):
     return "section:" + repr((term, reading, source))
 
 
+def group_headwords(entries):
+    """Map display headings to reading-specific records without changing lookup data."""
+    readings, groups, candidates = OrderedDict(), OrderedDict(), {}
+    for entry in entries:
+        readings.setdefault((entry.term, entry.reading), []).append(entry)
+    for key, records in readings.items():
+        content = {}
+        for entry in records:
+            content.setdefault(entry.source, []).append(
+                (entry.language, entry.definitions, entry.rules, entry.inflection, entry.morphology))
+        # Compare complete source sets and payloads, never rendered or truncated glosses.
+        mergeable = records[0].language == "ja" and bool(key[1])
+        primary = next((identity for identity, previous in candidates.get(key[0], ())
+                        if content == previous), key) if mergeable else key
+        if mergeable and primary == key:
+            candidates.setdefault(key[0], []).append((key, content))
+        groups.setdefault(primary, OrderedDict())[key] = tuple(records)
+    return groups
+
+
 def render_result(result, expanded=(), preview=False, overlay_actions=False, show_source=True,
                   headword_furigana=False, combine_frequencies=True, source_text=None, details_expanded=(),
                   definition_furigana=False, collapsed=(), kanji_details=(),
                   preview_frequency=True, preview_pitch=True, preview_definitions=1,
                   pinned_frequency=True, pinned_pitch=True, grammar=None, separate_headwords=False,
-                  headword_actions=0, hidden_sections=None, dictionary_labels=True, compact=None):
+                  headword_actions=0, hidden_sections=None, dictionary_labels=True, compact=None, groups=None):
     """Share lexical headings while preserving the configured dictionary order."""
     preview_definitions = max(0, min(50, preview_definitions))
     compact = preview if compact is None else preview and compact
@@ -149,11 +169,8 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
     if source_text is None:
         source_text = result.text if result.translation else ""
     heading_clearance = max(headword_actions, 0 if show_source and source_text else clearance)
-    groups, sources = OrderedDict(), list(dict.fromkeys(entry.source for entry in result.entries))
-    for entry in result.entries:
-        if compact and (entry.source != sources[0] or groups and (entry.term, entry.reading) not in groups):
-            continue
-        groups.setdefault((entry.term, entry.reading), OrderedDict()).setdefault(entry.source, []).append(entry)
+    groups = group_headwords(result.entries) if groups is None else groups
+    sources = list(dict.fromkeys(entry.source for entry in result.entries))
     parts = [f'<style>body {{color:{config.color_foreground};}} '
              f'a,h2 {{color:{config.color_highlight_word};text-decoration:none;}} '
              f'h2 {{font-size:{config.font_size_header}px;font-weight:normal;margin:0 {heading_clearance}px 0 0;}} '
@@ -172,7 +189,13 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
         if result.entries:
             parts.append("<hr>")
     anchored = set()
-    for group_index, ((term, reading), dictionaries) in enumerate(groups.items()):
+    for group_index, ((term, reading), variants) in enumerate(groups.items()):
+        if compact and group_index:
+            break
+        dictionaries = OrderedDict()
+        for entry in next(iter(variants.values())):
+            if not compact or entry.source == sources[0]:
+                dictionaries.setdefault(entry.source, []).append(entry)
         if group_index and separate_headwords:
             parts.append("<hr>")
         first_source = next(source for source in sources if source in dictionaries)
@@ -182,38 +205,50 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
         if (result.source == "ru" and reading and unicodedata.normalize("NFC", reading.replace("\u0301", ""))
                 == unicodedata.normalize("NFC", term)):
             display_term, reading = reading, ""
-        display_reading = f"[{reading}]" if result.source == "ja" else reading
         kanji = {entry.character for entry in result.kanji}
         display_term_html = "".join(
             f'<a href="headkanji:{group_index}:{quote(character, safe="")}" title="Kanji" '
             f'style="color:{config.color_highlight_word}">{escape(character)}</a>'
             if character in kanji and not compact else escape(character) for character in display_term)
         group_entries = tuple(entry for entries in dictionaries.values() for entry in entries)
-        pitches = (tuple(pitch for entry in group_entries for pitch in entry.pitches)
-                   if result.source == "ja" and (preview_pitch if preview else pinned_pitch) else ())
-        pitch = ""
-        if pitches:
-            from wordcel.dictionary.pitch import render_pitches
-            pitch = render_pitches(pitches, inline=True, separator=" ",
-                                   font_size=reading_size)
-        metadata = _metadata(group_entries, combine_frequencies, show_frequencies=preview_frequency if preview else pinned_frequency,
-                             pitch=pitch, inline=True)
+        readings_html = []
+        for (_, variant_reading), entries in variants.items():
+            if compact:
+                entries = tuple(entry for entry in entries if entry.source == sources[0])
+            if result.source == "ru":
+                variant_reading = reading
+            pitches = (tuple(pitch for entry in entries for pitch in entry.pitches)
+                       if result.source == "ja" and (preview_pitch if preview else pinned_pitch) else ())
+            pitch = ""
+            if pitches:
+                from wordcel.dictionary.pitch import render_pitches
+                pitch = render_pitches(pitches, inline=True, separator=" ", font_size=reading_size)
+            metadata = _metadata(entries, combine_frequencies,
+                                 show_frequencies=preview_frequency if preview else pinned_frequency,
+                                 pitch=pitch, inline=True)
+            display_reading = f"[{variant_reading}]" if result.source == "ja" else variant_reading
+            reading_html = (f'<span style="color:{config.color_highlight_reading};font-size:'
+                            f'{reading_size}px">{escape(display_reading)}</span>'
+                            if variant_reading and variant_reading != term
+                            and not any(pitch.reading == variant_reading for pitch in pitches) else "")
+            if result.source == "ja" and headword_furigana and variant_reading == reading:
+                reading_html = ""
+            readings_html.append(" ".join(part for part in (reading_html, metadata) if part))
+        separator = f'<span style="font-size:{reading_size}px;color:{muted}"> · </span>'
+        metadata = separator.join(part for part in readings_html if part)
         metadata = " " + metadata if metadata else ""
-        reading_html = (f' <span style="color:{config.color_highlight_reading};font-size:'
-                        f'{reading_size}px">{escape(display_reading)}</span>'
-                        if reading and reading != term and not any(pitch.reading == reading for pitch in pitches) else "")
         if result.source == "ja" and headword_furigana and reading and reading != term:
             parts.append(f'<h2><a name="scroll-headword-{group_index}"></a>'
                          f'{ruby_html(escape(term), escape(reading), config.color_highlight_word, kanji=kanji if not compact else (), kanji_group=group_index)}{metadata}</h2>')
         else:
-            parts.append(f'<h2><a name="scroll-headword-{group_index}"></a>{display_term_html}{reading_html}{metadata}</h2>')
+            parts.append(f'<h2><a name="scroll-headword-{group_index}"></a>{display_term_html}{metadata}</h2>')
         parts.append(_metadata(group_entries, show_frequencies=False, show_inflections=show_inflections,
                                inflection_key=f"inflections:{group_index}", details_expanded=details_expanded))
         for source in sources:
             if source not in dictionaries:
                 continue
             index, entries = sources.index(source), dictionaries[source]
-            section_key = _dictionary_section_key(term, reading, source)
+            section_key = _dictionary_section_key(*min(variants), source)
             full = not maximum or (source in expanded or section_key in expanded) and not preview
             more = bool(maximum and len(entries) > maximum)
             hidden = dictionary_labels and (source in collapsed or section_key in collapsed) and not compact

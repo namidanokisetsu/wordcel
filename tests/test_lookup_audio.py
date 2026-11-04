@@ -301,6 +301,7 @@ class SentenceAudioTests(unittest.TestCase):
             settings.setValue("profiles/tr/audio_priority", ["db:Turkish recordings", "online"])
             settings.setValue("profiles/tr/audio_database", "turkish.db")
             window = SimpleNamespace(_result=SimpleNamespace(entries=[SimpleNamespace(language="en")]),
+                                     revision=1, _presentation_groups=lambda: {},
                                      preferred_foreign="tr", settings=settings, audio_button=Mock(),
                                      audio=None, play_audio=Mock(), open_audio_settings=Mock())
             QuickLookupWindow.audio_source_menu(window, None)

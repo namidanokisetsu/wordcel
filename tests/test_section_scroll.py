@@ -173,7 +173,7 @@ class SectionScrollTests(unittest.TestCase):
                     self.positions.append(event.pos())
                 return False
 
-        entries = tuple(Entry(str(i), "海", reading, "Source", "ja", ("meaning\n" * 40,))
+        entries = tuple(Entry(str(i), "海", reading, "Source", "ja", (f"{reading} meaning\n" * 40,))
                         for i, reading in enumerate(("うみ", "かい")))
         self.browser.setHtml(render_result(SearchResult("海", "ja", "en", entries), expanded=("Source",)))
         self.app.processEvents()
@@ -598,7 +598,7 @@ class SectionScrollTests(unittest.TestCase):
         self.assertNotEqual(tall, self.scroller.stops())
 
     def test_repeated_sources_and_ruby_headings_keep_distinct_sections(self):
-        entries = tuple(Entry(str(index), term, reading, "Source", "ja", ("definition",))
+        entries = tuple(Entry(str(index), term, reading, "Source", "ja", (f"{reading} definition",))
                         for index, (term, reading) in enumerate((("猫", "ねこ"), ("生", "き"), ("生", "せい"))))
         self.browser.setHtml(render_result(SearchResult("生", "ja", "en", entries),
                                            expanded=("Source",), headword_furigana=True))
