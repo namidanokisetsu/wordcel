@@ -64,18 +64,27 @@ class KanjiTests(unittest.TestCase):
         self.assertIn("Parts", html)
         self.assertIn("Examples", html)
 
-    def test_english_meanings_precede_japanese_words_examples_and_readings(self):
-        records = (KanjiEntry("目", "Words", meanings=("目の前", "目的", "目立つ")),
-                   KanjiEntry("目", "Meanings", onyomi=("モク",), kunyomi=("め",),
-                              meanings=("eye", "look"), examples=({"w": "目標", "m": "goal"},)),
+    def test_dictionary_order_controls_kanji_detail_sections(self):
+        records = (KanjiEntry("目", "Words", meanings=("目の前",)),
+                   KanjiEntry("目", "Readings", onyomi=("モク",)),
+                   KanjiEntry("目", "Meanings", meanings=("eye",)))
+        for ordered in (records, records[::-1], (records[1], records[2], records[0])):
+            with self.subTest(sources=[entry.source for entry in ordered]):
+                html = render_kanji_details(ordered)
+                positions = [html.index(f'title="{entry.source}"') for entry in ordered]
+                self.assertEqual(positions, sorted(positions))
+
+    def test_dictionary_content_uses_meanings_readings_then_examples(self):
+        records = (KanjiEntry("目", "First", onyomi=("モク",), kunyomi=("め",),
+                              meanings=("目の前", "eye", "look"), examples=({"w": "目標", "m": "goal"},)),
                    KanjiEntry("目", "Other", meanings=("eye", "目の前")))
         html = render_kanji_details(records)
-        positions = [html.index(value) for value in (">eye</span>", ">目の前</span>", "目標", ">モク</span>", ">め</span>")]
+        positions = [html.index(value) for value in (">eye</span>", ">モク</span>", ">め</span>", ">目の前</span>", "目標")]
         self.assertEqual(positions, sorted(positions))
         self.assertIn("</p>", html[positions[0]:positions[1]])
         self.assertEqual(html.count(">eye</span>"), 1)
         self.assertEqual(html.count(">目の前</span>"), 1)
-        self.assertIn('title="Meanings · Other"', html)
+        self.assertIn('title="First · Other"', html)
         self.assertIn('style="padding:', html)
 
     def test_characters_preserve_order_and_include_extensions(self):

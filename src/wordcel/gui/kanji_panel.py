@@ -121,9 +121,9 @@ def _attributed(value, sources):
     return f'<span title="{_text(" · ".join(sources))}">{_text(value)}</span>'
 
 
-def _detail_extras(entries, field, reading_color):
+def _detail_extras(entries, field, reading_color, values):
     groups = {}
-    for value, sources in _shared_values(entries, field):
+    for value, sources in values:
         groups.setdefault(tuple(sources), []).append(value)
     parts = []
     for sources, values in groups.items():
@@ -164,24 +164,34 @@ def render_kanji_details(entries, scheme="kanji", *, origin="", available_charac
              f'<a name="kanji-detail-{anchor}"></a><span style="{glyph_style}">'
              f'{_character_link(character, accent, True, scheme, glyph=True)}</span></td>'
              f'<td valign="top" style="padding:{gap}px {gap}px {gap}px 0">'])
-    meanings = _shared_values(entries, "meanings")
-    for japanese in (False, True):
-        values = [(value, sources) for value, sources in meanings
-                  if bool(_JAPANESE.search(str(value))) == japanese]
-        if values:
-            text = " · ".join(_attributed(value, sources) for value, sources in values)
-            parts.append(f'<p style="margin:0 0 {gap}px">{text}</p>')
-    parts.append(_detail_extras(entries, "examples", reading_color))
-    for label, field in (("音", "onyomi"), ("訓", "kunyomi")):
-        values = _shared_values(entries, field)
-        if values:
-            text = " · ".join(_attributed(value, sources) for value, sources in values)
-            heading = f'<small>{label}</small> '
-            parts.append(f'<p style="margin:0 0 2px">{heading}'
-                         f'<span style="color:{reading_color}">{text}</span></p>')
+    shared = {field: _shared_values(entries, field)
+              for field in ("meanings", "onyomi", "kunyomi", "examples", "components")}
+    seen = {field: [] for field in shared}
+    for entry in entries:
+        values = {}
+        for field, items in shared.items():
+            values[field] = [(value, sources) for value, sources in items
+                             if value in getattr(entry, field) and value not in seen[field]]
+            seen[field].extend(value for value, _ in values[field])
+
+        def meanings(japanese):
+            items = [(value, sources) for value, sources in values["meanings"]
+                     if bool(_JAPANESE.search(str(value))) == japanese]
+            if items:
+                text = " · ".join(_attributed(value, sources) for value, sources in items)
+                parts.append(f'<p style="margin:0 0 {gap}px">{text}</p>')
+
+        meanings(False)
+        for label, field in (("音", "onyomi"), ("訓", "kunyomi")):
+            if values[field]:
+                text = " · ".join(_attributed(value, sources) for value, sources in values[field])
+                parts.append(f'<p style="margin:0 0 2px"><small>{label}</small> '
+                             f'<span style="color:{reading_color}">{text}</span></p>')
+        meanings(True)
+        parts.append(_detail_extras(entries, "examples", reading_color, values["examples"]))
+        parts.append(_detail_extras(entries, "components", reading_color, values["components"]))
     parts.append('</td></tr>')
     parts.append('</table>')
-    parts.append(_detail_extras(entries, "components", reading_color))
     return "".join(parts)
 
 
