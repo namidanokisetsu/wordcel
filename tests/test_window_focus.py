@@ -34,6 +34,8 @@ class PopupSpaceTests(unittest.TestCase):
 
             app = QApplication([])
             popup = Popup(None, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
+            popup.cursor_leave_timer = QTimer(popup)
+            popup.cursor_leave_timer.setInterval(50)
             popup.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
             popup.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
             popup.installEventFilter(popup)
