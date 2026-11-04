@@ -11,6 +11,66 @@ from wordcel.utils.window_focus import (configure_macos_popup, focus_pinned_popu
 
 
 class PopupSpaceTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "win32", "Windows native resize dispatch")
+    def test_posted_edge_drag_finishes_in_manual_and_ocr_popups(self):
+        code = textwrap.dedent('''
+            import ctypes
+            from ctypes import wintypes
+            from types import SimpleNamespace
+            from PyQt6.QtCore import Qt, QTimer
+            from PyQt6.QtWidgets import QApplication, QDialog
+            from wordcel.gui.quick_lookup import QuickLookupWindow
+            from wordcel.utils.window_focus import route_popup_mouse
+
+            class Popup(QDialog):
+                nativeEvent = QuickLookupWindow.nativeEvent
+                _edge_event = QuickLookupWindow._edge_event
+                _peek = _manual_at_cursor = False
+                _resize_start = None
+                is_pinned = True
+
+                def eventFilter(self, watched, event):
+                    return self._edge_event(event) or super().eventFilter(watched, event)
+
+            app = QApplication([])
+            popup = Popup(None, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
+            popup.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+            popup.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            popup.installEventFilter(popup)
+            user32 = ctypes.WinDLL("user32")
+            user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+            try:
+                for overlay in (False, True):
+                    popup._peek = popup._source_overlay = overlay
+                    popup.resize(360, 240)
+                    popup.move(app.primaryScreen().availableGeometry().topLeft())
+                    popup.show()
+                    app.processEvents()
+                    handle = int(popup.winId())
+                    scale = popup.devicePixelRatioF()
+
+                    def post(message, x, y, buttons=0):
+                        point = wintypes.POINT(round(x * scale), round(y * scale))
+                        assert user32.ClientToScreen(handle, ctypes.byref(point))
+                        assert route_popup_mouse(handle, message, SimpleNamespace(pt=point, mouseData=0),
+                                                 captured=True, buttons=buttons)
+                        app.processEvents()
+
+                    post(0x201, 358, 238)
+                    post(0x200, 398, 258, 1)
+                    post(0x202, 398, 258)
+                    QTimer.singleShot(30, app.quit)
+                    app.exec()
+                    assert (popup.width(), popup.height()) == (400, 260), popup.size()
+                    assert popup._resize_start is None
+            finally:
+                popup.close()
+        ''')
+        result = subprocess.run([sys.executable, "-X", "faulthandler", "-c", code],
+                                env={**os.environ, "QT_QPA_PLATFORM": "windows"},
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     @unittest.skipUnless(sys.platform == "win32", "Windows native selection dispatch")
     def test_hook_routed_drag_selects_popup_text_without_activation(self):
         code = textwrap.dedent('''

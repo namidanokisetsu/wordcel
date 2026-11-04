@@ -2676,7 +2676,9 @@ class QuickLookupWindow(QDialog):
         if event.type() == QEvent.Type.MouseButtonPress and edges and event.button() == Qt.MouseButton.LeftButton:
             if self._peek or self._manual_at_cursor:
                 self._reading_size_custom = True
-            if not self.windowHandle() or not self.windowHandle().startSystemResize(edges):
+            # Windows' native sizing loop also receives the OCR hook's routed
+            # mouse messages. Keep those drags in the ordinary Qt event loop.
+            if sys.platform == "win32" or not self.windowHandle() or not self.windowHandle().startSystemResize(edges):
                 self._resize_start = (point, self.geometry(), edges)
             return True
         if self._resize_start:

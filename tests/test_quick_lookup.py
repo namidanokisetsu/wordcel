@@ -4017,6 +4017,41 @@ class QuickLookupTests(unittest.TestCase):
         self.assertEqual(sizes[1], sizes[2])
         self.assertAlmostEqual(sizes[0], sizes[3], delta=1)
 
+    def test_windows_edge_drag_resizes_manual_and_pinned_popups_without_native_loop(self):
+        for pinned in (False, True):
+            with self.subTest(pinned=pinned):
+                self.window.show_entries((entry(),), peek=pinned)
+                if pinned:
+                    self.window.pin.setChecked(True)
+                self.window.show()
+                self.app.processEvents()
+                self.window.move(100, 100)
+                before = self.window.geometry()
+                browser = self.window.browser
+                browser.setTextCursor(browser.document().find("cat"))
+                revision = browser.document().revision()
+                origin = self.window.mapToGlobal(QPoint(self.window.width() - 2, self.window.height() - 2))
+                delta = QPoint(40, 20)
+
+                def mouse(kind, point, button, buttons):
+                    return QMouseEvent(kind, QPointF(self.window.mapFromGlobal(point)), QPointF(point),
+                                       button, buttons, Qt.KeyboardModifier.NoModifier)
+
+                with patch("wordcel.gui.quick_lookup.sys.platform", "win32"), \
+                        patch.object(self.window, "windowHandle") as handle:
+                    self.assertTrue(self.window._edge_event(mouse(QEvent.Type.MouseButtonPress, origin,
+                                    Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton)))
+                    self.assertTrue(self.window._edge_event(mouse(QEvent.Type.MouseMove, origin + delta,
+                                    Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton)))
+                    self.assertTrue(self.window._edge_event(mouse(QEvent.Type.MouseButtonRelease, origin + delta,
+                                    Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton)))
+                    handle.assert_not_called()
+                self.app.processEvents()
+                self.assertEqual(self.window.geometry(), before.adjusted(0, 0, delta.x(), delta.y()))
+                self.assertIsNone(self.window._resize_start)
+                self.assertEqual(browser.document().revision(), revision)
+                self.assertEqual(browser.selected_text(), "cat")
+
     def test_kanji_source_tooltips_and_render_preserve_selection(self):
         from PyQt6.QtGui import QHelpEvent
         kanji = (KanjiEntry("猫", "One", meanings=("cat",),
