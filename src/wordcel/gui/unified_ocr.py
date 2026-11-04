@@ -61,6 +61,7 @@ class ScanWorker(threading.Thread):
         self._generation = None
         self._frozen = None
         self._reset_models = threading.Event()
+        self._reset_capture = threading.Event()
         self._preload_lock = threading.Lock()
         self._preload = None
 
@@ -77,6 +78,8 @@ class ScanWorker(threading.Thread):
     def invalidate(self, generation):
         self._generation = generation
         self._frozen = None
+        self._reset_capture.set()
+        self.queue.put_if_empty("capture_reset")
 
     def _obsolete(self, generation):
         return generation >= 0 and self.frames is not None and self._generation is not None and generation != self._generation
@@ -117,6 +120,12 @@ class ScanWorker(threading.Thread):
                     continue
                 if job is None or self._stopped.is_set():
                     return
+                if self._reset_capture.is_set():
+                    self._reset_capture.clear()
+                    if capture is not None:
+                        capture.reset()
+                if job == "capture_reset":
+                    continue
                 if self._reset_models.is_set():
                     for provider in providers.values():
                         close = getattr(provider, "close", None)
@@ -179,7 +188,7 @@ class ScanWorker(threading.Thread):
                             if capture is None:
                                 capture = RegionCapture()
                             if pixels.frozen:
-                                key = (pixels.generation, pixels.screen, pixels.geometry, pixels.scale)
+                                key = (pixels.generation, pixels.screen, pixels.geometry, pixels.scale, pixels.source_window)
                                 frozen = self._frozen
                                 if frozen is None or frozen[0] != key:
                                     snapshot = capture.capture(replace(pixels, crop=pixels.geometry))
@@ -403,6 +412,7 @@ class UnifiedOCR(QObject):
         self._last_capture_at = 0
         self._capture_hidden = False
         self._capture_excluded = False
+        self._capture_exclusion_handle = None
         self.last_point = None
         self.job_point = None
         self.capture_region = None
@@ -886,6 +896,7 @@ class UnifiedOCR(QObject):
         self.capture_region = None
         self.capture_screen = None
         self._crop_retries = 0
+        self._fallback_capture = False
         self._frozen_pixels = None
         self._frozen_screen = None
 
@@ -1145,9 +1156,14 @@ class UnifiedOCR(QObject):
         self._last_capture_at = now
         visible = self.window.isVisible()
         from wordcel.utils.capture import exclude_from_capture
-        if (visible or sys.platform == "win32") and not self._capture_excluded:
+        handle = int(self.window.winId()) if sys.platform == "win32" else None
+        if self._capture_exclusion_handle != handle:
+            self._capture_excluded = False
+        if (visible or sys.platform == "win32") and not self._capture_excluded and (
+                sys.platform != "win32" or self._capture_exclusion_handle != handle):
             self._capture_excluded = exclude_from_capture(self.window, True)
-        if visible and not self._capture_excluded:
+            self._capture_exclusion_handle = handle
+        if visible and not self._capture_excluded and sys.platform != "win32":
             self._capture_hidden = True
             self.window._capture_visibility = True
             self.window.hide()
@@ -1187,7 +1203,16 @@ class UnifiedOCR(QObject):
                                      (geometry.x(), geometry.y(), geometry.width(), geometry.height()),
                                      (region.x(), region.y(), region.width(), region.height()), scale, generation,
                                      self.freeze_capture, full_snapshot=self.session.hovering)
-            if sys.platform == "win32" and not self._fallback_capture and self._capture_excluded:
+            if sys.platform == "win32" and (not self._capture_excluded or self._fallback_capture):
+                from wordcel.utils.capture import windows_screen_geometry
+                from wordcel.utils.window_capture import window_at_point
+                physical = replace(request, crop=(point.x(), point.y(), 1, 1)).physical_crop(
+                    windows_screen_geometry(request.screen, request.geometry, request.scale))
+                handle = window_at_point(physical[:2], int(self.window.winId()))
+                if not handle:
+                    raise RuntimeError("This window cannot be captured.")
+                request = replace(request, source_window=handle)
+            if sys.platform == "win32":
                 self._queue_scan(generation, point, request, region)
                 self._last_capture_at = monotonic()
                 return
@@ -1256,9 +1281,13 @@ class UnifiedOCR(QObject):
         if error:
             self.frame = None
             self._hit_key = None
-            self.restore_capture_visibility()
-            if isinstance(frame, CaptureRequest):
+            if sys.platform == "win32" and isinstance(frame, CaptureRequest):
                 self._fallback_capture = True
+                if not frame.source_window:
+                    self._last_capture_at = 0
+                    return
+            else:
+                self.restore_capture_visibility()
             self.window.show_message(error)
             return
         self.frame = frame
@@ -1312,6 +1341,7 @@ class UnifiedOCR(QObject):
             from wordcel.utils.capture import exclude_from_capture
             exclude_from_capture(self.window, False)
             self._capture_excluded = False
+            self._capture_exclusion_handle = None
 
     def deliver(self, generation, result, hit, error):
         self._update_hover(QCursor.pos())

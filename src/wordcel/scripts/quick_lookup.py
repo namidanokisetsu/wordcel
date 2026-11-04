@@ -119,6 +119,9 @@ def main(argv=None):
         from wordcel.gui.dictionary_manager import SetupDialog
         if sys.platform == "win32":
             from wordcel.ocr.windows_native import supported_languages
+            from winrt.windows.graphics.capture import Direct3D11CaptureFramePool
+            from winrt.windows.graphics.capture.interop import create_for_window
+            from winrt.windows.graphics.directx.direct3d11.interop import create_direct3d11_device_from_dxgi_device
             supported_languages()
             from PyQt6.QtWidgets import QApplication, QDialog
             from wordcel.gui.quick_lookup import QuickLookupWindow

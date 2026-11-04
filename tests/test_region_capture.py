@@ -1,11 +1,85 @@
 import threading
+import sys
 import unittest
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from wordcel.utils.capture import CaptureRequest, RegionCapture, _screen_geometry
 
 
 class RegionTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "win32", "Windows capture diagnostics")
+    def test_exclusion_failure_records_native_error(self):
+        import ctypes
+        from wordcel.utils.capture import exclude_from_capture
+        user32 = Mock()
+        def reject(*args):
+            ctypes.set_last_error(87)
+            return False
+        user32.SetWindowDisplayAffinity.side_effect = reject
+        with patch("ctypes.WinDLL", return_value=user32), \
+                patch("sys.getwindowsversion", return_value=SimpleNamespace(build=19041)), \
+                patch("wordcel.utils.timing.mark") as trace:
+            self.assertFalse(exclude_from_capture(Mock(winId=lambda: 123), True))
+        trace.assert_called_once_with("capture_exclusion", enabled=True, accepted=False, error=87)
+
+    def test_closed_source_cleanup_does_not_abort_worker_invalidation(self):
+        capture = RegionCapture()
+        capture.window = Mock()
+        capture.window.reset.side_effect = OSError("already closed")
+        capture._failed = ((1, 123), OSError())
+        capture.reset()
+        self.assertIsNone(capture._failed)
+        capture.close()
+
+    def test_source_window_pixels_retain_screen_coordinates_without_popup(self):
+        from PIL import Image
+        request = CaptureRequest(1, "screen", (-100, 0, 200, 100), (-100, 0, 200, 100), 1.5, 2,
+                                 source_window=123)
+        source = Mock()
+        source.capture.return_value = ((-70, 30, 120, 60), Image.new("RGB", (120, 60), "red"))
+        with patch("wordcel.utils.window_capture.WindowCapture", return_value=source) as create, \
+                patch("wordcel.utils.capture.windows_screen_geometry", return_value=(-100, 0, 300, 150)), \
+                patch("mss.mss") as desktop:
+            capture = RegionCapture()
+            try:
+                for _ in range(2):
+                    frame = capture.capture(request)
+                    self.assertEqual(frame.physical_crop, (-100, 0, 300, 150))
+                    self.assertEqual(frame.image().getpixel((30, 30)), (255, 0, 0))
+                    self.assertEqual(frame.image().getpixel((149, 89)), (255, 0, 0))
+                    self.assertEqual(frame.image().getpixel((150, 90)), (0, 0, 0))
+                    self.assertEqual(frame.image().getpixel((0, 0)), (0, 0, 0))
+                create.assert_called_once()
+                desktop.assert_not_called()
+            finally:
+                capture.close()
+            source.close.assert_called_once()
+
+    def test_failed_source_retries_only_after_source_or_session_changes(self):
+        request = CaptureRequest(1, "screen", (0, 0, 20, 20), (0, 0, 20, 20), 1, 2, source_window=123)
+        source = Mock()
+        source.capture.side_effect = OSError("fixture")
+        with patch("wordcel.utils.window_capture.WindowCapture", return_value=source) as create, \
+                patch("wordcel.utils.capture.windows_screen_geometry", return_value=request.geometry):
+            capture = RegionCapture()
+            for current in (request, request, replace(request, source_window=456), replace(request, generation=3)):
+                with self.assertRaisesRegex(RuntimeError, "cannot be captured"):
+                    capture.capture(current)
+            self.assertEqual(create.call_count, 3)
+            self.assertEqual(source.close.call_count, 3)
+            capture.reset()
+            with self.assertRaises(RuntimeError):
+                capture.capture(request)
+            self.assertEqual(create.call_count, 4)
+            capture.close()
+
+    def test_frame_identity_distinguishes_identical_content_in_different_windows(self):
+        from wordcel.ocr.frames import RecognizedFrame
+        request = CaptureRequest(1, "screen", (0, 0, 20, 20), (0, 0, 20, 20), 1, 2, source_window=123)
+        frame = RecognizedFrame(request, (), "ja", (), 1, 0)
+        self.assertNotEqual(frame.identity, replace(frame, request=replace(request, source_window=456)).identity)
+
     def test_qt_friendly_monitor_name_maps_at_fractional_scale(self):
         monitors = {r"\\.\DISPLAY1": (0, 0, 3440, 1440)}
         self.assertEqual(_screen_geometry("ZQE-CAA", monitors, (0, 0, 2293, 960), 1.5),

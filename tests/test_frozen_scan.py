@@ -48,8 +48,11 @@ class FrozenScanTests(unittest.TestCase):
         self.assertEqual(second.physical_crop, (0, 0, 40, 40))
         self.assertEqual(third.request.generation, 2)
         self.assertIsNone(worker._frozen)
+        from wordcel.utils.lastest_queue import LatestValueQueue
+        worker.queue = LatestValueQueue()
         worker.invalidate(3)
         self.assertIsNone(worker._frozen)
+        self.assertEqual(worker.queue.get(), "capture_reset")
 
     def test_frozen_frame_survives_age_but_not_release_or_profile_change(self):
         window = FakeWindow()

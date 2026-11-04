@@ -18,7 +18,7 @@ class RecognizedFrame:
     def identity(self):
         return (self.request.generation, self.request.screen, self.request.geometry,
                 self.request.crop, self.request.scale, self.language, self.provider, self.scene,
-                self.pixel_size, self.physical_crop)
+                self.pixel_size, self.physical_crop, self.request.source_window)
 
     def point(self, x, y):
         left, top, width, height = self.request.crop

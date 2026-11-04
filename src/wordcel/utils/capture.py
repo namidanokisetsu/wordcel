@@ -1,4 +1,4 @@
-"""Temporarily exclude the popup without hiding it on supported Windows builds."""
+"""Screen and source-window pixels for the shared OCR worker."""
 import sys
 from dataclasses import dataclass
 from time import monotonic
@@ -14,6 +14,7 @@ class CaptureRequest:
     generation: int
     frozen: bool = False
     full_snapshot: bool = False
+    source_window: int = 0
 
     def physical_crop(self, physical_geometry):
         x, y, width, height = self.crop
@@ -103,19 +104,65 @@ def windows_screen_geometry(name, geometry=None, scale=1):
 
 
 class RegionCapture:
-    """Create, use and close the existing MSS backend on its owning worker."""
+    """Create, reuse and close capture backends on their owning worker."""
     def __init__(self):
-        import mss
-        self.backend = mss.mss()
+        self.backend = self.window = None
+        self._failed = None
 
     def capture(self, request):
         crop = request.physical_crop(windows_screen_geometry(request.screen, request.geometry, request.scale))
         left, top, width, height = crop
+        if request.source_window:
+            key = (request.generation, request.source_window)
+            if self._failed is not None and self._failed[0] == key:
+                raise RuntimeError("This window cannot be captured.") from self._failed[1]
+            try:
+                if self.window is None:
+                    from wordcel.utils.window_capture import WindowCapture
+                    self.window = WindowCapture()
+                bounds, image = self.window.capture(request.source_window)
+                self._failed = None
+            except Exception as error:
+                from wordcel.utils.timing import mark
+                mark("window_capture_failed", request.revision, error=type(error).__name__,
+                     code=getattr(error, "winerror", 0))
+                self._failed = (key, error)
+                failed, self.window = self.window, None
+                if failed is not None:
+                    try:
+                        failed.close()
+                    except OSError as cleanup_error:
+                        mark("window_capture_close_failed", request.revision,
+                             code=getattr(cleanup_error, "winerror", 0))
+                raise RuntimeError("This window cannot be captured.") from error
+            image = image.crop((left - bounds[0], top - bounds[1],
+                                left + width - bounds[0], top + height - bounds[1]))
+            return PixelFrame(request, image.size, image.tobytes(), monotonic(), physical_crop=crop)
+        self.reset()
+        if self.backend is None:
+            import mss
+            self.backend = mss.mss()
         screenshot = self.backend.grab(dict(left=left, top=top, width=width, height=height))
         return PixelFrame(request, (width, height), bytes(screenshot.bgra), monotonic(), "BGRX", 0, crop)
 
+    def reset(self):
+        self._failed = None
+        if self.window is not None:
+            try:
+                self.window.reset()
+            except OSError as error:
+                from wordcel.utils.timing import mark
+                mark("window_capture_close_failed", code=getattr(error, "winerror", 0))
+
     def close(self):
-        self.backend.close()
+        try:
+            if self.window is not None:
+                self.window.close()
+                self.window = None
+        finally:
+            if self.backend is not None:
+                self.backend.close()
+                self.backend = None
 
 
 def exclude_from_capture(window, enabled):
@@ -126,7 +173,11 @@ def exclude_from_capture(window, enabled):
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     user32.SetWindowDisplayAffinity.argtypes = [wintypes.HWND, wintypes.DWORD]
     user32.SetWindowDisplayAffinity.restype = wintypes.BOOL
+    ctypes.set_last_error(0)
     changed = bool(user32.SetWindowDisplayAffinity(int(window.winId()), 0x11 if enabled else 0))
+    error = ctypes.get_last_error() if not changed else 0
+    from wordcel.utils.timing import mark
+    mark("capture_exclusion", enabled=enabled, accepted=changed, error=error)
     if changed:
         ctypes.WinDLL("dwmapi").DwmFlush()
     return changed

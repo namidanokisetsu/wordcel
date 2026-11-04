@@ -32,6 +32,31 @@ def recognized():
 
 
 class ScanWorkerTests(unittest.TestCase):
+    def test_idle_capture_session_is_released_on_its_worker_after_invalidation(self):
+        from wordcel.utils.capture import CaptureRequest, PixelFrame
+        request = CaptureRequest(1, "screen", (0, 0, 10, 10), (0, 0, 10, 10), 1, 1, source_window=123)
+        captured, released = threading.Event(), threading.Event()
+        threads = []
+        backend = Mock()
+        backend.capture.side_effect = lambda r: PixelFrame(r, (10, 10), bytes(300), 0)
+        backend.reset.side_effect = lambda: (threads.append(threading.get_ident()), released.set())
+        backend.close.side_effect = lambda: threads.append(threading.get_ident())
+        frames = SimpleNamespace(emit=lambda *args: captured.set())
+        worker = ScanWorker(Mock(), frames=frames)
+        with patch("wordcel.gui.unified_ocr.RegionCapture", return_value=backend), \
+                patch.object(worker, "provider", return_value=lambda image: []):
+            worker.start()
+            try:
+                worker.queue.put((1, request, (.2, .5), "ja", ("meikiocr", ""), False, None, 0))
+                self.assertTrue(captured.wait(2))
+                worker.invalidate(2)
+                self.assertTrue(released.wait(2))
+            finally:
+                worker.stop()
+                worker.join(2)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(threads, [worker.ident, worker.ident])
+
     def test_preload_and_first_scan_share_provider(self):
         worker, sink = self.make_worker(["preload", (1, image_bytes(), (0.2, 0.5), "tr", ("paddle", "")), None])
         worker.queue.put_if_empty = Mock()
@@ -684,13 +709,16 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         pixmap = QPixmap(geometry.size())
         pixmap.fill()
         self.controller.worker = SimpleNamespace(queue=Queue(), stop=Mock(), join=Mock())
-        for native in (True, False):
-            with self.subTest(native=native), \
-                    patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
+        for platform, excluded in (("win32", True), ("win32", False), ("darwin", False)):
+            with self.subTest(platform=platform, excluded=excluded), \
+                    patch("wordcel.gui.unified_ocr.sys.platform", platform), \
                     patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=point), \
                     patch.object(QApplication, "activeWindow", return_value=None), \
+                    patch("wordcel.utils.capture.windows_screen_geometry", return_value=geometry.getRect()), \
+                    patch("wordcel.utils.window_capture.window_at_point", return_value=123), \
                     patch.object(type(screen), "grabWindow", return_value=pixmap):
-                self.controller._capture_excluded = native
+                native = platform == "win32"
+                self.controller._capture_excluded = excluded
                 self.controller._update_hover(point)
                 self.controller.capture(self.controller.generation, point)
                 job = self.controller.worker.queue.get_nowait()
@@ -701,6 +729,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                 self.assertEqual(QRect(*request.crop), self.controller.hover_region)
                 if native:
                     self.assertIsInstance(pixels, CaptureRequest)
+                    self.assertEqual(pixels.source_window, 0 if excluded else 123)
                 else:
                     self.assertEqual(pixels.size(), geometry.size())
 
@@ -1180,6 +1209,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
     def test_capture_exclusion_is_reused_and_restored_when_pinned(self):
         self.window.show()
         self.controller._capture_excluded = True
+        self.controller._capture_exclusion_handle = int(self.window.winId()) if sys.platform == "win32" else None
         with patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(-100, -100)), \
                 patch.object(QApplication, "activeWindow", return_value=None), \
                 patch("wordcel.utils.capture.exclude_from_capture", return_value=True) as exclude, \
@@ -1202,6 +1232,63 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
             self.assertEqual(dispatch.call_args.args[0], 0)
             self.controller.restore_capture_visibility()
             self.assertEqual([c.args[1] for c in exclude.call_args_list], [True, False])
+
+    def test_failed_exclusion_never_hides_popup_on_repeated_windows_scans(self):
+        self.enable_hover()
+        controller = self.controller
+        controller.worker = SimpleNamespace(queue=Queue(), stop=Mock(), join=Mock())
+        screen = QApplication.primaryScreen()
+        for overlapping in (True, False):
+            with self.subTest(overlapping=overlapping), \
+                    patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
+                    patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
+                    patch.object(QApplication, "activeWindow", return_value=None), \
+                    patch("wordcel.utils.capture.windows_screen_geometry", return_value=screen.geometry().getRect()), \
+                    patch("wordcel.utils.window_capture.window_at_point", return_value=123), \
+                    patch("wordcel.utils.capture.exclude_from_capture", return_value=False) as exclude, \
+                    patch("wordcel.gui.unified_ocr.QTimer.singleShot") as dispatch, \
+                    patch.object(self.window, "hide") as hide, \
+                    patch.object(type(screen), "grabWindow") as grab:
+                self.window.setGeometry(QRect(200, 100, 300, 200) if overlapping else QRect(400, 350, 300, 200))
+                self.window.show()
+                controller._capture_exclusion_handle = None
+                for _ in range(3):
+                    controller.busy = False
+                    controller._last_capture_at = 0
+                    controller.scan()
+                    delay, callback = dispatch.call_args.args
+                    self.assertEqual(delay, 0)
+                    callback()
+                    job = controller.worker.queue.get_nowait()
+                    self.assertEqual(job[1].source_window, 123)
+                    self.assertTrue(self.window.isVisible())
+                exclude.assert_called_once()
+                hide.assert_not_called()
+                grab.assert_not_called()
+
+    def test_window_capture_failure_does_not_return_to_hide_fallback(self):
+        from wordcel.utils.capture import CaptureRequest
+        request = CaptureRequest(1, "screen", (0, 0, 800, 600), (0, 0, 400, 200), 1,
+                                 self.controller.generation, source_window=123)
+        self.window.show()
+        with patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
+                patch.object(self.window, "hide") as hide, \
+                patch.object(self.controller, "_request_capture") as retry:
+            self.controller.accept_frame(self.controller.generation, request, "This window cannot be captured.")
+            hide.assert_not_called()
+            retry.assert_not_called()
+            self.assertTrue(self.window.isVisible())
+            self.window.show_message.assert_called_once_with("This window cannot be captured.")
+
+    def test_new_native_popup_handle_retries_exclusion(self):
+        self.controller._capture_exclusion_handle = -1
+        self.controller._capture_excluded = True
+        with patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
+                patch("wordcel.utils.capture.exclude_from_capture", return_value=False) as exclude, \
+                patch("wordcel.gui.unified_ocr.QTimer.singleShot"):
+            self.controller._request_capture(QPoint(100, 100))
+        exclude.assert_called_once_with(self.window, True)
+        self.assertFalse(self.controller._capture_excluded)
 
     def test_new_scan_replaces_pinned_result(self):
         self.window.show()
@@ -1411,7 +1498,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         pixmap.fill()
         screen.grabWindow.return_value = pixmap
         self.controller.worker = SimpleNamespace(queue=Queue(), stop=Mock(), join=Mock())
-        with patch.object(QApplication, "screenAt", return_value=screen), \
+        with patch("wordcel.gui.unified_ocr.sys.platform", "darwin"), \
+                patch.object(QApplication, "screenAt", return_value=screen), \
                 patch.object(QApplication, "activeWindow", return_value=None):
             self.controller.capture(self.controller.generation, QPoint(50, 25))
         self.assertTrue(self.window.isVisible())
