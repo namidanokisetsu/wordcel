@@ -2,12 +2,14 @@
 from html import escape
 from dataclasses import replace
 import math
+import re
 from urllib.parse import quote
 
 
 _STAT_LABELS = {"strokes": "Strokes", "stroke_count": "Strokes", "stroke-count": "Strokes", "grade": "Grade",
                 "jlpt": "JLPT", "freq": "Frequency", "frequency": "Frequency",
                 "radical": "Radical", "ucs": "Unicode", "unicode": "Unicode"}
+_JAPANESE = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f\U00020000-\U000323af]")
 
 
 def _text(value):
@@ -119,6 +121,19 @@ def _attributed(value, sources):
     return f'<span title="{_text(" · ".join(sources))}">{_text(value)}</span>'
 
 
+def _detail_extras(entries, field, reading_color):
+    groups = {}
+    for value, sources in _shared_values(entries, field):
+        groups.setdefault(tuple(sources), []).append(value)
+    parts = []
+    for sources, values in groups.items():
+        fields = {"components": (), "examples": (), field: tuple(values)}
+        item = replace(entries[0], source=" · ".join(sources), meanings=(), onyomi=(), kunyomi=(),
+                       stats=(), tags=(), **fields)
+        parts.append(_entry_html(item, reading_color, full=True, show_source=len(entries) > 1))
+    return "".join(parts)
+
+
 def render_kanji_details(entries, scheme="kanji", *, origin="", available_characters=()):
     if not entries:
         return ""
@@ -142,36 +157,31 @@ def render_kanji_details(entries, scheme="kanji", *, origin="", available_charac
             else:
                 word.append(_text(char))
         parts.append(f'<p style="margin:0;font-size:{config.font_size_header}px">{"".join(word)}</p>')
-    table_style = ''
-    if origin:
-        from PyQt6.QtGui import QFontMetricsF
-        from wordcel.gui.typography import document_font
-        font = document_font(config.font_family, config.font_size_definitions, "ja")
-        gap = math.ceil(QFontMetricsF(font).height() / 2)
-        table_style = f' style="margin-top:{gap}px"'
+    gap = math.ceil(config.font_size_definitions / 2)
+    table_style = f' style="margin-top:{gap}px"'
     parts.extend([f'<table width="100%" cellspacing="0" cellpadding="0"{table_style}><tr>'
-             '<td valign="top" style="padding-right:12px">',
+             f'<td valign="top" style="padding:{gap}px">',
              f'<a name="kanji-detail-{anchor}"></a><span style="{glyph_style}">'
-             f'{_character_link(character, accent, True, scheme, glyph=True)}</span></td><td valign="top">'])
-    for label, field in (("", "meanings"), ("音", "onyomi"), ("訓", "kunyomi")):
+             f'{_character_link(character, accent, True, scheme, glyph=True)}</span></td>'
+             f'<td valign="top" style="padding:{gap}px {gap}px {gap}px 0">'])
+    meanings = _shared_values(entries, "meanings")
+    for japanese in (False, True):
+        values = [(value, sources) for value, sources in meanings
+                  if bool(_JAPANESE.search(str(value))) == japanese]
+        if values:
+            text = " · ".join(_attributed(value, sources) for value, sources in values)
+            parts.append(f'<p style="margin:0 0 {gap}px">{text}</p>')
+    parts.append(_detail_extras(entries, "examples", reading_color))
+    for label, field in (("音", "onyomi"), ("訓", "kunyomi")):
         values = _shared_values(entries, field)
         if values:
-            color = reading_color if field != "meanings" else _text(config.color_foreground)
             text = " · ".join(_attributed(value, sources) for value, sources in values)
-            heading = f'<small>{label}</small> ' if label else ''
+            heading = f'<small>{label}</small> '
             parts.append(f'<p style="margin:0 0 2px">{heading}'
-                         f'<span style="color:{color}">{text}</span></p>')
+                         f'<span style="color:{reading_color}">{text}</span></p>')
     parts.append('</td></tr>')
     parts.append('</table>')
-    for field in ("components", "examples"):
-        groups = {}
-        for value, sources in _shared_values(entries, field):
-            groups.setdefault(tuple(sources), []).append(value)
-        for sources, values in groups.items():
-            fields = {"components": (), "examples": (), field: tuple(values)}
-            item = replace(entries[0], source=" · ".join(sources), meanings=(), onyomi=(), kunyomi=(),
-                           stats=(), tags=(), **fields)
-            parts.append(_entry_html(item, reading_color, full=True, show_source=len(entries) > 1))
+    parts.append(_detail_extras(entries, "components", reading_color))
     return "".join(parts)
 
 

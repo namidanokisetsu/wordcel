@@ -296,6 +296,7 @@ class RubyBrowser(DictionaryBrowser):
                 top = document.documentLayout().frameBoundingRect(table).top()
                 available_height = max(1, self.viewport().height() - top - QFontMetricsF(document.defaultFont()).height())
                 cell = table.cellAt(cursor).format().toTableCellFormat()
+                available_height = max(1, available_height - cell.topPadding() - cell.bottomPadding())
                 padding = cell.leftPadding() + cell.rightPadding()
                 available_width = max(1, self.viewport().width() / 2 - padding)
                 fmt = QTextCharFormat(cursor.charFormat())

@@ -90,6 +90,8 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   between prepared kanji records without a new lookup. Shrink glyph ink bounds to
   fit the remaining height and half the content width; never enlarge past the
   rendered font size (96 px, or 128 px for stroke order).
+  Pad the glyph beside separate paragraphs for meanings, Japanese glosses,
+  examples and readings, with spacing derived from definition text size.
   Retain the originating headword through history and translation.
   Derive layout from content bounds;
   batch updates instead of rebuilding unchanged content. Autoplay runs on new

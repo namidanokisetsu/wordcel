@@ -64,6 +64,20 @@ class KanjiTests(unittest.TestCase):
         self.assertIn("Parts", html)
         self.assertIn("Examples", html)
 
+    def test_english_meanings_precede_japanese_words_examples_and_readings(self):
+        records = (KanjiEntry("目", "Words", meanings=("目の前", "目的", "目立つ")),
+                   KanjiEntry("目", "Meanings", onyomi=("モク",), kunyomi=("め",),
+                              meanings=("eye", "look"), examples=({"w": "目標", "m": "goal"},)),
+                   KanjiEntry("目", "Other", meanings=("eye", "目の前")))
+        html = render_kanji_details(records)
+        positions = [html.index(value) for value in (">eye</span>", ">目の前</span>", "目標", ">モク</span>", ">め</span>")]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("</p>", html[positions[0]:positions[1]])
+        self.assertEqual(html.count(">eye</span>"), 1)
+        self.assertEqual(html.count(">目の前</span>"), 1)
+        self.assertIn('title="Meanings · Other"', html)
+        self.assertIn('style="padding:', html)
+
     def test_characters_preserve_order_and_include_extensions(self):
         self.assertEqual(kanji_characters("日本語の日本𠮷"), ("日", "本", "語", "𠮷"))
         self.assertEqual(kanji_characters("日本語", 2), ("日", "本"))
