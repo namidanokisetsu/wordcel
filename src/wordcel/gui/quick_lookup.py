@@ -2157,7 +2157,7 @@ class QuickLookupWindow(QDialog):
     def _headword_action(self, name, headword):
         variants = self._presentation_groups().get(headword, {})
         operation = self.add_to_anki if name == "anki" else self.play_audio
-        if len(variants) < 2:
+        if name == "audio" or len(variants) < 2:
             operation(headword=headword)
             return
         button = self._headword_rows[headword][1 if name == "anki" else 2]

@@ -259,14 +259,13 @@ class ReadingVariantInteractionTests(unittest.TestCase):
         self.assertEqual(list(self.window._headword_groups()), [self.primary, self.alternate])
         self.assertEqual(self.window._result.entries, self.entries)
 
-    def test_audio_button_offers_each_original_reading(self):
+    def test_audio_left_click_plays_the_first_reading_without_a_menu(self):
         self.show()
         button = self.window._headword_rows[self.primary][2]
         button.click()
-        menu = button.findChildren(QMenu)[-1]
-        self.assertEqual([action.text() for action in menu.actions()], list(READINGS))
-        menu.actions()[1].trigger()
-        self.assertIs(self.window.audio.play.call_args.args[0], self.entries[1])
+        self.window.audio.play.assert_called_once()
+        self.assertIs(self.window.audio.play.call_args.args[0], self.entries[0])
+        self.assertEqual(button.findChildren(QMenu), [])
         self.assertEqual(self.window._audio_key(self.alternate), ("ja", WORD, READINGS[1]))
         self.assertEqual(self.window._audio_key(), ("ja", WORD, READINGS[0]))
 
@@ -283,9 +282,10 @@ class ReadingVariantInteractionTests(unittest.TestCase):
 
     def test_stale_reading_menu_cannot_play_a_later_lookup(self):
         self.show()
-        menu = self.window._headword_action("audio", self.primary)
+        button = self.window._headword_rows[self.primary][2]
+        menu = self.window.audio_source_menu(QPoint(), headword=self.primary, button=button)
         self.window._invalidate()
-        menu.actions()[1].trigger()
+        menu.actions()[1].menu().actions()[0].trigger()
         self.window.audio.play.assert_not_called()
 
     def test_source_menu_cannot_play_replaced_records_with_the_same_revision(self):

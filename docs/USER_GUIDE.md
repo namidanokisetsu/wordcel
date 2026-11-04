@@ -80,7 +80,8 @@ Choose a profile under **Editing** to change its settings without activating it.
   pin to see full definitions. **Text & colors > Reading size** controls pitch and
   plain readings independently of Word size. Furigana size controls readings above kanji.
   Japanese reading variants share definitions only when every dictionary's full
-  content matches. Audio and Anki offer a reading choice for shared entries.
+  content matches. Left-click audio plays the first reading; right-click offers
+  other readings and sources. Anki offers a reading choice for shared entries.
 - **Shortcuts:** change or disable bindings independently. Grab text, Hover scan
   and Translate have optional presets.
 - **Translation:** enable automatic translation per profile for submitted text.
