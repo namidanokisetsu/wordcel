@@ -91,6 +91,9 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
 - **Popup:** pinning freezes results. Preserve document, selection, scroll and
   geometry during disclosure and translation. Keep visible text anchored during
   resizing and text scaling; resize source excerpts without rebuilding definitions.
+  OCR hits retain writing orientation and word bounds. Vertical text previews use
+  those bounds in logical screen coordinates for side placement and expansion,
+  controlled by the default-on profile preference `vertical_popup_sides`.
   Suspend cursor-leave dismissal during resizing until the released pointer returns
   inside the popup, including when minimum size or screen bounds clamp the drag.
   Kanji uses the shared content stack; the existing breadcrumb and Back restore

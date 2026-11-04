@@ -3182,6 +3182,58 @@ class QuickLookupTests(unittest.TestCase):
                     self.assertGreaterEqual(self.window.x(), area.left())
                     self.assertLessEqual(self.window.geometry().right(), area.right())
 
+    def test_vertical_placement_setting_defaults_on_and_is_profile_specific(self):
+        from wordcel.config.profiles import reset_page
+        other = create_profile(self.settings, 'ja', 'Other')
+        dialog = SetupDialog(self.temp.name, self.settings, self.window.apply_shortcut, self.window)
+        self.addCleanup(dialog.deleteLater)
+        profile = self.window.active_profile
+        self.assertTrue(dialog.vertical_popup_sides.isChecked())
+        dialog.vertical_popup_sides.setChecked(False)
+        self.assertFalse(self.settings.value(f'profiles/{profile}/vertical_popup_sides', True, bool))
+        dialog.profile.setCurrentIndex(dialog.profile.findData(other))
+        self.assertTrue(dialog.vertical_popup_sides.isChecked())
+        dialog.profile.setCurrentIndex(dialog.profile.findData(profile))
+        self.assertFalse(dialog.vertical_popup_sides.isChecked())
+        reset_page(self.settings, profile, 'Popup')
+        dialog.profile_changed(only_page='Popup')
+        self.assertTrue(dialog.vertical_popup_sides.isChecked())
+
+    def test_vertical_preview_pin_and_repeated_results_keep_side_anchor(self):
+        area = QRect(0, 0, 1920, 1040)
+        bounds = QRect(1600, 300, 40, 500)
+        screen = Mock(availableGeometry=Mock(return_value=area))
+        point = QPoint(1620, 320)
+        with patch.object(QApplication, 'screenAt', return_value=screen), \
+                patch('wordcel.gui.quick_lookup.QCursor.pos', return_value=point):
+            self.window.show_entries((entry(),), peek=True, vertical_bounds=bounds)
+            self.app.processEvents()
+            self.window._fit_preview()
+            previous = self.window.geometry()
+            self.assertLess(previous.right(), bounds.left())
+            with patch.object(self.window, '_place') as place, patch.object(self.window, '_display') as display:
+                self.window.show_entries((entry(),), peek=True, vertical_bounds=bounds)
+                place.assert_not_called()
+                display.assert_not_called()
+            self.window.pin.setChecked(True)
+            self.app.processEvents()
+            self.assertEqual(self.window.geometry().right(), previous.right())
+            self.assertFalse(self.window.geometry().intersects(bounds))
+            self.window.pin.setChecked(False)
+            self.settings.setValue(f'profiles/{self.window.active_profile}/vertical_popup_sides', False)
+            with patch.object(self.window, '_place') as place, patch.object(self.window, '_display') as display:
+                self.window.show_entries((entry(),), peek=True, vertical_bounds=bounds)
+                self.assertIsNone(self.window._vertical_bounds)
+                place.assert_called_once_with()
+                display.assert_not_called()
+            self.settings.setValue(f'profiles/{self.window.active_profile}/vertical_popup_sides', True)
+            self.window.show_entries((entry(),), peek=True, vertical_bounds=bounds)
+            with patch.object(self.window, '_place') as place, patch.object(self.window, '_display') as display:
+                self.window.show_entries((entry(),), peek=True)
+                self.assertIsNone(self.window._vertical_bounds)
+                place.assert_called_once_with()
+                display.assert_not_called()
+
     def test_macos_pin_survives_focus_loss_while_native_activation_is_pending(self):
         with patch("wordcel.gui.quick_lookup.sys.platform", "darwin"):
             self.window.show_entries((entry(),), "猫", peek=True)

@@ -21,6 +21,8 @@
 | Copy a passage from an image | Choose **Grab text** in the tray, drag over text and release to copy. **Escape** cancels. |
 
 - Point at the first character of Japanese or Chinese words.
+- **Popup > Place beside vertical text** opens vertical OCR results to either side,
+  choosing a side that fits. Enabled by default; turn it off for above/below placement.
 - For new subtitles, release Shift and hold it again.
 - Click a kanji for details; use Back to return to the word.
 - Click a word in captured text to look it up.

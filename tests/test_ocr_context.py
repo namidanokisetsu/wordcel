@@ -5,6 +5,14 @@ from wordcel.ocr.interface import BoundingBox, Paragraph, Word
 
 
 class ContextTests(unittest.TestCase):
+    def test_hit_retains_provider_orientation_and_selected_word_bounds(self):
+        box = BoundingBox(.5, .5, .1, .8)
+        for vertical in (False, True):
+            paragraph = Paragraph('日本', [Word('日本', '', box)], BoundingBox(.5, .5, 1, 1), vertical)
+            hit = hit_paragraphs([paragraph], (.5, .5), 'ja')
+            self.assertEqual(hit.is_vertical, vertical)
+            self.assertEqual(hit.box, box)
+
     def test_rtl_words_keep_logical_offsets_and_marks_beside_numbers(self):
         for language, word in (("ar", "كِـتاب"), ("he", "סֵפֶר")):
             text = word + " 123"

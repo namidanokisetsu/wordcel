@@ -5,7 +5,7 @@ import threading
 from queue import SimpleQueue
 from time import monotonic
 
-from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, Qt, QTimer, QSignalBlocker, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, QRectF, Qt, QTimer, QSignalBlocker, pyqtSignal
 from PyQt6.QtGui import QCursor, QImage
 from PyQt6.QtWidgets import QApplication, QTextEdit
 
@@ -1373,6 +1373,13 @@ class UnifiedOCR(QObject):
         if result is None or not (result.entries or result.kanji or extras.get("suggestions")):
             self._hide_preview()
             return
+        if frame is not None and hit.is_vertical and hit.box is not None:
+            left, top, width, height = frame.request.crop
+            box = hit.box
+            extras["vertical_bounds"] = QRectF(
+                left + (box.center_x - box.width / 2) * width,
+                top + (box.center_y - box.height / 2) * height,
+                box.width * width, box.height * height).toAlignedRect()
         if self.window.show_entries(result.entries, text=result.text, source=result.source,
                                     peek=True, kanji=result.kanji, **extras):
             mark("hit_delivery", frame.request.revision if frame is not None else generation,

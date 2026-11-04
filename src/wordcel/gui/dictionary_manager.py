@@ -300,6 +300,10 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.close_on_cursor_leave.toggled.connect(self.cursor_close_margin.setEnabled)
         self.cursor_close_margin.valueChanged.connect(lambda value: self.autosave(lambda: settings.setValue(f"profiles/{self.profile.currentData()}/cursor_close_margin", value)))
         shared_layout.addRow("Cursor grace area", self.cursor_close_margin)
+        self.vertical_popup_sides = QCheckBox("Place beside vertical text")
+        self.vertical_popup_sides.setChecked(settings.value(f"profiles/{self.profile.currentData()}/vertical_popup_sides", True, bool))
+        self.vertical_popup_sides.toggled.connect(lambda enabled: self.autosave(lambda: settings.setValue(f"profiles/{self.profile.currentData()}/vertical_popup_sides", enabled)))
+        shared_layout.addRow(self.vertical_popup_sides)
         self.selected_text = QCheckBox("Look up selected text automatically")
         shortcut_layout.addRow(self.selected_text)
         self.selected_text.toggled.connect(self.save_text_triggers)
@@ -610,7 +614,7 @@ class SetupDialog(SettingsNavigation, QDialog):
             editor.enabled.toggled.connect(lambda _, key=key, editor=editor: self.save_cycle_shortcut(key, editor))
             editor.recorder.editingFinished.connect(lambda key=key, editor=editor: self.save_cycle_shortcut(key, editor))
         self.anki.connection_section.toggle.setChecked(True)
-        for control in (self.close_on_cursor_leave, self.appearance.snap_scrolling, self.translation_split):
+        for control in (self.close_on_cursor_leave, self.vertical_popup_sides, self.appearance.snap_scrolling, self.translation_split):
             control.toggled.connect(lambda _: self.autosave(lambda: self.apply_popup_preferences()))
         self.cursor_close_margin.valueChanged.connect(lambda _: self.autosave(lambda: self.apply_popup_preferences()))
         self.appearance.side_button_scrolling.toggled.connect(lambda _: self.autosave(self.notify_scan_settings))
@@ -1087,6 +1091,7 @@ class SetupDialog(SettingsNavigation, QDialog):
                 self.translation_split.setChecked(self.settings.value(f"profiles/{code}/translation_side_by_side", False, bool))
                 self.close_on_cursor_leave.setChecked(self.settings.value(f"profiles/{code}/close_on_cursor_leave", True, bool))
                 self.cursor_close_margin.setValue(self.settings.value(f"profiles/{code}/cursor_close_margin", 24, int))
+                self.vertical_popup_sides.setChecked(self.settings.value(f"profiles/{code}/vertical_popup_sides", True, bool))
                 self.appearance.reload()
             if only_page in (None, "Audio"):
                 from wordcel.config.config import config

@@ -33,12 +33,20 @@ def frame_stylesheet(background, foreground, opacity, font_family):
     '''
 
 
-def popup_position(x, y, popup_size, screen_geo, mode):
+def popup_position(x, y, popup_size, screen_geo, mode, vertical_bounds=None):
     """Pointer-relative placement within the screen bounds."""
     offset = 15
     # --- Positioning logic based on mode ---
 
-    if mode == 'visual_novel_mode':
+    if vertical_bounds is not None:
+        right = screen_geo.right() - vertical_bounds.right() - offset
+        left = vertical_bounds.left() - screen_geo.left() - offset
+        use_right = right >= popup_size.width() or right >= left
+        final_x = (vertical_bounds.right() + 1 + offset if use_right else
+                   vertical_bounds.left() - popup_size.width() - offset)
+        final_y = y
+
+    elif mode == 'visual_novel_mode':
         # --- Vertical Position (VN Mode) ---
         screen_height = screen_geo.height()
         cursor_y_in_screen = y - screen_geo.top()
@@ -107,13 +115,16 @@ def popup_position(x, y, popup_size, screen_geo, mode):
     return int(final_x), int(final_y)
 
 
-def expanded_geometry(previous, requested, area, anchor=None):
+def expanded_geometry(previous, requested, area, anchor=None, vertical_bounds=None):
     from PyQt6.QtCore import QRect
     width, height = min(requested.width(), area.width()), min(requested.height(), area.height())
     x, y = previous.x(), previous.y()
     # Keep an above-text preview above the text; otherwise grow down if it fits.
     above = anchor is not None and previous.bottom() < anchor.y()
-    if above:
+    if vertical_bounds is not None:
+        if previous.right() < vertical_bounds.left():
+            x = previous.right() + 1 - width
+    elif above:
         y = previous.bottom() + 1 - height
     elif y + height > area.bottom() + 1:
         edge = min(previous.bottom() + 1, anchor.y() - 15) if anchor is not None else previous.bottom() + 1

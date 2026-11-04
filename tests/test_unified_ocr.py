@@ -1343,6 +1343,24 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
         self.window.show_entries.assert_called_once_with(result.entries, text="kitap", source="tr",
                                                          peek=True, kanji=[])
 
+    def test_vertical_delivery_maps_bounds_to_logical_capture_coordinates(self):
+        from wordcel.ocr.context import hit_paragraphs
+        from wordcel.ocr.frames import RecognizedFrame
+        from wordcel.utils.capture import CaptureRequest
+        box = BoundingBox(.5, .5, .125, .5)
+        paragraphs = (Paragraph('日本', [Word('日本', '', box)], box, True),)
+        request = CaptureRequest(1, 'display', (-1600, -200, 1600, 1000),
+                                 (-1200, 100, 800, 400), 1.5, self.controller.generation)
+        frame = RecognizedFrame(request, paragraphs, 'ja', (), 1, 10, (1200, 600))
+        self.controller.frame = frame
+        hit = hit_paragraphs(paragraphs, (.5, .5), 'ja')
+        result = SimpleNamespace(entries=[Mock()], text=hit.query, source='ja', kanji=[])
+        with patch('wordcel.gui.unified_ocr.QCursor.pos', return_value=QPoint(-800, 300)), \
+                patch.object(self.controller, '_valid_frame', return_value=True), \
+                patch.object(QApplication, 'activeWindow', return_value=None):
+            self.controller.deliver(self.controller.generation, result, (frame, hit), '')
+        self.assertEqual(self.window.show_entries.call_args.kwargs['vertical_bounds'], QRect(-850, 200, 100, 200))
+
     def test_ocr_hides_analysis_only_misses(self):
         from wordcel.dictionary.search import SearchResult
         from wordcel.language.turkish_analyzer import TrAnalysis

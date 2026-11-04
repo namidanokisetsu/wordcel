@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import math
 import unicodedata
 from wordcel.language.profiles import get_profile
+from wordcel.ocr.interface import BoundingBox
 
 
 @dataclass(frozen=True)
@@ -12,6 +13,8 @@ class ContextHit:
     start: int
     end: int
     language: str = "ja"
+    is_vertical: bool = False
+    box: BoundingBox | None = None
 
     @property
     def sentence(self):
@@ -82,7 +85,7 @@ def hit_paragraphs(paragraphs, point, language="ja"):
                 start += word.text.find(query)
                 end = start + len(query)
             if query:
-                hit = ContextHit(query, paragraph.full_text, start, end, language)
+                hit = ContextHit(query, paragraph.full_text, start, end, language, paragraph.is_vertical, box)
                 if not unspaced:
                     return hit
                 # Native glyph boxes can overlap, especially with preposed vowels.
