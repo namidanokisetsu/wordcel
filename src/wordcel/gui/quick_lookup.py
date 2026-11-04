@@ -2633,12 +2633,8 @@ class QuickLookupWindow(QDialog):
                     bar = self.browser.verticalScrollBar()
                     bar.setValue(bar.value() + direction * bar.pageStep())
             return True
-        if (event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton
-                and isinstance(watched, QWidget) and watched.inherits("QSizeGrip")):
-            self._resize_close_guard = True
-            self.cursor_leave_timer.start()
-            if self._peek or self._manual_at_cursor:
-                self._reading_size_custom = True
+        if self._grip_event(watched, event):
+            return True
         if (event.type() == QEvent.Type.KeyPress and watched is getattr(self, "search", None)
                 and self.browser.section_scroll.enabled
                 and event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_PageUp, Qt.Key.Key_PageDown)
@@ -2718,21 +2714,37 @@ class QuickLookupWindow(QDialog):
             return True
         return super().eventFilter(watched, event)
 
-    def _edge_event(self, event):
+    def _grip_event(self, watched, event):
+        if (event.type() != QEvent.Type.MouseButtonPress or event.button() != Qt.MouseButton.LeftButton
+                or not isinstance(watched, QWidget) or not watched.inherits("QSizeGrip")):
+            return False
+        self._resize_close_guard = True
+        self.cursor_leave_timer.start()
+        if self._peek or self._manual_at_cursor:
+            self._reading_size_custom = True
+        if sys.platform != "win32":
+            return False
+        center = watched.mapTo(self, watched.rect().center())
+        edges = (Qt.Edge.LeftEdge if center.x() < self.rect().center().x() else Qt.Edge.RightEdge)
+        edges |= Qt.Edge.TopEdge if center.y() < self.rect().center().y() else Qt.Edge.BottomEdge
+        return self._edge_event(event, edges=edges)
+
+    def _edge_event(self, event, *, edges=None):
         if self._peek and not self.is_pinned or event.type() not in (
                 QEvent.Type.MouseMove, QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
             return False
         point = event.globalPosition().toPoint()
         local = self.mapFromGlobal(point)
-        edges = Qt.Edge(0)
-        if local.x() < 5:
-            edges |= Qt.Edge.LeftEdge
-        elif local.x() >= self.width() - 5:
-            edges |= Qt.Edge.RightEdge
-        if local.y() < 5:
-            edges |= Qt.Edge.TopEdge
-        elif local.y() >= self.height() - 5:
-            edges |= Qt.Edge.BottomEdge
+        if edges is None:
+            edges = Qt.Edge(0)
+            if local.x() < 5:
+                edges |= Qt.Edge.LeftEdge
+            elif local.x() >= self.width() - 5:
+                edges |= Qt.Edge.RightEdge
+            if local.y() < 5:
+                edges |= Qt.Edge.TopEdge
+            elif local.y() >= self.height() - 5:
+                edges |= Qt.Edge.BottomEdge
         horizontal = bool(edges & (Qt.Edge.LeftEdge | Qt.Edge.RightEdge))
         vertical = bool(edges & (Qt.Edge.TopEdge | Qt.Edge.BottomEdge))
         diagonal = edges in (Qt.Edge.LeftEdge | Qt.Edge.TopEdge, Qt.Edge.RightEdge | Qt.Edge.BottomEdge)
