@@ -10,7 +10,7 @@ from wordcel.gui.settings_section import SettingsSection, align_form_columns
 from wordcel.gui.typography import default_family
 from wordcel.gui.action_icons import POPUP_ACTIONS
 
-KEYS = ("theme_name", "font_family", "font_size_header", "font_size_definitions", "font_size_sentence",
+KEYS = ("theme_name", "font_family", "font_size_header", "font_size_reading", "font_size_definitions", "font_size_sentence",
         "color_background", "color_foreground", "color_highlight_word", "color_highlight_reading",
         "background_opacity", "pitch_colors", "kanji_stroke_order")
 DEFAULTS = {key: getattr(config, key) for key in KEYS}
@@ -127,6 +127,7 @@ class ProfileAppearance(QWidget):
         self.controls = {}
         for key, label, minimum, maximum in (
                 ("font_size_header", "Word size", 10, 72),
+                ("font_size_reading", "Reading size", 10, 48),
                 ("font_size_definitions", "Definition size", 10, 48),
                 ("font_size_sentence", "Sentence size", 10, 48),
                 ("furigana_scale", "Furigana size", 30, 100),
@@ -137,7 +138,7 @@ class ProfileAppearance(QWidget):
                 widget.setSuffix("%")
             self.controls[key] = widget
             if key == "scale":
-                widget.setToolTip("Scales word, definition and sentence sizes together")
+                widget.setToolTip("Scales word, reading, definition and sentence sizes together")
             (form if key in ("scale", "background_opacity") else detail_form).addRow(label, widget)
         for row, (key, label) in enumerate((("color_background", "Background"), ("color_foreground", "Text"),
                                            ("color_highlight_word", "Word"), ("color_highlight_reading", "Reading")), start=1):

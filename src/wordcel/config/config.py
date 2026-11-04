@@ -20,6 +20,7 @@ class Config:
     font_size_definitions: int = 14
     font_size_sentence: int = 14
     font_size_header: int = 18
+    font_size_reading: int = 15
     pitch_colors: bool = True
     kanji_stroke_order: bool = True
     color_background: str = "#000000"

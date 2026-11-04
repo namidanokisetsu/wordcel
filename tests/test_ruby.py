@@ -166,7 +166,8 @@ class RubyTests(unittest.TestCase):
         word = Entry("1", "祈願", "きがん", "Words", "ja", ("prayer",), inflection=("past",),
                      frequencies=(Frequency("Corpus <one>", 123, "123"),), pitches=(Pitch("NHK", "きがん", 1),))
         result = SearchResult("祈願", "ja", "en", (word,))
-        with patch.object(config, "font_size_header", 24), patch.object(config, "font_size_definitions", 14):
+        with patch.object(config, "font_size_header", 24), patch.object(config, "font_size_definitions", 14), \
+                patch.object(config, "font_size_reading", 21):
             for preview in (False, True):
                 for furigana in (False, True):
                     with self.subTest(preview=preview, furigana=furigana):

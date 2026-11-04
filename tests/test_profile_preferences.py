@@ -61,6 +61,7 @@ class ProfilePreferenceTests(unittest.TestCase):
         self.settings.setValue(f"profiles/{profile}/hotkey", "")
         self.settings.setValue(f"profiles/{profile}/hotkey_preset", "Old")
         self.settings.setValue(f"profiles/{profile}/theme_name", "Custom")
+        self.settings.setValue(f"profiles/{profile}/font_size_reading", 24)
         self.settings.setValue(f"profiles/{profile}/translation", json.dumps({
             "provider": "custom", "profile": "lightweight", "endpoint": "http://127.0.0.1:9999/v1",
             "model": "local", "stream": False, "keep_warm": True, "chunk_size": 300,
@@ -71,6 +72,7 @@ class ProfilePreferenceTests(unittest.TestCase):
 
         reset_page(self.settings, profile, "Popup")
         self.assertFalse(self.settings.contains(f"profiles/{profile}/theme_name"))
+        self.assertFalse(self.settings.contains(f"profiles/{profile}/font_size_reading"))
         reset_page(self.settings, profile, "Shortcuts")
         self.assertEqual(self.settings.value(f"profiles/{profile}/hotkey"), "")
         expected_preset = "Ctrl+Shift+D"

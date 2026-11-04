@@ -640,7 +640,7 @@ class QuickLookupWindow(QDialog):
 
     def reload_appearance(self, render=True):
         from wordcel.gui.profile_appearance import load_appearance
-        font_keys = ("font_family", "font_size_header", "font_size_definitions", "font_size_sentence", "furigana_scale")
+        font_keys = ("font_family", "font_size_header", "font_size_reading", "font_size_definitions", "font_size_sentence", "furigana_scale")
         previous_font = tuple(getattr(config, key) for key in font_keys)
         load_appearance(self.settings, self.active_profile)
         position = None

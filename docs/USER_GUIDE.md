@@ -75,7 +75,8 @@ Choose a profile under **Editing** to change its settings without activating it.
   its alternative forms.
 - **Popup:** Compact view shows the first headword and dictionary without labels
   or extra details. The preview definition limit applies with Compact view on or off;
-  pin to see full definitions.
+  pin to see full definitions. **Text & colors > Reading size** controls pitch and
+  plain readings independently of Word size. Furigana size controls readings above kanji.
 - **Shortcuts:** change or disable bindings independently. Grab text, Hover scan
   and Translate have optional presets.
 - **Translation:** enable automatic translation per profile for submitted text.

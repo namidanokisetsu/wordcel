@@ -64,6 +64,40 @@ class ProfileThemeTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
+    def test_reading_size_persists_per_profile_and_scales_independently(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = str(Path(folder) / 'settings.ini')
+            settings = QSettings(path, QSettings.Format.IniFormat)
+            profile = ['ja']
+            previous = dict(config.__dict__)
+            widget = ProfileAppearance(settings, lambda: profile[0], Mock())
+            try:
+                self.assertEqual(widget.controls['font_size_reading'].value(), 15)
+                widget.controls['font_size_reading'].setValue(24)
+                widget.controls['font_size_header'].setValue(32)
+                widget.controls['scale'].setValue(150)
+                load_appearance(settings, 'ja')
+                self.assertEqual(config.font_size_reading, 36)
+                self.assertEqual(config.font_size_header, 48)
+                self.assertEqual(config.font_size_definitions, 21)
+                settings.sync()
+                self.assertEqual(QSettings(path, QSettings.Format.IniFormat).value(
+                    'profiles/ja/font_size_reading', type=int), 24)
+                profile[0] = 'tr'
+                widget.reload()
+                self.assertEqual(widget.controls['font_size_reading'].value(), 15)
+                widget.controls['font_size_reading'].setValue(18)
+                load_appearance(settings, 'tr')
+                self.assertEqual(config.font_size_reading, 18)
+                profile[0] = 'ja'
+                widget.reload()
+                self.assertEqual(widget.controls['font_size_reading'].value(), 24)
+                load_appearance(settings, 'ja')
+                self.assertEqual(config.font_size_reading, 36)
+            finally:
+                config.__dict__.update(previous)
+                widget.deleteLater()
+
     def test_percentage_opacity_applies_to_presets_and_round_trips(self):
         with tempfile.TemporaryDirectory() as folder:
             settings = QSettings(str(Path(folder) / 'settings.ini'), QSettings.Format.IniFormat)

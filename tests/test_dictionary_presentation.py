@@ -174,11 +174,12 @@ class DictionaryPresentationTests(unittest.TestCase):
         value = SearchResult("猫", "ja", "en", (
             Entry("cat", "猫", "ねこ", "Fixture", "ja", ("cat",),
                   pitches=(Pitch("Pitch", "ねこ", 1),)),))
-        for header, definitions in ((14, 24), (18, 14), (32, 12)):
+        for header, definitions, reading in ((14, 24, 10), (18, 14, 21), (32, 12, 36)):
             for preview in (False, True):
-                with self.subTest(header=header, definitions=definitions, preview=preview), \
+                with self.subTest(header=header, definitions=definitions, reading=reading, preview=preview), \
                         patch.object(config, "font_size_header", header), \
-                        patch.object(config, "font_size_definitions", definitions):
+                        patch.object(config, "font_size_definitions", definitions), \
+                        patch.object(config, "font_size_reading", reading):
                     self.render(value, preview=preview)
                     block = self.browser.document().begin()
                     iterator = block.begin()
@@ -193,7 +194,7 @@ class DictionaryPresentationTests(unittest.TestCase):
                     self.render(value, preview=preview, preview_pitch=False, pinned_pitch=False)
                     plain = self.browser.document().find("[ねこ]")
                     self.assertFalse(plain.isNull())
-                    self.assertEqual(plain.charFormat().font().pixelSize(), max(12, header - 3))
+                    self.assertEqual(plain.charFormat().font().pixelSize(), reading)
                     self.assertEqual(pitch_format.font().pixelSize(), plain.charFormat().font().pixelSize())
 
     def test_headword_does_not_keep_qt_relative_font_enlargement(self):

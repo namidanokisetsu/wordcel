@@ -143,7 +143,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
     maximum = preview_definitions if preview else 0
     grammar_tags = not preview if grammar is None else grammar
     show_inflections = grammar is not False
-    reading_size = max(12, config.font_size_header - 3)
+    reading_size = config.font_size_reading
     muted = surface_colors(config.color_background, config.color_foreground)["muted"]
     clearance = 96 if overlay_actions is True else int(overlay_actions)
     if source_text is None:
