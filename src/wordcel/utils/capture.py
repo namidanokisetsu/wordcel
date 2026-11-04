@@ -15,6 +15,7 @@ class CaptureRequest:
     frozen: bool = False
     full_snapshot: bool = False
     source_window: int = 0
+    mask_window: int = 0
 
     def physical_crop(self, physical_geometry):
         x, y, width, height = self.crop
@@ -142,8 +143,30 @@ class RegionCapture:
         if self.backend is None:
             import mss
             self.backend = mss.mss()
+        before = self._mask_bounds(request.mask_window)
         screenshot = self.backend.grab(dict(left=left, top=top, width=width, height=height))
-        return PixelFrame(request, (width, height), bytes(screenshot.bgra), monotonic(), "BGRX", 0, crop)
+        frame = PixelFrame(request, (width, height), bytes(screenshot.bgra), monotonic(), "BGRX", 0, crop)
+        after = self._mask_bounds(request.mask_window)
+        bounds = {box for box in (before, after) if box is not None}
+        boxes = [(max(0, x - left), max(0, y - top),
+                  min(width, x + w - left), min(height, y + h - top)) for x, y, w, h in bounds]
+        boxes = [box for box in boxes if box[0] < box[2] and box[1] < box[3]]
+        if boxes:
+            image = frame.image()
+            # Cover either position if the popup moved during the screenshot.
+            for box in boxes:
+                image.paste(0, box)
+            frame = PixelFrame(request, image.size, image.tobytes(), frame.captured_at, physical_crop=crop)
+        return frame
+
+    @staticmethod
+    def _mask_bounds(handle):
+        if handle:
+            from wordcel.utils.window_capture import window_bounds
+            try:
+                return window_bounds(handle)
+            except RuntimeError:
+                pass  # Hidden or minimized popups contribute no pixels.
 
     def reset(self):
         self._failed = None

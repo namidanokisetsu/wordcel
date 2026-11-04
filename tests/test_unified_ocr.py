@@ -730,7 +730,8 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                 self.assertEqual(QRect(*request.crop), self.controller.hover_region)
                 if native:
                     self.assertIsInstance(pixels, CaptureRequest)
-                    self.assertEqual(pixels.source_window, 0 if excluded else 123)
+                    self.assertEqual(pixels.source_window, 0)
+                    self.assertEqual(pixels.mask_window, 0 if excluded else int(self.window.winId()))
                 else:
                     self.assertEqual(pixels.size(), geometry.size())
 
@@ -1245,7 +1246,7 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                     patch("wordcel.gui.unified_ocr.QCursor.pos", return_value=QPoint(100, 100)), \
                     patch.object(QApplication, "activeWindow", return_value=None), \
                     patch("wordcel.utils.capture.windows_screen_geometry", return_value=screen.geometry().getRect()), \
-                    patch("wordcel.utils.window_capture.window_at_point", return_value=123), \
+                    patch("wordcel.utils.window_capture.window_at_point", side_effect=AssertionError("Unexpected WGC")), \
                     patch("wordcel.utils.capture.exclude_from_capture", return_value=False) as exclude, \
                     patch("wordcel.gui.unified_ocr.QTimer.singleShot") as dispatch, \
                     patch.object(self.window, "hide") as hide, \
@@ -1261,11 +1262,33 @@ class UnifiedOCRLifecycleTests(unittest.TestCase):
                     self.assertEqual(delay, 0)
                     callback()
                     job = controller.worker.queue.get_nowait()
-                    self.assertEqual(job[1].source_window, 123)
+                    self.assertEqual(job[1].source_window, 0)
+                    self.assertEqual(job[1].mask_window, int(self.window.winId()))
                     self.assertTrue(self.window.isVisible())
                 exclude.assert_called_once()
                 hide.assert_not_called()
                 grab.assert_not_called()
+
+    def test_capture_error_is_visible_when_popup_is_hidden(self):
+        from wordcel.utils.capture import CaptureRequest
+        request = CaptureRequest(1, "screen", (0, 0, 800, 600), (0, 0, 400, 200), 1,
+                                 self.controller.generation, source_window=123)
+        with patch("PyQt6.QtWidgets.QToolTip.showText") as notify:
+            self.controller.accept_frame(self.controller.generation, request, "This window cannot be captured.")
+        notify.assert_called_once()
+        self.assertEqual(notify.call_args.args[1], "This window cannot be captured.")
+        self.assertFalse(self.window.isVisible())
+
+    def test_hotkey_capture_without_exclusion_uses_desktop_even_with_hidden_popup(self):
+        controller = self.controller
+        controller.worker = SimpleNamespace(queue=Queue(), stop=Mock(), join=Mock())
+        with patch("wordcel.gui.unified_ocr.sys.platform", "win32"), \
+                patch("wordcel.utils.window_capture.window_at_point", side_effect=AssertionError("Unexpected WGC")):
+            controller.capture(controller.generation, QPoint(100, 100))
+        request = controller.worker.queue.get_nowait()[1]
+        self.assertEqual(request.source_window, 0)
+        self.assertEqual(request.mask_window, int(self.window.winId()))
+        self.assertFalse(self.window.isVisible())
 
     def test_window_capture_failure_does_not_return_to_hide_fallback(self):
         from wordcel.utils.capture import CaptureRequest

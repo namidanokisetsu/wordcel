@@ -56,6 +56,51 @@ class RegionTests(unittest.TestCase):
                 capture.close()
             source.close.assert_called_once()
 
+    def test_failed_exclusion_masks_popup_in_physical_pixels_without_wgc(self):
+        request = CaptureRequest(1, "screen", (-100, 0, 200, 100), (-100, 0, 200, 100), 1.5, 2,
+                                 mask_window=456)
+        backend = Mock()
+        backend.grab.return_value = SimpleNamespace(bgra=bytes([10, 20, 30, 255]) * (300 * 150))
+        with patch("mss.mss", return_value=backend), \
+                patch("wordcel.utils.capture.windows_screen_geometry", return_value=(-100, 0, 300, 150)), \
+                patch("wordcel.utils.window_capture.window_bounds", return_value=(-70, 30, 120, 60)), \
+                patch("wordcel.utils.window_capture.WindowCapture", side_effect=AssertionError("Unexpected WGC")):
+            capture = RegionCapture()
+            try:
+                for _ in range(2):
+                    frame = capture.capture(request)
+                    image = frame.image()
+                    self.assertEqual(frame.physical_crop, (-100, 0, 300, 150))
+                    self.assertEqual(image.getpixel((29, 30)), (30, 20, 10))
+                    self.assertEqual(image.getpixel((30, 30)), (0, 0, 0))
+                    self.assertEqual(image.getpixel((149, 89)), (0, 0, 0))
+                    self.assertEqual(image.getpixel((150, 90)), (30, 20, 10))
+                    # The full image kept for Anki must have the same redaction.
+                    selected = frame.cropped(replace(request, crop=(-100, 0, 100, 100)))
+                    self.assertEqual(selected.image().getpixel((30, 30)), (0, 0, 0))
+            finally:
+                capture.close()
+
+    def test_mask_tracks_popup_movement_and_clips_to_capture(self):
+        request = CaptureRequest(1, "screen", (0, 0, 4, 2), (0, 0, 4, 2), 1, 2, mask_window=456)
+        backend = Mock()
+        backend.grab.return_value = SimpleNamespace(bgra=bytes([255, 255, 255, 255]) * 8)
+        with patch("mss.mss", return_value=backend), \
+                patch("wordcel.utils.capture.windows_screen_geometry", return_value=request.geometry), \
+                patch("wordcel.utils.window_capture.window_bounds",
+                      side_effect=[(-1, -1, 2, 2), (3, 1, 3, 3), RuntimeError("hidden"), RuntimeError("hidden")]):
+            capture = RegionCapture()
+            try:
+                image = capture.capture(request).image()
+                self.assertEqual(image.getpixel((0, 0)), (0, 0, 0))
+                self.assertEqual(image.getpixel((3, 1)), (0, 0, 0))
+                self.assertEqual(image.getpixel((1, 0)), (255, 255, 255))
+                image = capture.capture(request).image()
+                self.assertEqual(image.getpixel((0, 0)), (255, 255, 255))
+                self.assertEqual(image.getpixel((3, 1)), (255, 255, 255))
+            finally:
+                capture.close()
+
     def test_failed_source_retries_only_after_source_or_session_changes(self):
         request = CaptureRequest(1, "screen", (0, 0, 20, 20), (0, 0, 20, 20), 1, 2, source_window=123)
         source = Mock()

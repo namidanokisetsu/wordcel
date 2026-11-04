@@ -1204,7 +1204,9 @@ class UnifiedOCR(QObject):
                                      (geometry.x(), geometry.y(), geometry.width(), geometry.height()),
                                      (region.x(), region.y(), region.width(), region.height()), scale, generation,
                                      self.freeze_capture, full_snapshot=self.session.hovering)
-            if sys.platform == "win32" and (not self._capture_excluded or self._fallback_capture):
+            if sys.platform == "win32" and not self._capture_excluded:
+                request = replace(request, mask_window=int(self.window.winId()))
+            if sys.platform == "win32" and self._fallback_capture:
                 from wordcel.utils.capture import windows_screen_geometry
                 from wordcel.utils.window_capture import window_at_point
                 physical = replace(request, crop=(point.x(), point.y(), 1, 1)).physical_crop(
@@ -1237,7 +1239,7 @@ class UnifiedOCR(QObject):
             self.invalidate()
             generation = self.generation
             self.restore_capture_visibility()
-            self.window.show_message(str(error))
+            self._capture_error(str(error))
         finally:
             if self._capture_hidden:
                 self._capture_hidden = False
@@ -1289,7 +1291,7 @@ class UnifiedOCR(QObject):
                     return
             else:
                 self.restore_capture_visibility()
-            self.window.show_message(error)
+            self._capture_error(error)
             return
         self.frame = frame
         mark("frame_accepted", frame.request.revision)
@@ -1302,6 +1304,12 @@ class UnifiedOCR(QObject):
                 self._crop_retries += 1
                 self.capture_region = QRect(*crop)
                 self._request_capture(point)
+
+    def _capture_error(self, error):
+        self.window.show_message(error)
+        if not self.window.isVisible():
+            from PyQt6.QtWidgets import QToolTip
+            QToolTip.showText(QCursor.pos(), error, None, QRect(), 3000)
 
     def hit_latest(self, point, now):
         if not self._valid_frame(self.frame, point, now):

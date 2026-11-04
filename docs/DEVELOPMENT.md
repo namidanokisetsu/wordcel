@@ -82,12 +82,14 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   profile and resource revision. OCR preloading uses installed resources only and
   yields to scans. Shortcut changes must not block the UI.
   Windows capture never hides the popup. Screen capture uses popup exclusion;
-  if unavailable, the same worker owns a reusable Windows Graphics Capture
+  if unavailable, the worker blanks the popup's physical bounds in desktop pixels.
+  Covered source text is unavailable in this fallback, including in Anki snapshots.
+  A desktop capture failure can use a worker-owned Windows Graphics Capture
   session for the source window. Source captures retain screen coordinates and
   blank pixels outside that window, including in Anki snapshots. Capture failures
   keep the popup visible and retry setup on a new source or scan session. Session
   invalidation releases capture resources on the worker; native exclusion errors
-  appear in the opt-in timing trace.
+  appear in the opt-in timing trace. Capture errors also appear outside hidden popups.
 - **Popup:** pinning freezes results. Preserve document, selection, scroll and
   geometry during disclosure and translation. Keep visible text anchored during
   resizing and text scaling; resize source excerpts without rebuilding definitions.
