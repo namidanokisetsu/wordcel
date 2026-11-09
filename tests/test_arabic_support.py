@@ -123,6 +123,18 @@ class ArabicRenderingTests(unittest.TestCase):
                                   {"tag": "div", "dir": "rtl", "content": "123 (كتاب)"}})
         self.assertIn('dir="rtl"', html)
 
+    def test_default_arabic_font_uses_sans_for_english_and_naskh_for_arabic(self):
+        from PyQt6.QtGui import QTextLayout
+        for family in ("", default_family("ar")):
+            font = document_font(family, 22, "ar")
+            for text, expected in (("English definitions", "Noto Sans"), ("\u0643\u062a\u0627\u0628", "Noto Naskh Arabic")):
+                layout = QTextLayout(text, font)
+                layout.beginLayout()
+                layout.createLine()
+                layout.endLayout()
+                self.assertEqual({run.rawFont().familyName() for run in layout.glyphRuns()}, {expected})
+        self.assertEqual(document_font("Arial", 22, "ar").families()[0], "Arial")
+
     def test_arabic_font_and_stacked_marks_fit_the_line(self):
         self.assertEqual(default_family("ar"), "Noto Naskh Arabic")
         browser = RubyBrowser()

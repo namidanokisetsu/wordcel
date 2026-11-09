@@ -38,7 +38,11 @@ def default_family(language):
 def document_font(family, size, language):
     font = QFont()
     if family or language == "ar":
-        font.setFamilies(list(dict.fromkeys(filter(None, (family, *document_families(language))))))
+        families = (family, *document_families(language))
+        if language == "ar" and family in ("", "Noto Naskh Arabic"):
+            # Naskh includes serif Latin glyphs; use Sans for Latin and fall back for Arabic.
+            families = ("Noto Sans", *families)
+        font.setFamilies(list(dict.fromkeys(filter(None, families))))
     font.setPixelSize(size)
     font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias | QFont.StyleStrategy.PreferOutline)
     font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
