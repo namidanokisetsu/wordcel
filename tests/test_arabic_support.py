@@ -65,6 +65,16 @@ class ArabicSpellingTests(unittest.TestCase):
         self.assertEqual((first.query, first.start, first.end), ("كتاب", 0, 4))
         self.assertEqual((second.query, second.start, second.end), ("كتاب", 5, 9))
 
+    def test_wrapped_arabic_context_uses_right_alignment_without_crossing_columns(self):
+        paragraphs = fragment_paragraphs([
+            ("قرأ الطالب كتابا", [("قرأ الطالب كتابا", (120, 0, 300, 20))]),
+            ("جديدا", [("جديدا", (250, 22, 300, 42))]),
+            ("هذا كتاب", [("هذا كتاب", (0, 0, 80, 20))]),
+        ], 300, 50, "ar")
+        self.assertEqual(len(paragraphs), 2)
+        joined = next(p for p in paragraphs if "الطالب" in p.full_text)
+        self.assertEqual(joined.full_text, "قرأ الطالب كتابا\nجديدا")
+
 
 class ArabicRenderingTests(unittest.TestCase):
     @classmethod
@@ -100,6 +110,10 @@ class ArabicRenderingTests(unittest.TestCase):
             self.assertEqual(browser.createMimeDataFromSelection().text(), text)
             self.assertEqual(entries[0].term, "كتب")
             self.assertEqual(note_values(entries[:1])["expression"], "كُتُب")
+            values = note_values(entries[:1], sentence="قرأت هذه الكتب.", encountered="الكتب")
+            self.assertEqual(values["encountered_form"], "الكتب")
+            self.assertEqual(values["dictionary_term"], "كتب")
+            self.assertEqual(values["sentence"], "قرأت هذه الكتب.")
         finally:
             browser.deleteLater()
 

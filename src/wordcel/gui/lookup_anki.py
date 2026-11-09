@@ -151,9 +151,11 @@ class LookupAnki(QObject):
         kanji = tuple(item for item in window._result.kanji if item.character in headword[0])
         selection, translation = window.browser.selected_text(), window._result.translation
         screenshot, directory = window._result_screenshot, window.directory
+        encountered = window._result.text
         audio_clip = getattr(window.audio, "current_clip", None)
         operation = lambda: export_note(entries, sentence, selection, options, translation=translation,
-                                        screenshot=screenshot, directory=directory, audio_clip=audio_clip, kanji=kanji)
+                                        screenshot=screenshot, directory=directory, audio_clip=audio_clip, kanji=kanji,
+                                        encountered=encountered)
         notify = window.settings.value(f"profiles/{window.active_profile}/anki/notifications", False, bool)
         self._queue.append((operation, (window.revision, headword, options, notify)))
         window.show_message("")

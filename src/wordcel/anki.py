@@ -21,6 +21,7 @@ DUPLICATE_SCOPES = {"deck": "Current deck", "deckroot": "Deck tree", "decks": "S
                     "collection": "Collection"}
 FIELD_SOURCES = {
     "": "Skip", "expression": "Word", "reading": "Reading",
+    "encountered_form": "Encountered form", "dictionary_term": "Dictionary word",
     "glossary-first": "glossary-first", "glossary": "glossary",
     "popup-selection-text": "popup-selection-text",
     "kanji-details": "Kanji details",
@@ -34,6 +35,8 @@ FIELD_SOURCES = {
 FIELD_ALIASES = {
     "expression": ("word", "expression", "term", "vocabulary", "headword", "front"),
     "reading": ("reading", "kana", "pronunciation", "wordreading"),
+    "encountered_form": ("encounteredform", "surfaceform"),
+    "dictionary_term": ("dictionaryword", "dictionaryterm"),
     "glossary-first": ("glossaryfirst", "firstdefinition"),
     "glossary": ("definition", "glossary", "meaning", "back"),
     "popup-selection-text": ("popupselectiontext", "chosendefinition"),
@@ -298,7 +301,7 @@ class AnkiClient:
         return note_id
 
 
-def note_values(entries, sentence="", selection="", translation="", furigana=None, *, converter=None, sources=None):
+def note_values(entries, sentence="", selection="", translation="", furigana=None, *, converter=None, sources=None, encountered=""):
     from wordcel.language.arabic import display_headword
     entry = entries[0]
     sources = set(FIELD_SOURCES if sources is None else sources)
@@ -320,6 +323,7 @@ def note_values(entries, sentence="", selection="", translation="", furigana=Non
     return dict({"glossary-first": aligned(glossaries[0]) if glossaries else "",
                  "popup-selection-text": escape(selection).replace("\n", "<br>")},
                 expression=escape(display_headword(entry)),
+                encountered_form=escape(encountered or entry.term), dictionary_term=escape(entry.term),
                 reading=escape(entry.reading), glossary=aligned(glossary) if glossary else "",
                 sentence=escape(sentence).replace("\n", "<br>"), source=escape(entry.source),
                 sentence_furigana=(furigana if furigana is not None else sentence_readings(sentence, entries))

@@ -532,6 +532,7 @@ class QuickLookupWindow(QDialog):
         self.foreign.currentIndexChanged.connect(self._mode_changed)
         self.worker = LookupWorker(directory, engine_factory)
         self.worker.completed.connect(self.deliver)
+        self.worker.analysis_updated.connect(self._analysis_ready)
         self.worker.failed.connect(self._failed)
         self.worker.languages.connect(self.update_languages)
         self.worker.start()
@@ -1145,7 +1146,19 @@ class QuickLookupWindow(QDialog):
                        context=lookup_context if not translate else None,
                        morphology=not translate and not exact_only and model_available(source if saved_encounter else self.preferred_foreign),
                        dictionary_options=dictionary_preferences(self.settings, self.active_profile),
+                       arabic_context=self.settings.value(f"profiles/{self.active_profile}/arabic_context", False, bool),
                        exact_only=exact_only)
+
+    def _analysis_ready(self, revision, result):
+        if (revision != self.revision or self._shutting_down or self._last_request_translate
+                or self._display_revision != revision or self._result is None
+                or (result.text, result.source, result.target) != (self._result.text, self._result.source, self._result.target)):
+            return
+        if self.browser.selecting or self.browser.textCursor().hasSelection() or self.browser.verticalScrollBar().value():
+            order = {entry.id: index for index, entry in enumerate(self._result.entries)}
+            result = replace(result, entries=tuple(sorted(result.entries, key=lambda entry: order.get(entry.id, len(order)))))
+        self._result = result
+        self._render(static=True, preserve_scroll=True)
 
     def deliver(self, revision, result):
         if (revision != self.revision or self._shutting_down
@@ -2795,7 +2808,8 @@ class QuickLookupWindow(QDialog):
         if not text and self._kanji_view:
             text = next(iter(self._kanji_details), "")
         if not text and self._result and self._result.entries:
-            text = self._result.entries[0].term
+            from wordcel.language.arabic import display_headword
+            text = display_headword(self._result.entries[0])
         if text:
             QApplication.clipboard().setText(text)
 

@@ -157,7 +157,7 @@ def _bounds(boxes):
             max(box[2] for box in boxes), max(box[3] for box in boxes))
 
 
-def _paddle_groups(lines):
+def _paddle_groups(lines, language="tr"):
     """Join close, aligned wrapped lines without crossing columns or large gaps."""
     lines = [(text, words, _bounds([word[3] for word in words])) for text, words in lines]
     groups = []
@@ -169,12 +169,13 @@ def _paddle_groups(lines):
             pleft, ptop, pright, pbottom = previous
             height, prior_height = bottom - top, pbottom - ptop
             overlap = min(right, pright) - max(left, pleft)
+            alignment = abs(right - pright) if language == "ar" else abs(left - pleft)
             if (0.65 <= height / prior_height <= 1.55
                     and top - ptop >= 0.6 * min(height, prior_height)
                     and -0.2 * min(height, prior_height) <= top - pbottom <= 1.1 * max(height, prior_height)
                     and overlap >= 0.5 * min(right - left, pright - pleft)
-                    and abs(left - pleft) <= max(2 * height, 0.25 * max(right - left, pright - pleft))):
-                candidates.append((abs(top - pbottom) + abs(left - pleft), group))
+                    and alignment <= max(2 * height, 0.25 * max(right - left, pright - pleft))):
+                candidates.append((abs(top - pbottom) + alignment, group))
         if candidates:
             min(candidates, key=lambda pair: pair[0])[1].append(line)
         else:
@@ -206,7 +207,7 @@ def fragment_paragraphs(lines, width, height, language="tr"):
                            (right - left) / width, (bottom - top) / height)
 
     paragraphs = []
-    for group in _paddle_groups(fragment_lines(lines, language)):
+    for group in _paddle_groups(fragment_lines(lines, language), language):
         items = []
         line_offset = 0
         for text, words, _ in group:

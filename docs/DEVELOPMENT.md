@@ -66,7 +66,7 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   Stanza. Expanded clitics prefer lexical words over function words; contiguous
   elisions retain their original span. Korean KAIST morphemes use XPOS to remove
   endings and plural particles and restore dictionary predicate endings.
-  Arabic/Persian model lemmas reuse spelling recovery. Arabic form traversal
+  Persian and fallback Stanza Arabic lemmas reuse spelling recovery. Arabic form traversal
   retains source readings and grammatical rules and stops at compatible lexical
   entries. Older packs use available grammar labels until explicit reimport adds
   form metadata; no runtime migration or corpus scan is needed.
@@ -75,6 +75,13 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   Arabic imports add indexed unvocalized aliases for terms/readings and forms;
   `arabic_alias_version=1` requires explicit reimport of older packs. Remove only
   vowels/tatweel, retaining hamza, madda, ta marbuta and alif maqsura distinctions.
+  Windows Arabic analysis uses CAMeL Tools 1.6.0 / CALIMA MSA R13 in one lazy,
+  authenticated CPU worker shared across search engines, with 120-second idle exit.
+  The primary analyzer has strict normalization. CALIMA's folded stem index is also
+  queried, admitting only outputs whose Arabic spelling and supplied marks match.
+  Lexical matching tolerates omitted predictable vowels, not conflicting ones.
+  Roots never substitute for lemmas. Preserve analyses' original surface spans.
+  Definitions remain dictionary-only. Missing CAMeL resources retain Stanza fallback.
   Keep NLP imports lazy and runtime analysis offline. LLM output belongs only in
   translation, never dictionary definitions or ranking.
   OCR previews require dictionary entries, kanji or spelling suggestions;
@@ -133,6 +140,10 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   Arabic content is RTL, English definitions and metadata LTR. Preserve structured
   dictionary direction attributes. Anki Word uses the displayed Arabic headword;
   audio/history identities retain the original dictionary term and reading.
+  Arabic lookup publishes dictionary results before morphology/context updates.
+  Updates share request cancellation and revision checks, preserve the reading
+  position, and retain heading order while selecting or scrolled. Context ranks
+  attested readings before model-only lemma matches without removing alternatives.
   Multiple grammar analysis chains use shared disclosure in every language,
   keyed to the headword group. Single chains stay inline; expansion keeps the
   existing reading position and requires no new analysis.
@@ -231,6 +242,14 @@ It checks failed exclusion with retained hover, source refresh, pinning and Shif
 plus normal live capture. `WORDCEL_TEST_OCR=windows` selects Windows OCR instead
 of MeikiOCR.
 
+Arabic's bounded comparison uses `tests/fixtures/arabic_msa.json` (60 curated MSA
+cases): `python -m wordcel.scripts.check_arabic --library <path> --mode <dictionary|stanza|morphology|context>`.
+`--ocr-component <path>` runs real Screen AI on controlled text images;
+`--test-root <path>` isolates downloaded resources, and `--output <file>` saves
+results. Setup is separate. Measure warm uncached lookup and the worker's actual
+Windows PID, not the venv launcher. Targets: morphology <512 MiB/<200 ms;
+context <2 GiB/<1 s. Curated fixtures are smoke checks, not corpus accuracy claims.
+
 ## OCR providers
 
 Register providers in `gui/unified_ocr.py` (`ScanWorker.provider`), language
@@ -272,6 +291,15 @@ installer helpers are in [packaging](../packaging). Release policy is in AGENTS.
 
 - Desktop releases contain the Windows EXE and Apple silicon/Intel DMGs. Bundle
   Python and core libraries; install Stanza/Torch explicitly with their models.
+  Arabic has separate morphology/context wheel manifests for Windows x64/Python
+  3.12. The small morphology component excludes Torch; context adds CPU Torch and
+  Transformers 4.57.6. Both load only in the Arabic worker, never `activate()`.
+  Its pinned runtime manifest is component-specific: only morphology imports and
+  their dependencies are installed for CALIMA. `docopt` supplies no upstream wheel;
+  copy its module/licence from the verified sdist without running setup.py.
+  Download CALIMA R13 and the MSA BERT archive explicitly with pinned sizes/hashes;
+  exclude ranking caches, other dialects and translation models. The worker supplies
+  a temporary empty CAMeL catalogue and offline Hub flags to prevent implicit fetches.
   Paddle's pinned packages are collected into a separate runtime site and its
   OCR worker prepends that site before importing Paddle or OpenCV. Source setup
   uses the same isolated site under app data. Worker replies contain only plain

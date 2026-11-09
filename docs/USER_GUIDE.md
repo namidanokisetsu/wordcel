@@ -75,6 +75,15 @@ Choose a profile under **Editing** to change its settings without activating it.
   Arabic/Hebrew, French elisions and Korean endings. Arabic dictionary reimport
   adds vowelled-form matching to older imports. Click a grammar summary to see
   its alternative forms.
+- **Arabic:** vowelled dictionary readings appear directly on the headword, without
+  Latin transliteration. Arabic reads right to left; English definitions remain
+  left to right. **Dictionaries > Download Arabic morphology** adds offline MSA
+  analysis on Windows (about 42 MB including its runtime). Contextual analysis is a
+  separate optional download (about 1.1 GB more, including its CPU runtime), disabled
+  by default. Enable its experimental checkbox after downloading. It ranks readings
+  from visible context and keeps alternatives; it cannot repair missing OCR context.
+  In Anki, **Word** uses the vowelled heading; optionally map **Encountered form**
+  and **Dictionary word** to retain the original spellings.
 - **Popup:** Compact view shows the first headword and dictionary without labels
   or extra details. The preview definition limit applies with Compact view on or off;
   pin to see full definitions. **Text & colors > Reading size** controls pitch and

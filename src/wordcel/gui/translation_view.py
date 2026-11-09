@@ -99,7 +99,8 @@ class TranslationView(RubyBrowser):
         if message:
             parts.append(f'<p>{escape(message).replace(chr(10), "<br>")}</p>')
         from wordcel.gui.text_direction import directional_html
-        self.setHtml(directional_html(''.join(parts)))
+        html = ''.join(parts)
+        self.setHtml(directional_html(html) if any('\u0600' <= char <= '\u08ff' for char in translation) else html)
         if position is not None:
             position.restore(self)
         self._content = content

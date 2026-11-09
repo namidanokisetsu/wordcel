@@ -407,7 +407,7 @@ class AnkiSettingsPanel(QWidget):
 
 
 def export_note(entries, sentence, selection, options, *, translation="", screenshot=None,
-                directory=None, audio_clip=None, kanji=()):
+                directory=None, audio_clip=None, kanji=(), encountered=""):
     """Prepare and save a captured lookup on an AnkiTask worker."""
     mark("anki_check_begin")
     client = AnkiClient(options)
@@ -424,7 +424,8 @@ def export_note(entries, sentence, selection, options, *, translation="", screen
         finally:
             library.close()
     converter = _AnkiGlossConverter() if mapped.intersection(("glossary", "glossary-first")) else None
-    values = note_values(entries, sentence, selection, translation, furigana, converter=converter, sources=mapped)
+    values = note_values(entries, sentence, selection, translation, furigana, converter=converter, sources=mapped,
+                         encountered=encountered)
     values["kanji-details"] = ""
     if "kanji-details" in mapped and entries[0].language == "ja":
         from wordcel.gui.kanji_panel import render_kanji_export
