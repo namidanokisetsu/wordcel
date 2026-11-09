@@ -299,6 +299,7 @@ class AnkiClient:
 
 
 def note_values(entries, sentence="", selection="", translation="", furigana=None, *, converter=None, sources=None):
+    from wordcel.language.arabic import display_headword
     entry = entries[0]
     sources = set(FIELD_SOURCES if sources is None else sources)
     glossary_entries = entries if "glossary" in sources else entries[:1] if "glossary-first" in sources else ()
@@ -318,7 +319,8 @@ def note_values(entries, sentence="", selection="", translation="", furigana=Non
                                     "odaka" if p == len(morae(entry.reading)) else "nakadaka" for p in positions))
     return dict({"glossary-first": aligned(glossaries[0]) if glossaries else "",
                  "popup-selection-text": escape(selection).replace("\n", "<br>")},
-                expression=escape(entry.term), reading=escape(entry.reading), glossary=aligned(glossary) if glossary else "",
+                expression=escape(display_headword(entry)),
+                reading=escape(entry.reading), glossary=aligned(glossary) if glossary else "",
                 sentence=escape(sentence).replace("\n", "<br>"), source=escape(entry.source),
                 sentence_furigana=(furigana if furigana is not None else sentence_readings(sentence, entries))
                     if "sentence_furigana" in sources else "",

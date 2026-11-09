@@ -134,7 +134,8 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
             from .media import IMAGE_SUFFIXES, assets_ready
             has_images = any(Path(name).suffix.lower() in IMAGE_SUFFIXES for name in zf.namelist())
             media_ready = assets_ready(existing_metadata, directory, destination.stem)
-            forms_ready = source_language != "ar" or existing_metadata.get("form_metadata_version") == "1"
+            forms_ready = source_language != "ar" or (existing_metadata.get("form_metadata_version") == "1"
+                                                       and existing_metadata.get("arabic_alias_version") == "1")
             if existing_metadata.get("schema_version") == "3" and forms_ready and (not has_images or media_ready):
                 if progress:
                     progress(f"Importing {title} · 100%")
@@ -262,6 +263,19 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                     raise ValueError("Replacement dictionary must use the same definition language.")
             if progress:
                 progress(f"Indexing {title} · {last_percent}%")
+            if source_language == "ar":
+                from wordcel.language.arabic import spelling
+                db.create_function("arabic_key", 1, spelling, deterministic=True)
+                db.executescript("""
+                    CREATE TABLE arabic_terms(alias TEXT, term_id INTEGER, PRIMARY KEY(alias,term_id)) WITHOUT ROWID;
+                    CREATE TABLE arabic_forms(alias TEXT, form_id INTEGER, PRIMARY KEY(alias,form_id)) WITHOUT ROWID;
+                    INSERT OR IGNORE INTO arabic_terms SELECT arabic_key(term),id FROM terms;
+                    INSERT OR IGNORE INTO arabic_terms SELECT arabic_key(reading),id FROM terms WHERE reading<>'';
+                    INSERT OR IGNORE INTO arabic_forms SELECT arabic_key(key),rowid FROM forms;
+                    INSERT OR IGNORE INTO arabic_forms SELECT arabic_key(reading_key),rowid FROM forms WHERE reading_key<>'';
+                """)
+                if cancelled and cancelled():
+                    raise InterruptedError("Dictionary import cancelled.")
             db.executescript("""
                 CREATE INDEX term_key ON terms(key);
                 CREATE INDEX term_reading ON terms(reading_key);
@@ -290,6 +304,8 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                             frequencies=str(frequency_count), kanji=str(kanji_count), pitches=str(pitch_count))
             metadata.update(index_url=str(index.get("indexUrl", "")), download_url=str(index.get("downloadUrl", "")),
                             source=str(source or index.get("url", "")), publisher=str(index.get("author", "")))
+            if source_language == "ar":
+                metadata["arabic_alias_version"] = "1"
             metadata["resource_id"] = resource_id or resource_identity(metadata)
             metadata["origin"] = origin
             metadata["checksum_warnings"] = json.dumps(sorted(zf.checksum_warnings))
@@ -607,6 +623,17 @@ class Library:
                 else:
                     rows = db.execute("SELECT * FROM terms WHERE key=? OR reading_key=? ORDER BY score DESC,id LIMIT ?",
                                       (candidate, candidate, row_limit))
+                rows = list(rows)
+                if meta.get("arabic_alias_version") == "1" and not fold:
+                    from wordcel.language.arabic import spelling, has_vowels, compatible_vowels
+                    existing = {row["id"] for row in rows}
+                    rows.extend(row for row in db.execute(
+                        "SELECT t.* FROM arabic_terms a JOIN terms t ON t.id=a.term_id "
+                        "WHERE a.alias=? ORDER BY t.score DESC,t.id LIMIT ?", (spelling(candidate), row_limit))
+                                if row["id"] not in existing)
+                    if has_vowels(candidate):
+                        rows = [row for row in rows if not has_vowels(row["reading"] or row["term"])
+                                or compatible_vowels(candidate, row["reading"] or row["term"])]
                 result.extend(replace(self._entry(path, meta, row, route),
                                       inflection=(inflections or {}).get(candidate, ()) if route.startswith("form") else ())
                               for row in rows)

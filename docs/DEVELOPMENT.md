@@ -46,7 +46,9 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
 ## Contracts
 
 - **Shared UI:** configure Qt Fusion before creating widgets. Controls use bundled
-  Noto Sans at 13 logical pixels; default Japanese text uses Noto Sans JP. Preserve
+  Noto Sans at 13 logical pixels; default Japanese text uses Noto Sans JP and Arabic
+  uses bundled Noto Naskh Arabic (OFL; font SHA256
+  `67b5a525a661b607971fbd3f96a81b89d3a768e74534fca84f18ac97e6fab72f`). Preserve
   explicit profile fonts and fall back without overwriting unavailable choices.
   Use shared drawn icons and layout metrics, not font symbols or platform offsets.
   Settings follow the system light/dark preference with shared palettes; popup
@@ -56,7 +58,7 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   macOS opens the current app bundle in the background at login; source registration
   preserves the virtual environment's Python path. Disabling removes the entry.
   Fonts and OFL licences come from [Google Fonts](https://github.com/google/fonts/tree/2fe1e8c6b137fb13041a7cfca6fdcd8a910ea4dc/ofl)
-  (`notosans`, `notosansjp`); include them in wheels and desktop bundles.
+  (`notosans`, `notosansjp`, `notonaskharabic`); include them in wheels and desktop bundles.
 - **Lookup:** exact entries and imported forms precede analysis. Preserve source
   offsets, dictionary order and full records for Anki. Unspaced lookup starts at
   the pointed character. Japanese uses bundled deconjugation; Turkish uses shared
@@ -70,6 +72,9 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   form metadata; no runtime migration or corpus scan is needed.
   Arabic future-prefix recovery requires an attested verb-form redirect. Expanded
   model words also try their attested surface forms after their proposed lemma.
+  Arabic imports add indexed unvocalized aliases for terms/readings and forms;
+  `arabic_alias_version=1` requires explicit reimport of older packs. Remove only
+  vowels/tatweel, retaining hamza, madda, ta marbuta and alif maqsura distinctions.
   Keep NLP imports lazy and runtime analysis offline. LLM output belongs only in
   translation, never dictionary definitions or ranking.
   OCR previews require dictionary entries, kanji or spelling suggestions;
@@ -123,6 +128,11 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   Japanese readings share a heading only when complete dictionary sets, raw
   definitions, usage rules and analyses match. Cache presentation groups per
   result; retain original `(term, reading)` records for audio and Anki choices.
+  Arabic headings use compatible vocalized dictionary readings directly, without
+  Latin readings or ruby. Keep different readings separate. Direction is per block:
+  Arabic content is RTL, English definitions and metadata LTR. Preserve structured
+  dictionary direction attributes. Anki Word uses the displayed Arabic headword;
+  audio/history identities retain the original dictionary term and reading.
   Multiple grammar analysis chains use shared disclosure in every language,
   keyed to the headword group. Single chains stay inline; expansion keeps the
   existing reading position and requires no new analysis.

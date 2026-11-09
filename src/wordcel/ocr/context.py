@@ -140,8 +140,12 @@ def fragment_lines(lines, language="tr"):
                 covered = max(covered, b)
                 # A fragment may include punctuation beside an accented letter.
                 span = right - left
-                parts.append((left + span * (a - first) / (last - first), top,
-                              left + span * (b - first) / (last - first), bottom))
+                if language == "ar":
+                    parts.append((right - span * (b - first) / (last - first), top,
+                                  right - span * (a - first) / (last - first), bottom))
+                else:
+                    parts.append((left + span * (a - first) / (last - first), top,
+                                  left + span * (b - first) / (last - first), bottom))
             if parts and covered >= end:
                 words.append((text[start:end], start, end, _bounds(parts)))
         if words:

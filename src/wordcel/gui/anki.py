@@ -411,7 +411,8 @@ def export_note(entries, sentence, selection, options, *, translation="", screen
     """Prepare and save a captured lookup on an AnkiTask worker."""
     mark("anki_check_begin")
     client = AnkiClient(options)
-    client.check(escape(entries[0].term))
+    from wordcel.language.arabic import display_headword
+    client.check(escape(display_headword(entries[0])))
     mark("anki_prepare_begin")
     mapped = set(options.fields.values())
     furigana = None

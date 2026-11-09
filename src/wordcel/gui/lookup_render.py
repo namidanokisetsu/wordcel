@@ -202,11 +202,15 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
         section = f'<a name="scroll-section-{group_index}-{sources.index(first_source)}"></a>'
         parts.append(section)
         display_term = term
+        arabic = next(iter(variants.values()))[0].language == "ar"
+        if arabic:
+            from wordcel.language.arabic import headword
+            display_term = headword(term, reading)
         if (result.source == "ru" and reading and unicodedata.normalize("NFC", reading.replace("\u0301", ""))
                 == unicodedata.normalize("NFC", term)):
             display_term, reading = reading, ""
         kanji = {entry.character for entry in result.kanji}
-        display_term_html = "".join(
+        display_term_html = escape(display_term) if arabic else "".join(
             f'<a href="headkanji:{group_index}:{quote(character, safe="")}" title="Kanji" '
             f'style="color:{config.color_highlight_word}">{escape(character)}</a>'
             if character in kanji and not compact else escape(character) for character in display_term)
@@ -231,17 +235,22 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                             f'{reading_size}px">{escape(display_reading)}</span>'
                             if variant_reading and variant_reading != term
                             and not any(pitch.reading == variant_reading for pitch in pitches) else "")
-            if result.source == "ja" and headword_furigana and variant_reading == reading:
+            if arabic or result.source == "ja" and headword_furigana and variant_reading == reading:
                 reading_html = ""
             readings_html.append(" ".join(part for part in (reading_html, metadata) if part))
         separator = f'<span style="font-size:{reading_size}px;color:{muted}"> · </span>'
         metadata = separator.join(part for part in readings_html if part)
         metadata = " " + metadata if metadata else ""
+        arabic_metadata = metadata if arabic else ""
+        if arabic:
+            metadata = ""
         if result.source == "ja" and headword_furigana and reading and reading != term:
             parts.append(f'<h2><a name="scroll-headword-{group_index}"></a>'
                          f'{ruby_html(escape(term), escape(reading), config.color_highlight_word, kanji=kanji if not compact else (), kanji_group=group_index)}{metadata}</h2>')
         else:
             parts.append(f'<h2><a name="scroll-headword-{group_index}"></a>{display_term_html}{metadata}</h2>')
+        if arabic_metadata:
+            parts.append(f'<p class="metadata" dir="ltr">{arabic_metadata}</p>')
         parts.append(_metadata(group_entries, show_frequencies=False, show_inflections=show_inflections,
                                inflection_key=f"inflections:{group_index}", details_expanded=details_expanded))
         for source in sources:
@@ -323,4 +332,8 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
     if not result.entries and not result.translation and not result.kanji and not result.message and result.text:
         if not unmatched_text:
             parts.append("<p>No entry found.</p>")
-    return "".join(parts)
+    html = "".join(parts)
+    if result.source == "ar" or result.target == "ar" or any(e.language == "ar" for e in result.entries):
+        from wordcel.gui.text_direction import directional_html
+        return directional_html(html)
+    return html

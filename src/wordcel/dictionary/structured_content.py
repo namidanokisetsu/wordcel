@@ -236,7 +236,9 @@ class StructuredContentConverter:
         # If a span or div carries no style and no data, it is a structural
         # no-op. Drop the wrapper entirely to keep the HTML lean.
         # We still process the children above so inner is always correct.
-        if not style and tag in ('span', 'div'):
+        flow = node.get('dir') or (style.get('direction') if isinstance(style, dict) else None)
+        flow = flow if flow in ('rtl', 'ltr') else None
+        if not style and not flow and tag in ('span', 'div'):
             data = node.get('data', {})
             if not (isinstance(data, dict) and data):
                 return inner
@@ -276,6 +278,8 @@ class StructuredContentConverter:
             inner = f'[{inner}]'
 
         style_attr = f' style="{css}"' if css else ''
+        if flow and tag in _BLOCK_TAGS:
+            style_attr += f' dir="{flow}" align="{"right" if flow == "rtl" else "left"}"'
         if tag in _CELL_TAGS:
             for attribute in ('colSpan', 'rowSpan'):
                 value = node.get(attribute)

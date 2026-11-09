@@ -36,7 +36,8 @@ class LookupAnki(QObject):
             from wordcel.gui.anki import AnkiTask
             self._check_identity = identity
             self._check_error = ""
-            words = tuple(dict.fromkeys(key[0] for key in groups))
+            from wordcel.language.arabic import display_headword
+            words = tuple(dict.fromkeys(display_headword(entries[0]) for entries in groups.values()))
             self._check_task = AnkiTask(lambda: AnkiClient(options).existing_notes(words),
                                         (identity, {key: self._recent_saves[key] for key in groups
                                                     if key in self._recent_saves}), self)
@@ -91,15 +92,18 @@ class LookupAnki(QObject):
         from wordcel.anki import load_settings
         current = (window.revision, load_settings(window.settings, window.active_profile), tuple(window._headword_groups()))
         if identity == current:
+            from wordcel.language.arabic import display_headword
+            expressions = {key: display_headword(entries[0]) for key, entries in window._headword_groups().items()}
             self._existing_identity = identity
             self._check_error = error
-            self._known_notes = {key: found[key[0]] for key in identity[2] if not error and key[0] in found}
+            self._known_notes = {key: found[expressions[key]] for key in identity[2]
+                                 if not error and expressions[key] in found}
             if not error:
                 for key in identity[2]:
                     saved = saved_snapshot.get(key)
                     if (saved is not None and saved[1] == identity[1]
                             and self._recent_saves.get(key) == saved
-                            and saved[0] not in found.get(key[0], ())):
+                            and saved[0] not in found.get(expressions[key], ())):
                         del self._recent_saves[key]
                         if (self._saved_revision == identity[0]
                                 and self._saved_notes.get(key) == saved):

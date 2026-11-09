@@ -1,6 +1,7 @@
 """Resolve Arabic form redirects without crossing homographic lexical entries."""
 from dataclasses import replace
 import json
+from wordcel.language.arabic import spelling, has_vowels, compatible_vowels
 
 
 def _legacy_rules(labels):
@@ -22,11 +23,17 @@ def lookup_forms(library, packs, term, limit):
         for candidate, parent, inherited in frontier:
             for _, meta, db in packs:
                 modern = meta.get("form_metadata_version") == "1"
-                columns = "target,labels,rules" if modern else "target,labels,'' AS rules"
+                columns = "target,labels,rules,reading_key,key" if modern else "target,labels,'' AS rules,'' AS reading_key,key"
                 condition = "key=? OR reading_key=?" if modern else "key=?"
-                rows = db.execute(f"SELECT {columns} FROM forms WHERE {condition} LIMIT 64",
-                                  (candidate, candidate) if modern else (candidate,))
+                params = (candidate, candidate) if modern else (candidate,)
+                if meta.get("arabic_alias_version") == "1":
+                    condition += " OR rowid IN (SELECT form_id FROM arabic_forms WHERE alias=?)"
+                    params += (spelling(candidate),)
+                rows = db.execute(f"SELECT {columns} FROM forms WHERE {condition} LIMIT 64", params)
                 for row in rows:
+                    surface = row["reading_key"] or row["key"]
+                    if has_vowels(candidate) and has_vowels(surface) and not compatible_vowels(candidate, surface):
+                        continue
                     target = row["target"]
                     labels = tuple(json.loads(row["labels"])) or ("inflected form",)
                     rules = frozenset(row["rules"].split()) or _legacy_rules(labels)

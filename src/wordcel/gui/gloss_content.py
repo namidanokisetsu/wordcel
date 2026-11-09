@@ -164,7 +164,7 @@ class _GlossConverter(StructuredContentConverter):
                 return self._tags_to_html((node,))
             tag = node.get("tag")
             data = node.get("data")
-            if (tag in ("span", "ruby") and not node.get("style")
+            if (tag in ("span", "ruby") and not node.get("style") and not node.get("dir")
                     and (not isinstance(data, dict) or not (data.get("class") or data.get("content")))):
                 return (self._ruby_to_html(node.get("content")) if tag == "ruby"
                         else self._node_to_html(node.get("content")))
