@@ -58,6 +58,25 @@ class FakeEngine:
 
 
 class QuickLookupTests(unittest.TestCase):
+    def test_reopening_empty_search_discards_previous_headword_buttons_before_typing(self):
+        for language in ("ja", "ar"):
+            with self.subTest(language=language):
+                self.window.set_mode(language)
+                entries = (replace(entry("word", language=language), reading="first"),
+                           replace(entry("word", language=language), reading="second"))
+                self.window.show_entries(entries, "word", language)
+                self.assertTrue(self.window._headword_rows)
+                rows = [row for row, _, _ in self.window._headword_rows.values()]
+                self.window.hide()
+                self.window.open_search()
+                self.assertFalse(self.window._headword_rows)
+                self.assertTrue(all(row.isHidden() for row in rows))
+                with patch.object(self.window.worker, "request"):
+                    QTest.mouseClick(self.window.search, Qt.MouseButton.LeftButton)
+                    QTest.keyClicks(self.window.search, "d")
+                    self.window.submit()
+                self.assertEqual(self.window.search.text(), "d")
+
     def test_history_reopen_discards_heading_blocks_before_document_changes(self):
         first = SearchResult("first", "ja", "en", (entry("first"), entry("other")))
         self.window._display(first)

@@ -818,6 +818,10 @@ class QuickLookupWindow(QDialog):
     def _clear_browser(self):
         self._action_heading = None
         self._headword_blocks = []
+        for row, _, _ in self._headword_rows.values():
+            row.hide()
+            row.deleteLater()
+        self._headword_rows.clear()
         self.browser.clear()
 
     def _translate_clicked(self):
