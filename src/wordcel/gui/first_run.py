@@ -262,6 +262,9 @@ class LanguageSuggestion(QDialog):
         if task.kind == "dictionary":
             return any(task.value.matches(meta) for meta in self.installed_packs)
         if task.kind == "morphology":
+            if task.value == "ar":
+                from wordcel.language.arabic_resources import available
+                return available()
             from wordcel.language.stanza_analyzer import model_status
             return model_status(task.value) == "Installed"
         return False
@@ -283,7 +286,14 @@ class LanguageSuggestion(QDialog):
         from wordcel.translation_catalog import fit_message
         known, unknown = 0, False
         for task in self.selected_tasks():
-            if task.kind == "translation":
+            if task.kind == "morphology" and task.value == "ar":
+                from wordcel.language.arabic_resources import transfer_size
+                cost = transfer_size()
+                if cost is None:
+                    unknown = True
+                else:
+                    known += cost
+            elif task.kind == "translation":
                 cost = translation_transfer_size(task.value, self.translation_backend, capabilities=self.capabilities, verified=self.verified)
                 if cost is None:
                     unknown = True

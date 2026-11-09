@@ -46,6 +46,11 @@ def install_task(task, directory, progress, cancelled):
         from wordcel.scripts.setup_ocr import install
         return install(task.value, progress, cancelled)
     if task.kind == "morphology":
+        if task.value == "ar":
+            from wordcel.language.arabic_resources import available, install
+            if not available():
+                install(progress=progress, cancelled=cancelled)
+            return ""
         from wordcel.language.stanza_analyzer import model_status
         if model_status(task.value) != "Installed":
             from wordcel.scripts.setup_morphology import install

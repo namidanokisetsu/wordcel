@@ -10,6 +10,7 @@ import re
 import sys
 import tempfile
 import threading
+import time
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import zipfile
@@ -56,6 +57,8 @@ def runtime_site(feature, data_root=None):
     """Return the site directory that a fresh engine process must prepend."""
     if manifest():
         return runtime_root(feature, data_root) / "site"
+    if feature in {"arabic", "arabic-context"}:
+        return source_runtime_root(feature, data_root) / "site"
     if feature == "paddle" and not getattr(sys, "frozen", False):
         return source_runtime_root(feature, data_root) / "site"
     return None
@@ -91,6 +94,12 @@ def _source_paddle_ready(root):
 
 def ready(feature, data_root=None):
     if not manifest():
+        if feature in {"arabic", "arabic-context"}:
+            try:
+                root = source_runtime_root(feature, data_root)
+                return json.loads((root / "complete.json").read_text(encoding="utf-8")) == arabic_manifest(feature) and (root / "site").is_dir()
+            except (OSError, ValueError, RuntimeError):
+                return False
         if getattr(sys, "frozen", False):
             return False
         return feature != "paddle" or _source_paddle_ready(source_runtime_root(feature, data_root))
@@ -111,7 +120,7 @@ def activate():
             if path is None:
                 continue
             site = str(path)
-            if feature != "paddle" and site not in sys.path:
+            if feature not in {"paddle", "arabic", "arabic-context"} and site not in sys.path:
                 sys.path.append(site)
                 importlib.invalidate_caches()
 
@@ -426,7 +435,18 @@ def validate(feature, site, cancelled=None):
 
 
 def check_engine(feature):
-    if feature == "paddle":
+    if feature in {"arabic", "arabic-context"}:
+        # CAMeL's import otherwise downloads a catalogue before opening a DB.
+        with tempfile.TemporaryDirectory(prefix="wordcel-camel-check-") as folder:
+            os.environ["CAMELTOOLS_DATA"] = folder
+            Path(folder, "catalogue.json").write_text('{"version":"1.6","packages":{},"components":{}}', encoding="utf-8")
+            from camel_tools.morphology.analyzer import Analyzer
+        from importlib.metadata import version
+        if feature == "arabic-context":
+            from camel_tools.disambig.bert import BERTUnfactoredDisambiguator
+        if version("camel-tools") != "1.6.0":
+            raise RuntimeError("Arabic engine version mismatch")
+    elif feature == "paddle":
         import paddle
         import paddleocr
         from paddlex.utils.deps import require_extra
@@ -442,6 +462,8 @@ def check_engine(feature):
 
 def install(feature, progress=None, cancelled=None):
     if not getattr(sys, "frozen", False):
+        if feature in {"arabic", "arabic-context"}:
+            return _install_source_arabic(feature, progress, cancelled)
         if feature == "paddle":
             return _install_source_paddle(progress, cancelled)
         return
@@ -449,7 +471,7 @@ def install(feature, progress=None, cancelled=None):
     _cancel(cancelled)
     with _install_lock:
         if ready(feature):
-            if feature != "paddle":
+            if feature not in {"paddle", "arabic", "arabic-context"}:
                 activate()
             return
         root = runtime_root(feature)
@@ -465,7 +487,7 @@ def install(feature, progress=None, cancelled=None):
                 archive = cache / (wheel["sha256"] + ".whl")
                 download(wheel, archive, progress, cancelled)
                 progress("Installing " + wheel["name"] + "…")
-                extract_wheel(archive, site, cancelled)
+                extract_arabic_wheel(wheel, archive, site, cancelled) if feature.startswith("arabic") else extract_wheel(archive, site, cancelled)
             _cancel(cancelled)
             progress("Checking engine…")
             validate(feature, site, cancelled)
@@ -479,8 +501,84 @@ def install(feature, progress=None, cancelled=None):
                 if previous.exists():
                     previous.rename(root)
                 raise
-        if feature != "paddle":
+        if feature not in {"paddle", "arabic", "arabic-context"}:
             activate()
+
+
+def arabic_manifest(feature="arabic"):
+    if sys.platform != "win32" or platform.machine().lower() not in {"amd64", "x86_64"} or sys.version_info[:2] != (3, 12):
+        raise RuntimeError("Arabic analysis requires the Windows Python 3.12 build.")
+    root = Path(__file__).resolve().parent / "resources"
+    return json.loads((root / "arabic-runtime-win-amd64-py312.json").read_text(encoding="utf-8"))[
+        "context" if feature == "arabic-context" else "morphology"]
+
+
+def extract_arabic_wheel(wheel, archive, site, cancelled=None):
+    if wheel["name"] != "docopt":
+        return extract_wheel(archive, site, cancelled)
+    # Upstream distributes this pure Python dependency only as an sdist.
+    # Copy its module and licence from the verified archive; never run setup.py.
+    import tarfile
+    with tarfile.open(archive, "r:gz") as bundle:
+        for name in ("docopt.py", "LICENSE-MIT"):
+            _cancel(cancelled)
+            member = bundle.getmember("docopt-0.6.2/" + name)
+            if not member.isfile():
+                raise ValueError("Invalid docopt module")
+            destination = Path(site) / (name if name == "docopt.py" else "docopt-LICENSE-MIT.txt")
+            destination.write_bytes(bundle.extractfile(member).read())
+
+
+def _install_source_arabic(feature, progress=None, cancelled=None):
+    progress = progress or (lambda text: None)
+    with _install_lock:
+        if ready(feature):
+            return
+        wheels = arabic_manifest(feature)
+        root = source_runtime_root(feature)
+        root.parent.mkdir(parents=True, exist_ok=True)
+        from wordcel.utils.paths import paths
+        cache = Path(paths.cache_dir) / "engine-wheels"
+        cache.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".install-", dir=root.parent) as temporary:
+            stage = Path(temporary) / "engine"
+            site = stage / "site"
+            site.mkdir(parents=True)
+            for wheel in wheels:
+                archive = cache / (wheel["sha256"] + ".whl")
+                download(wheel, archive, progress, cancelled)
+                extract_arabic_wheel(wheel, archive, site, cancelled)
+            # Validation runs with both component sites visible in a fresh child.
+            from wordcel.scripts.setup_morphology import _run
+            arguments = ["--check-engine", feature, "--engine-directory", str(site)]
+            if feature == "arabic-context":
+                arguments += ["--arabic-runtime", str(runtime_site("arabic"))]
+            _run(["-m", "wordcel.scripts.quick_lookup", *arguments], cancelled)
+            _cancel(cancelled)
+            (stage / "complete.json").write_text(json.dumps(wheels), encoding="utf-8")
+            previous = Path(temporary) / "previous"
+            if root.exists():
+                root.rename(previous)
+            try:
+                _publish_arabic_engine(stage, root, cancelled)
+            except OSError:
+                if previous.exists():
+                    previous.rename(root)
+                raise
+
+
+def _publish_arabic_engine(stage, root, cancelled=None):
+    # Windows scanners can briefly retain handles after native import checks.
+    deadline = time.monotonic() + 3
+    while True:
+        _cancel(cancelled)
+        try:
+            stage.rename(root)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(.1)
 
 
 def _install_source_paddle(progress=None, cancelled=None):

@@ -80,7 +80,7 @@ class LibraryTests(unittest.TestCase):
         engine = SearchEngine(self.directory)
         try:
             with patch.object(engine, "_lemma_lookup", side_effect=AssertionError("Dictionary first")):
-                for text, expected in (("كِـتاب", "كتاب"), ("كـتاب", "كتاب"), ("كُتُب", "كتب"),
+                for text, expected in (("كِـتاب", "كتاب"), ("كـتاب", "كتاب"),
                                        ("كَتَبُوا", "كتب")):
                     original = "١٢، " + text + "."
                     result = engine.search(text, source="ar", morphology=True,
@@ -89,6 +89,9 @@ class LibraryTests(unittest.TestCase):
                     self.assertIn("spelling", result.entries[0].route)
                     self.assertEqual((result.text, result.matched_length), (text, len(text)))
                 self.assertEqual(engine.search("كِتَاب", source="ar").entries[0].route, "exact")
+            # The supplied vowels mean "books", not the attested verb "wrote".
+            # Without a noun/form entry, vocalization recovery must not invent it.
+            self.assertFalse(engine.search("كُتُب", source="ar").entries)
             for text in ("اكل", "علي", "والكتاب", "الكتاب"):
                 self.assertFalse(engine.search(text, source="ar").entries)
         finally:

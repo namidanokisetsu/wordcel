@@ -8,7 +8,7 @@ def setup_resource(key):
     if key.startswith("engine:"):
         return "ocr" if key == "engine:paddle" else "morphology"
     return {"dictionary": "dictionaries", "recommended": "dictionaries", "runtime": "translation",
-            "stanza": "morphology", "font": "fonts", "cache": "all"}.get(key.split(":", 1)[0], key.split(":", 1)[0])
+            "stanza": "morphology", "arabic": "morphology", "font": "fonts", "cache": "all"}.get(key.split(":", 1)[0], key.split(":", 1)[0])
 
 
 @dataclass(frozen=True)

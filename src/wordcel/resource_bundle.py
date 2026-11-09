@@ -185,6 +185,9 @@ def _allowed(root, relative):
     if len(parts) == 3 and parts[0] == "languages":
         from wordcel.dictionary.library import language_code
         return language_code(parts[1]) == parts[1] and (parts[2] == "stanza" or parts[1:] == ("tr", "paddle"))
+    if len(parts) == 4 and parts[:3] == ("languages", "ar", "camel"):
+        from wordcel.language.arabic_resources import PACKAGES
+        return parts[3] in {kind + "-" + spec["version"] for kind, spec in PACKAGES.items()}
     return False
 
 
@@ -415,7 +418,8 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                     from wordcel.optional_runtimes import manifest as engine_manifest, runtime_root, source_runtime_root
                     config = engine_manifest()
                     managed = config and target in [runtime_root(feature, roots["data"]) for feature in config["features"]]
-                    source = target == source_runtime_root("paddle", roots["data"])
+                    source = next((feature for feature in ("paddle", "arabic", "arabic-context")
+                                   if target == source_runtime_root(feature, roots["data"])), None)
                     if not managed and not source:
                         raise ValueError("This engine archive requires the same Wordcel build as the exporting computer.")
                 if any(target == previous or target.is_relative_to(previous) or previous.is_relative_to(target) for previous in targets):
@@ -467,12 +471,19 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                     if file_hash(output_path) != spec["sha256"]:
                         raise ValueError("Managed translation model checksum mismatch.")
                 if root == "data" and relative.startswith("engines/"):
-                    feature = target.name.split("-", 1)[0]
-                    if target == source_runtime_root("paddle", roots["data"]):
+                    feature = next((name for name in config["features"]
+                                    if target == runtime_root(name, roots["data"])), None) if config else None
+                    if source:
                         from wordcel.optional_runtimes import _source_paddle_ready
-                        if not _source_paddle_ready(stage):
-                            raise ValueError("Incomplete engine archive.")
-                    elif (not (stage / "site").is_dir() or
+                        if source == "paddle":
+                            if not _source_paddle_ready(stage):
+                                raise ValueError("Incomplete engine archive.")
+                        else:
+                            from wordcel.optional_runtimes import arabic_manifest
+                            if not (stage / "site").is_dir() or json.loads(
+                                    (stage / "complete.json").read_text(encoding="utf-8")) != arabic_manifest(source):
+                                raise ValueError("Incomplete Arabic engine archive.")
+                    elif (feature is None or not (stage / "site").is_dir() or
                           json.loads((stage / "complete.json").read_text(encoding="utf-8")) != config["features"][feature]):
                         raise ValueError("Incomplete engine archive.")
                 if target.exists() and relative != _TRANSLATION_MANIFEST:

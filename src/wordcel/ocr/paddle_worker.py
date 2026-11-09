@@ -135,7 +135,7 @@ def _worker_command(address, authkey, root, use_onnx, runtime_site):
 class PaddleWorker:
     """Synchronous request client for one isolated Paddle process."""
 
-    def __init__(self, root, use_onnx, runtime_site=None, startup_timeout=30):
+    def __init__(self, root, use_onnx, runtime_site=None, startup_timeout=30, *, command_factory=None):
         authkey = os.urandom(32)
         listener = Listener(("127.0.0.1", 0), authkey=authkey)
         self._listener = listener
@@ -144,7 +144,7 @@ class PaddleWorker:
         self._lock = threading.Lock()
         address = listener.address
         address_text = f"{address[0]}:{address[1]}"
-        command = _worker_command(address_text, authkey, root, use_onnx, runtime_site)
+        command = (command_factory or _worker_command)(address_text, authkey, root, use_onnx, runtime_site)
         try:
             self._process = subprocess.Popen(
                 command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -179,6 +179,7 @@ class PaddleWorker:
                 raise RuntimeError(f"Paddle OCR worker failed to start:\n{detail}")
             if kind != "ready":
                 raise RuntimeError(f"Unexpected Paddle worker response: {kind}")
+            self.pid = detail.get("pid", self._process.pid) if isinstance(detail, dict) else self._process.pid
         except Exception:
             self.close()
             raise

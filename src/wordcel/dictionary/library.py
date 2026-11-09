@@ -617,6 +617,7 @@ class Library:
         # Direct spellings precede form-derived entries across all dictionaries.
         for candidate, route in keys.items():
             for path, meta, db in packs:
+                aliased = set()
                 if fold:
                     rows = db.execute("SELECT * FROM terms WHERE folded=? ORDER BY score DESC,id LIMIT ?",
                                       (folded(candidate), row_limit))
@@ -631,10 +632,12 @@ class Library:
                         "SELECT t.* FROM arabic_terms a JOIN terms t ON t.id=a.term_id "
                         "WHERE a.alias=? ORDER BY t.score DESC,t.id LIMIT ?", (spelling(candidate), row_limit))
                                 if row["id"] not in existing)
+                    aliased = {row["id"] for row in rows} - existing
                     if has_vowels(candidate):
                         rows = [row for row in rows if not has_vowels(row["reading"] or row["term"])
                                 or compatible_vowels(candidate, row["reading"] or row["term"])]
-                result.extend(replace(self._entry(path, meta, row, route),
+                result.extend(replace(self._entry(path, meta, row,
+                                      ("form spelling" if route == "form" else "spelling") if row["id"] in aliased else route),
                                       inflection=(inflections or {}).get(candidate, ()) if route.startswith("form") else ())
                               for row in rows)
         return result

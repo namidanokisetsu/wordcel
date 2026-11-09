@@ -1,5 +1,5 @@
 """Move optional wheel contents out of the frozen app; pin their upstream downloads."""
-from importlib.metadata import distribution
+from importlib.metadata import PackageNotFoundError, distribution
 import hashlib
 import json
 import os
@@ -75,15 +75,29 @@ def prepare(root):
             with urlopen(download["url"], timeout=60) as response:
                 digest = hashlib.file_digest(response, "sha256").hexdigest()
         wheels[name] = {"name": name, "version": item["metadata"]["version"], "url": download["url"], "sha256": digest}
+    if sys.platform == "win32" and sys.version_info[:2] == (3, 12) and platform.machine().lower() in {"amd64", "x86_64"}:
+        arabic = json.loads((root / "src/wordcel/resources/arabic-runtime-win-amd64-py312.json").read_text(encoding="utf-8"))
+    else:
+        arabic = {}
     manifest = {"schema": 1, "platform": f"{sys.platform}-{platform.machine().lower()}",
                 "python": f"{sys.version_info.major}.{sys.version_info.minor}",
-                "features": {key: [wheels[name] for name in sorted(group)] for key, group in optional.items()}}
+                "features": {**{key: [wheels[name] for name in sorted(group)] for key, group in optional.items()},
+                             **({"arabic": arabic["morphology"], "arabic-context": arabic["context"]} if arabic else {})}}
     destination = folder / "runtimes.json"
     destination.write_text(json.dumps(manifest, sort_keys=True, indent=2), encoding="utf-8")
     # File ownership avoids accidentally removing shared NumPy/OpenCV dependencies.
     owned = lambda package: {os.path.normcase(str(package.locate_file(path).resolve()))
                              for path in package.files or () if ".." not in path.parts}
     external = set().union(*(owned(package) for package in packages.values()))
+    if arabic:
+        for wheel in (*arabic["morphology"], *arabic["context"]):
+            try:
+                package = distribution(wheel["name"])
+            except PackageNotFoundError:
+                continue
+            external.update(owned(package))
+            if wheel["name"] == "camel-tools":
+                external.add(os.path.normcase(str(package.locate_file("docopt.py").resolve())))
     external.difference_update(set().union(*(owned(package) for package in core.values())))
     return destination, external
 

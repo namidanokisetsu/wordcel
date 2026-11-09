@@ -24,6 +24,10 @@ def numpy_requirement(system=None, machine=None):
 
 
 def model_available(language):
+    if language == "ar":
+        from .arabic_resources import available
+        if available():
+            return True
     if language == "tr":
         from .turkish_analyzer import available
         return available()

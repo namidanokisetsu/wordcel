@@ -5,8 +5,8 @@ from pathlib import Path
 import threading
 from wordcel.scripts import translation_server as _translation_server
 
-from PyQt6.QtCore import QObject, Qt, pyqtSignal
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMenu, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtCore import QObject, QSignalBlocker, Qt, pyqtSignal
+from PyQt6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QMenu, QPushButton, QVBoxLayout, QWidget
 
 
 def ocr_ready(provider, component_directory=""):
@@ -111,6 +111,13 @@ class ResourcesPanel(QWidget):
         self.base_install.setToolTip("Recognize inflected words using an optional offline model")
         self.base_install.clicked.connect(lambda: owner.begin_operation([], morphology=owner.editing_language))
         layout.addWidget(self.base_install, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.arabic_context = QCheckBox("Contextual Arabic analysis (experimental)")
+        self.arabic_context.setToolTip("Rank MSA readings using visible context. Runs on CPU after dictionary lookup.")
+        self.arabic_context.toggled.connect(self._set_arabic_context)
+        layout.addWidget(self.arabic_context)
+        self.arabic_context_install = QPushButton("Download contextual Arabic analysis")
+        self.arabic_context_install.clicked.connect(lambda: owner.begin_operation([], morphology="ar-context"))
+        layout.addWidget(self.arabic_context_install, alignment=Qt.AlignmentFlag.AlignLeft)
 
         self.ocr_section = QWidget(self)
         layout = QHBoxLayout(self.ocr_section)
@@ -153,6 +160,11 @@ class ResourcesPanel(QWidget):
             self.owner.import_translation_model()
         else:
             self.owner.begin_operation([], profile=identity)
+
+    def _set_arabic_context(self, enabled):
+        owner = self.owner
+        owner.settings.setValue(f"profiles/{owner.profile.currentData()}/arabic_context", enabled)
+        owner.dictionaries_changed.emit()
 
     def install_dictionaries(self):
         if self.missing_dictionaries:
@@ -216,6 +228,31 @@ class ResourcesPanel(QWidget):
         self.base_install.setVisible(supported and not ready)
         self.dictionary_section.show()
         self.base_install.setEnabled(not owner.operation_busy("morphology"))
+        self.arabic_context.setVisible(code == "ar")
+        self.arabic_context_install.setVisible(False)
+        if code == "ar":
+            from wordcel.language.arabic_resources import available, transfer_size
+            from wordcel.optional_runtimes import arabic_manifest, manifest
+            camel, contextual = available(), available("context")
+            try:
+                supported = "arabic" in manifest()["features"] if manifest() else bool(arabic_manifest())
+            except RuntimeError:
+                supported = False
+            self.base_status.setText("Word forms: " + " + ".join(
+                name for name, installed in (("CALIMA MSA", camel), ("Stanza", ready)) if installed))
+            self.base_status.setVisible(camel or ready)
+            size = transfer_size()
+            self.base_install.setText("Download Arabic morphology" + (f" ({size / 1e6:.1f} MB)" if size is not None else ""))
+            self.base_install.setVisible(supported and not camel)
+            with QSignalBlocker(self.arabic_context):
+                self.arabic_context.setChecked(owner.settings.value(
+                    f"profiles/{owner.profile.currentData()}/arabic_context", False, bool))
+            self.arabic_context.setEnabled(contextual)
+            size = transfer_size("context")
+            self.arabic_context_install.setText("Download contextual Arabic analysis" +
+                                                (f" ({size / 1e6:.1f} MB)" if size is not None else ""))
+            self.arabic_context_install.setVisible(supported and not contextual)
+            self.arabic_context_install.setEnabled(not owner.operation_busy("morphology"))
         self.refresh_translation()
         self.refresh_actions()
 

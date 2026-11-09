@@ -20,7 +20,7 @@ class ResourceJobs(QObject):
         # mutating the same library or runtime registry.
         categories = {"dictionary": "dictionaries", "dictionary-import": "dictionaries",
                       "translation": "translation", "runtime": "translation",
-                      "stanza": "morphology", "ocr": "ocr", "font": "fonts"}
+                      "stanza": "morphology", "arabic": "morphology", "ocr": "ocr", "font": "fonts"}
         resources = []
         for key in keys:
             prefix = key.split(":", 1)[0]
@@ -58,6 +58,8 @@ jobs = ResourceJobs()
 
 
 def task_key(task):
+    if task.kind == "morphology" and task.value in {"ar", "ar-context"}:
+        return "arabic:" + ("context" if task.value == "ar-context" else "morphology")
     if task.kind == "dictionary":
         return "dictionary:" + task.value.identity
     return {"morphology": "stanza", "fonts": "font"}.get(task.kind, task.kind) + ":" + str(task.value)

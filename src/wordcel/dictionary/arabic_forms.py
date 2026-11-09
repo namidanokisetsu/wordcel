@@ -16,11 +16,11 @@ def _legacy_rules(labels):
 def lookup_forms(library, packs, term, limit):
     entries = {entry.id: entry for entry in library._lookup_keys(packs, {term: "exact"}, limit)}
     paths, depths, cached = {}, {}, {}
-    frontier = [(term, (), frozenset())]
+    frontier = [(term, (), frozenset(), False)]
     seen = {(term, frozenset()): 0}
     for depth in range(1, 4):
         following, queued = [], {}
-        for candidate, parent, inherited in frontier:
+        for candidate, parent, inherited, spelling_recovered in frontier:
             for _, meta, db in packs:
                 modern = meta.get("form_metadata_version") == "1"
                 columns = "target,labels,rules,reading_key,key" if modern else "target,labels,'' AS rules,'' AS reading_key,key"
@@ -31,6 +31,7 @@ def lookup_forms(library, packs, term, limit):
                     params += (spelling(candidate),)
                 rows = db.execute(f"SELECT {columns} FROM forms WHERE {condition} LIMIT 64", params)
                 for row in rows:
+                    recovered = spelling_recovered or candidate not in {row["key"], row["reading_key"]}
                     surface = row["reading_key"] or row["key"]
                     if has_vowels(candidate) and has_vowels(surface) and not compatible_vowels(candidate, surface):
                         continue
@@ -50,11 +51,11 @@ def lookup_forms(library, packs, term, limit):
                              if not rules or not entry.rules or rules.intersection(entry.rules)]
                     path = parent + labels
                     for entry in found:
-                        if entry.id in entries and entries[entry.id].route == "exact":
+                        if entry.id in entries and entries[entry.id].route in {"exact", "spelling"}:
                             continue
                         if depths.get(entry.id, depth) < depth:
                             continue
-                        entries.setdefault(entry.id, entry)
+                        entries.setdefault(entry.id, replace(entry, route="form spelling") if recovered else entry)
                         depths[entry.id] = depth
                         alternatives = paths.setdefault(entry.id, [])
                         if path not in alternatives and len(alternatives) < 8:
@@ -64,7 +65,7 @@ def lookup_forms(library, packs, term, limit):
                     pending = queued.setdefault(state, [])
                     if not found and path not in pending and len(pending) < 8:
                         pending.append(path)
-                        following.append((target, path, rules))
+                        following.append((target, path, rules, recovered))
         frontier = following
         if not frontier:
             break
