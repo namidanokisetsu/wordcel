@@ -24,8 +24,8 @@ def main(argv=None):
     parser.add_argument("--setup-dictionary", metavar="LANGUAGE", help=argparse.SUPPRESS)
     parser.add_argument("--check-runtime", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--check-optional-runtimes", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--setup-engine", choices=("paddle", "stanza", "arabic", "arabic-context"), help=argparse.SUPPRESS)
-    parser.add_argument("--check-engine", choices=("paddle", "stanza", "arabic", "arabic-context"), help=argparse.SUPPRESS)
+    parser.add_argument("--setup-engine", choices=("paddle", "stanza", "arabic"), help=argparse.SUPPRESS)
+    parser.add_argument("--check-engine", choices=("paddle", "stanza", "arabic"), help=argparse.SUPPRESS)
     parser.add_argument("--engine-directory", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--paddle-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--paddle-address", help=argparse.SUPPRESS)
@@ -37,7 +37,6 @@ def main(argv=None):
     parser.add_argument("--arabic-address", help=argparse.SUPPRESS)
     parser.add_argument("--arabic-auth", help=argparse.SUPPRESS)
     parser.add_argument("--arabic-runtime", type=Path, help=argparse.SUPPRESS)
-    parser.add_argument("--arabic-context-runtime", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--arabic-model-dir", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.onnx_dir and args.setup_ocr != "paddle":
@@ -49,7 +48,7 @@ def main(argv=None):
             parser.error("Arabic worker arguments are incomplete")
         from wordcel.language.arabic_worker import serve
         serve(args.arabic_address, bytes.fromhex(args.arabic_auth), args.arabic_runtime,
-              args.arabic_model_dir, args.arabic_context_runtime)
+              args.arabic_model_dir)
         return 0
 
     if args.paddle_worker:
@@ -60,9 +59,6 @@ def main(argv=None):
                           args.paddle_onnx == "1", args.paddle_runtime)
 
     if args.check_engine:
-        if args.check_engine == "arabic-context":
-            from wordcel.optional_runtimes import runtime_site
-            sys.path.insert(0, str(args.arabic_runtime or runtime_site("arabic")))
         if args.engine_directory:
             sys.path.insert(0, str(args.engine_directory.resolve()))
         from wordcel.optional_runtimes import check_engine

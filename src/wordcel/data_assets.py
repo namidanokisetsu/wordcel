@@ -98,8 +98,7 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
         for feature in engine_config["features"]:
             root = runtime_root(feature, data)
             state = "Installed" if engine_ready(feature, data) else "Incomplete" if root.exists() else "Not installed"
-            title = {"paddle": "Paddle OCR engine", "arabic": "Arabic morphology engine",
-                     "arabic-context": "Arabic context engine"}.get(feature, "Word-form engine")
+            title = {"paddle": "Paddle OCR engine", "arabic": "Arabic morphology engine"}.get(feature, "Word-form engine")
             add("engine:" + feature, title, "ar" if feature.startswith("arabic") else "",
                 kind="engine", value=feature, paths=(root,), status=state)
     else:
@@ -109,16 +108,16 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
         from wordcel.optional_runtimes import arabic_manifest
         try:
             arabic_manifest()
-            for feature, title in (("arabic", "Arabic morphology engine"), ("arabic-context", "Arabic context engine")):
+            for feature, title in (("arabic", "Arabic morphology engine"),):
                 root = source_runtime_root(feature, data)
                 add("engine:" + feature, title, "ar", "engine", feature, (root,),
                     status="Installed" if engine_ready(feature, data) else "Incomplete" if root.exists() else "Not installed")
         except RuntimeError:
             pass
     from wordcel.language.arabic_resources import model_root as arabic_root, model_ready as arabic_ready
-    for kind, title in (("morphology", "Arabic morphology · CALIMA MSA"), ("context", "Contextual Arabic analysis")):
+    for kind, title in (("morphology", "Arabic morphology · CALIMA MSA"),):
         root = arabic_root(kind, data)
-        add("arabic:" + kind, title, "ar", "morphology", "ar-context" if kind == "context" else "ar", (root,),
+        add("arabic:" + kind, title, "ar", "morphology", "ar", (root,),
             status="Installed" if arabic_ready(kind, data) else "Incomplete" if root.exists() else "Not installed", source="CAMeL Tools")
     if (cache / "arabic-downloads").exists():
         add("cache:arabic", "Arabic download cache", kind="cache", paths=(cache / "arabic-downloads",))
@@ -286,7 +285,7 @@ def remove_asset(key, directory, refresh, cancelled, *, data_root=None, cache_ro
     if asset.kind in {"translation", "runtime"}:
         from wordcel.scripts.translation_server import shutdown_server
         shutdown_server()
-    if asset.key.startswith("arabic:") or asset.value in {"arabic", "arabic-context"}:
+    if asset.key.startswith("arabic:") or asset.value == "arabic":
         from wordcel.language.arabic_analyzer import close_worker
         close_worker()
     staged = []

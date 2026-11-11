@@ -1175,7 +1175,6 @@ class QuickLookupWindow(QDialog):
                        context=lookup_context if not translate else None,
                        morphology=not translate and not exact_only and model_available(source if saved_encounter else self.preferred_foreign),
                        dictionary_options=dictionary_preferences(self.settings, self.active_profile),
-                       arabic_context=self.settings.value(f"profiles/{self.active_profile}/arabic_context", False, bool),
                        exact_only=exact_only)
 
     def _analysis_ready(self, revision, result):

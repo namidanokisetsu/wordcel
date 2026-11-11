@@ -53,19 +53,15 @@ class ArabicMorphologyTests(unittest.TestCase):
         noun = self.engine.library.lookup("كتاب", "ar")[0]
         self.assertFalse(matches_entry(replace(self.reading, lemma="كتاب", vocalized_lemma="كُتَاب"), noun))
 
-    def test_context_keeps_alternatives_and_publishes_a_fast_result(self):
-        noun = replace(self.reading, surface="كتب", start=3, end=6)
-        verb = replace(noun, lemma="كَتَب", vocalized_lemma="كَتَب", pos="verb", vocalized_surface="كَتَبَ",
-                       provenance="Context suggestion")
-        self.engine._arabic_analyzer.candidates.side_effect = [(noun,), (verb, noun)]
+    def test_morphology_publishes_dictionary_result_before_analysis(self):
+        self.engine._arabic_analyzer.candidates.return_value = (self.reading,)
         updates = []
         with patch("wordcel.language.arabic_resources.available", return_value=True):
-            result = self.engine.search("كتب", source="ar", morphology=True, context=("هو كتب رسالة", 3, 6),
-                                        arabic_context=True, analysis_progress=updates.append)
-        self.assertTrue(updates)
-        self.assertEqual({e.term for e in result.entries}, {"كتب", "كتاب"})
-        self.assertEqual(result.entries[0].term, "كتب")
-        self.assertTrue(any(a.provenance == "Context suggestion" for e in result.entries for a in e.morphology))
+            result = self.engine.search("وبالكتب", source="ar", morphology=True, analysis_progress=updates.append)
+        self.assertEqual(len(updates), 1)
+        self.assertEqual([e.term for e in updates[0].entries], ["وبالكتب"])
+        self.assertEqual([e.term for e in result.entries], ["وبالكتب", "كتاب"])
+        self.engine._arabic_analyzer.candidates.assert_called_once()
 
     def test_worker_failure_preserves_dictionary_result(self):
         self.engine._arabic_analyzer.candidates.side_effect = RuntimeError("worker stopped")
@@ -83,8 +79,7 @@ class ArabicMorphologyTests(unittest.TestCase):
 
     def test_transfer_cost_includes_only_missing_component_dependencies(self):
         with patch("wordcel.optional_runtimes.manifest", return_value={"features": {
-                "arabic": [{"size": 100}], "arabic-context": [{"size": 200}]} }), \
+                "arabic": [{"size": 100}]} }), \
                 patch("wordcel.optional_runtimes.ready", return_value=False), \
                 patch("wordcel.language.arabic_resources.model_ready", return_value=False):
             self.assertEqual(transfer_size(), 100 + PACKAGES["morphology"]["size"])
-            self.assertEqual(transfer_size("context"), 300 + sum(p["size"] for p in PACKAGES.values()))

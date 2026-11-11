@@ -418,7 +418,7 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                     from wordcel.optional_runtimes import manifest as engine_manifest, runtime_root, source_runtime_root
                     config = engine_manifest()
                     managed = config and target in [runtime_root(feature, roots["data"]) for feature in config["features"]]
-                    source = next((feature for feature in ("paddle", "arabic", "arabic-context")
+                    source = next((feature for feature in ("paddle", "arabic")
                                    if target == source_runtime_root(feature, roots["data"])), None)
                     if not managed and not source:
                         raise ValueError("This engine archive requires the same Wordcel build as the exporting computer.")
@@ -481,7 +481,7 @@ def import_bundle(source, directory, progress, cancelled, *, data_root=None, cac
                         else:
                             from wordcel.optional_runtimes import arabic_manifest
                             if not (stage / "site").is_dir() or json.loads(
-                                    (stage / "complete.json").read_text(encoding="utf-8")) != arabic_manifest(source):
+                                    (stage / "complete.json").read_text(encoding="utf-8")) != arabic_manifest():
                                 raise ValueError("Incomplete Arabic engine archive.")
                     elif (feature is None or not (stage / "site").is_dir() or
                           json.loads((stage / "complete.json").read_text(encoding="utf-8")) != config["features"][feature]):

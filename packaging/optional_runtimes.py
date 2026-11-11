@@ -82,7 +82,7 @@ def prepare(root):
     manifest = {"schema": 1, "platform": f"{sys.platform}-{platform.machine().lower()}",
                 "python": f"{sys.version_info.major}.{sys.version_info.minor}",
                 "features": {**{key: [wheels[name] for name in sorted(group)] for key, group in optional.items()},
-                             **({"arabic": arabic["morphology"], "arabic-context": arabic["context"]} if arabic else {})}}
+                             **({"arabic": arabic["morphology"]} if arabic else {})}}
     destination = folder / "runtimes.json"
     destination.write_text(json.dumps(manifest, sort_keys=True, indent=2), encoding="utf-8")
     # File ownership avoids accidentally removing shared NumPy/OpenCV dependencies.
@@ -90,7 +90,7 @@ def prepare(root):
                              for path in package.files or () if ".." not in path.parts}
     external = set().union(*(owned(package) for package in packages.values()))
     if arabic:
-        for wheel in (*arabic["morphology"], *arabic["context"]):
+        for wheel in arabic["morphology"]:
             try:
                 package = distribution(wheel["name"])
             except PackageNotFoundError:

@@ -1,5 +1,4 @@
 """CPU-only Arabic inference using the existing authenticated worker transport."""
-from collections import OrderedDict
 from dataclasses import asdict
 from multiprocessing.connection import Client
 import os
@@ -12,14 +11,12 @@ import time
 from wordcel.ocr.paddle_worker import PaddleWorker, _address
 
 
-def _command(address, authkey, root, context_site, runtime_site):
+def _command(address, authkey, root, use_onnx, runtime_site):
     executable = Path(sys.executable)
     if executable.name.lower() == "pythonw.exe":
         executable = executable.with_name("python.exe")
     args = ["--arabic-worker", "--arabic-address", address, "--arabic-auth", authkey.hex(),
             "--arabic-runtime", str(runtime_site), "--arabic-model-dir", str(root)]
-    if context_site:
-        args += ["--arabic-context-runtime", str(context_site)]
     if getattr(sys, "frozen", False):
         if sys.platform == "win32" and executable.with_name("wordcel-cli.exe").exists():
             executable = executable.with_name("wordcel-cli.exe")
@@ -28,10 +25,9 @@ def _command(address, authkey, root, context_site, runtime_site):
 
 
 class ArabicWorker(PaddleWorker):
-    def __init__(self, root, runtime_site, context_site=None):
-        self._context_loaded = False
+    def __init__(self, root, runtime_site):
         try:
-            super().__init__(root, context_site, runtime_site, command_factory=_command)
+            super().__init__(root, False, runtime_site, command_factory=_command)
         except RuntimeError as error:
             raise RuntimeError(str(error).replace("Paddle OCR", "Arabic analysis").replace("Paddle worker", "Arabic worker")) from error
 
@@ -42,7 +38,7 @@ class ArabicWorker(PaddleWorker):
     def analyze(self, payload, cancelled=None):
         with self._lock:
             self._connection.send(("predict", payload))
-            deadline = time.monotonic() + (120 if payload.get("contextual") and not self._context_loaded else 30)
+            deadline = time.monotonic() + 30
             while not self._connection.poll(.05):
                 if cancelled is not None and cancelled.is_set():
                     self.close()
@@ -53,7 +49,6 @@ class ArabicWorker(PaddleWorker):
             kind, result = self._connection.recv()
             if kind != "result":
                 raise RuntimeError("Arabic analysis failed: " + str(result))
-            self._context_loaded = self._context_loaded or payload.get("contextual", False)
             return result
 
     def close(self):
@@ -108,8 +103,6 @@ class Engine:
         self.root = Path(root)
         database = MorphologyDB(str(self.root / "morphology-0.4.0/morphology.db"))
         self.analyzer = ExactAnalyzer(database)
-        self.context = None
-        self.cache = OrderedDict()
 
     def analyze(self, request):
         from .arabic import compatible_vowels
@@ -125,11 +118,8 @@ class Engine:
         analyses = self.analyzer.analyze(surface)
         analyses.sort(key=lambda row: (-float(row.get("pos_lex_logprob", -99)),
                                        -float(row.get("lex_logprob", -99)), row.get("diac", "")))
-        ranked = []
-        if request.get("contextual") and len(spans) > 1:
-            ranked = self._rank(text, start, end, spans)
         result, seen = [], set()
-        for row, contextual in [(row, True) for row in ranked] + [(row, False) for row in analyses]:
+        for row in analyses:
             if not compatible_vowels(surface, row.get("diac", "")):
                 continue
             lemma = re.sub(r"_\d+$", "", row.get("lex", ""))
@@ -142,56 +132,14 @@ class Engine:
             seen.add(identity)
             result.append(asdict(ArabicAnalysis(start, end, surface, row.get("diac", surface), lemma, lemma,
                                                 row.get("pos", ""), features, prefixes, suffixes,
-                                                row.get("root", ""), row.get("stem", ""),
-                                                "Context suggestion" if contextual else "CALIMA MSA")))
+                                                row.get("root", ""), row.get("stem", ""))))
             if len(result) == 64:
                 break
         return result
 
-    def _rank(self, text, start, end, spans):
-        if self.context is None:
-            import torch
-            torch.set_num_threads(2)
-            from camel_tools.disambig.bert import BERTUnfactoredDisambiguator
-            self.context = BERTUnfactoredDisambiguator(str(self.root / "context-1.0.1"), self.analyzer,
-                                                       top=5, use_gpu=False, batch_size=1, ranking_cache_size=128)
-        # Preserve punctuation and only the sentence/column supplied by capture.
-        tokens = list(re.finditer(r"\w[\w\u064b-\u0652\u0670]*|[^\w\s]", text))
-        focus = next((i for i, token in enumerate(tokens) if token.span() == (start, end)), None)
-        if focus is None:
-            return []
-        left, right = focus, focus + 1
-        tokenizer = self.context._model["unfactored"]._tokenizer
-        # Budget wordpieces rather than words; the selected token stays intact.
-        budget = len(tokenizer.tokenize(tokens[focus].group()))
-        while left > 0 or right < len(tokens):
-            changed = False
-            for side in ("left", "right"):
-                index = left - 1 if side == "left" else right
-                if not 0 <= index < len(tokens):
-                    continue
-                cost = len(tokenizer.tokenize(tokens[index].group()))
-                if budget + cost > 126:
-                    continue
-                budget += cost
-                left -= side == "left"
-                right += side == "right"
-                changed = True
-            if not changed:
-                break
-        window = tuple(token.group() for token in tokens[left:right])
-        if window not in self.cache:
-            self.cache[window] = self.context.disambiguate(list(window))
-            if len(self.cache) > 32:
-                self.cache.popitem(last=False)
-        self.cache.move_to_end(window)
-        return [item.analysis for item in self.cache[window][focus-left].analyses]
 
-
-def serve(address, authkey, runtime_site, root, context_site=None):
-    for site in (runtime_site, context_site):
-        if site:
-            sys.path.insert(0, str(Path(site).resolve()))
+def serve(address, authkey, runtime_site, root):
+    sys.path.insert(0, str(Path(runtime_site).resolve()))
     catalogue = tempfile.TemporaryDirectory(prefix="wordcel-camel-")
     Path(catalogue.name, "catalogue.json").write_text(
         '{"version":"1.6","packages":{},"components":{}}', encoding="utf-8")

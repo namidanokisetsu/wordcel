@@ -57,7 +57,7 @@ def runtime_site(feature, data_root=None):
     """Return the site directory that a fresh engine process must prepend."""
     if manifest():
         return runtime_root(feature, data_root) / "site"
-    if feature in {"arabic", "arabic-context"}:
+    if feature == "arabic":
         return source_runtime_root(feature, data_root) / "site"
     if feature == "paddle" and not getattr(sys, "frozen", False):
         return source_runtime_root(feature, data_root) / "site"
@@ -94,10 +94,10 @@ def _source_paddle_ready(root):
 
 def ready(feature, data_root=None):
     if not manifest():
-        if feature in {"arabic", "arabic-context"}:
+        if feature == "arabic":
             try:
                 root = source_runtime_root(feature, data_root)
-                return json.loads((root / "complete.json").read_text(encoding="utf-8")) == arabic_manifest(feature) and (root / "site").is_dir()
+                return json.loads((root / "complete.json").read_text(encoding="utf-8")) == arabic_manifest() and (root / "site").is_dir()
             except (OSError, ValueError, RuntimeError):
                 return False
         if getattr(sys, "frozen", False):
@@ -120,7 +120,7 @@ def activate():
             if path is None:
                 continue
             site = str(path)
-            if feature not in {"paddle", "arabic", "arabic-context"} and site not in sys.path:
+            if feature not in {"paddle", "arabic"} and site not in sys.path:
                 sys.path.append(site)
                 importlib.invalidate_caches()
 
@@ -435,15 +435,13 @@ def validate(feature, site, cancelled=None):
 
 
 def check_engine(feature):
-    if feature in {"arabic", "arabic-context"}:
+    if feature == "arabic":
         # CAMeL's import otherwise downloads a catalogue before opening a DB.
         with tempfile.TemporaryDirectory(prefix="wordcel-camel-check-") as folder:
             os.environ["CAMELTOOLS_DATA"] = folder
             Path(folder, "catalogue.json").write_text('{"version":"1.6","packages":{},"components":{}}', encoding="utf-8")
             from camel_tools.morphology.analyzer import Analyzer
         from importlib.metadata import version
-        if feature == "arabic-context":
-            from camel_tools.disambig.bert import BERTUnfactoredDisambiguator
         if version("camel-tools") != "1.6.0":
             raise RuntimeError("Arabic engine version mismatch")
     elif feature == "paddle":
@@ -462,7 +460,7 @@ def check_engine(feature):
 
 def install(feature, progress=None, cancelled=None):
     if not getattr(sys, "frozen", False):
-        if feature in {"arabic", "arabic-context"}:
+        if feature == "arabic":
             return _install_source_arabic(feature, progress, cancelled)
         if feature == "paddle":
             return _install_source_paddle(progress, cancelled)
@@ -471,7 +469,7 @@ def install(feature, progress=None, cancelled=None):
     _cancel(cancelled)
     with _install_lock:
         if ready(feature):
-            if feature not in {"paddle", "arabic", "arabic-context"}:
+            if feature not in {"paddle", "arabic"}:
                 activate()
             return
         root = runtime_root(feature)
@@ -501,16 +499,15 @@ def install(feature, progress=None, cancelled=None):
                 if previous.exists():
                     previous.rename(root)
                 raise
-        if feature not in {"paddle", "arabic", "arabic-context"}:
+        if feature not in {"paddle", "arabic"}:
             activate()
 
 
-def arabic_manifest(feature="arabic"):
+def arabic_manifest():
     if sys.platform != "win32" or platform.machine().lower() not in {"amd64", "x86_64"} or sys.version_info[:2] != (3, 12):
         raise RuntimeError("Arabic analysis requires the Windows Python 3.12 build.")
     root = Path(__file__).resolve().parent / "resources"
-    return json.loads((root / "arabic-runtime-win-amd64-py312.json").read_text(encoding="utf-8"))[
-        "context" if feature == "arabic-context" else "morphology"]
+    return json.loads((root / "arabic-runtime-win-amd64-py312.json").read_text(encoding="utf-8"))["morphology"]
 
 
 def extract_arabic_wheel(wheel, archive, site, cancelled=None):
@@ -534,7 +531,7 @@ def _install_source_arabic(feature, progress=None, cancelled=None):
     with _install_lock:
         if ready(feature):
             return
-        wheels = arabic_manifest(feature)
+        wheels = arabic_manifest()
         root = source_runtime_root(feature)
         root.parent.mkdir(parents=True, exist_ok=True)
         from wordcel.utils.paths import paths
@@ -548,11 +545,9 @@ def _install_source_arabic(feature, progress=None, cancelled=None):
                 archive = cache / (wheel["sha256"] + ".whl")
                 download(wheel, archive, progress, cancelled)
                 extract_arabic_wheel(wheel, archive, site, cancelled)
-            # Validation runs with both component sites visible in a fresh child.
+            # Validate the isolated engine in a fresh child.
             from wordcel.scripts.setup_morphology import _run
             arguments = ["--check-engine", feature, "--engine-directory", str(site)]
-            if feature == "arabic-context":
-                arguments += ["--arabic-runtime", str(runtime_site("arabic"))]
             _run(["-m", "wordcel.scripts.quick_lookup", *arguments], cancelled)
             _cancel(cancelled)
             (stage / "complete.json").write_text(json.dumps(wheels), encoding="utf-8")

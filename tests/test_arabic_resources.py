@@ -13,10 +13,10 @@ from wordcel.language import arabic_resources as resources
 
 
 class ArabicResourceTests(unittest.TestCase):
-    def test_analysis_and_context_share_one_lazy_worker(self):
+    def test_repeated_analysis_reuses_one_lazy_worker(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            for kind in ("morphology", "context"):
+            for kind in ("morphology",):
                 path = root / kind
                 path.mkdir()
                 (path / "complete.json").write_text("{}")
@@ -31,7 +31,7 @@ class ArabicResourceTests(unittest.TestCase):
                 try:
                     analyzer = client.ArabicAnalyzer()
                     self.assertEqual(analyzer.candidates("كتب", 0, 3), (row,))
-                    self.assertEqual(analyzer.candidates("كتب", 0, 3, contextual=True), (row,))
+                    self.assertEqual(analyzer.candidates("كتب", 0, 3), (row,))
                     self.assertEqual(factory.call_count, 1)
                 finally:
                     client.close_worker()
@@ -69,20 +69,19 @@ class ArabicResourceTests(unittest.TestCase):
             self.assertFalse(root.exists())
             self.assertFalse((Path(folder) / "escape").exists())
 
-    def test_context_setup_and_resource_removal_share_the_morphology_lock(self):
+    def test_arabic_setup_and_resource_removal_share_the_morphology_lock(self):
         from wordcel.gui.setup_operation import SetupRequest, setup_resource
-        request = SetupRequest.from_options(morphology="ar-context")
-        self.assertEqual(request.job_keys, ("arabic:context",))
+        request = SetupRequest.from_options(morphology="ar")
+        self.assertEqual(request.job_keys, ("arabic:morphology",))
         self.assertEqual(request.resource, "morphology")
-        self.assertEqual(setup_resource("arabic:context"), "morphology")
+        self.assertEqual(setup_resource("arabic:morphology"), "morphology")
 
     def test_optional_resources_are_metadata_without_model_weights(self):
         root = Path(__file__).resolve().parents[1]
         manifest = json.loads((root / "src/wordcel/resources/arabic-runtime-win-amd64-py312.json").read_text(encoding="utf-8"))
         self.assertLess(sum(w["size"] for w in manifest["morphology"]), 2 * 1024**2)
         self.assertFalse(any(w["name"] in {"torch", "transformers", "numpy"} for w in manifest["morphology"]))
-        torch = next(w for w in manifest["context"] if w["name"] == "torch")
-        self.assertIn("cpu", torch["url"])
+        self.assertEqual(set(manifest), {"morphology"})
         self.assertTrue(all(len(w["sha256"]) == 64 and w["size"] > 0 for part in manifest.values() for w in part))
         self.assertFalse(list((root / "src/wordcel/resources").rglob("*.pt")))
         self.assertFalse(list((root / "src/wordcel/resources").rglob("morphology.db")))

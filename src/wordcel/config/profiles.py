@@ -256,7 +256,7 @@ def delete_profile(settings, identity):
 # and connection refs are intentionally absent from these maps.
 PROFILE_PAGE_KEYS = {
     "Lookup": ("freeze_while_held",),
-    "Dictionaries": ("arabic_context", "dictionaries/", "collapsed_dictionaries", "expanded_dictionaries",
+    "Dictionaries": ("dictionaries/", "collapsed_dictionaries", "expanded_dictionaries",
                       "hidden_examples_dictionaries", "hidden_grammar_dictionaries", "hidden_etymology_dictionaries",
                       "combine_frequencies"),
     "Shortcuts": ("hotkey", "hotkey_preset", "translation_hotkey", "translation_hotkey_preset",

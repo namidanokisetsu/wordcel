@@ -72,7 +72,7 @@ def main():
     parser.add_argument("--library", type=Path, required=True)
     parser.add_argument("--fixtures", type=Path, default=Path(__file__).resolve().parents[3] / "tests/fixtures/arabic_msa.json")
     parser.add_argument("--test-root", type=Path, help="Isolated model/data directory")
-    parser.add_argument("--mode", choices=("dictionary", "stanza", "morphology", "context"), required=True)
+    parser.add_argument("--mode", choices=("dictionary", "stanza", "morphology"), required=True)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--ocr-component", type=Path, help="Compare actual Screen AI output from controlled text images")
     args = parser.parse_args()
@@ -83,7 +83,7 @@ def main():
         WordcelPaths.cache_dir = property(lambda self: str(root / "cache"))
     if args.mode == "stanza":
         from wordcel.optional_runtimes import runtime_site
-        for feature in ("arabic", "arabic-context"):
+        for feature in ("arabic",):
             sys.path.insert(0, str(runtime_site(feature)))
     from wordcel.dictionary.search import SearchEngine
     from wordcel.language.arabic import spelling, lexical_vowels_agree
@@ -107,7 +107,7 @@ def main():
                     entries = engine.library.lookup(surface, "ar") or engine._lemma_lookup(surface, "ar", (sentence, start, start+len(surface)))
             else:
                 result = engine.search(surface, source="ar", morphology=args.mode != "dictionary",
-                                       context=(sentence, start, start+len(surface)), arabic_context=args.mode == "context")
+                                       context=(sentence, start, start+len(surface)))
                 entries = result.entries
             elapsed = (perf_counter() - began) * 1000
             times.append(elapsed)
@@ -115,7 +115,7 @@ def main():
                         and (not reading or lexical_vowels_agree(reading[0], e.reading or e.term))]
             rows.append(dict(surface=surface, lemma=lemma, found=bool(expected),
                              first=bool(expected and entries[0] in expected), readings=len({(e.term, e.reading) for e in entries}), ms=round(elapsed, 2)))
-            if args.mode in {"morphology", "context"}:
+            if args.mode == "morphology":
                 from wordcel.language.arabic_analyzer import _worker
                 if _worker is not None:
                     peak = max(peak, peak_memory(_worker.pid) or 0)

@@ -58,8 +58,8 @@ jobs = ResourceJobs()
 
 
 def task_key(task):
-    if task.kind == "morphology" and task.value in {"ar", "ar-context"}:
-        return "arabic:" + ("context" if task.value == "ar-context" else "morphology")
+    if task.kind == "morphology" and task.value == "ar":
+        return "arabic:morphology"
     if task.kind == "dictionary":
         return "dictionary:" + task.value.identity
     return {"morphology": "stanza", "fonts": "font"}.get(task.kind, task.kind) + ":" + str(task.value)

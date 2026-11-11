@@ -31,12 +31,12 @@ class LookupWorker(QObject):
         self._thread.start()
 
     def request(self, revision, text, source, foreign, translate=False, target=None, pair=None, translation_settings=None,
-                morphology=False, context=None, exact_only=False, dictionary_options=None, arabic_context=False):
+                morphology=False, context=None, exact_only=False, dictionary_options=None):
         self.cancel()
         mark("dispatch", revision, translation=translate)
         with self._condition:
             self._pending = (revision, text, source, foreign, translate, target, pair, translation_settings, morphology,
-                              context, exact_only, dictionary_options, arabic_context, threading.Event())
+                              context, exact_only, dictionary_options, threading.Event())
             self._condition.notify()
 
     def cancel(self):
@@ -96,7 +96,7 @@ class LookupWorker(QObject):
                         codes = sorted({meta["language"] for _, meta, _ in engine.library.packs})
                         self._emit(self.languages, codes)
                     if pending is not None:
-                        revision, text, source, foreign, translate, target, pair, translation_settings, morphology, context, exact_only, dictionary_options, arabic_context, cancelled = pending
+                        revision, text, source, foreign, translate, target, pair, translation_settings, morphology, context, exact_only, dictionary_options, cancelled = pending
                         if isinstance(engine, SearchEngine):
                             before = engine.library.revision
                             engine.library.set_preferences(dictionary_options)
@@ -122,7 +122,7 @@ class LookupWorker(QObject):
                                            translation_progress=lambda result: self._emit(self.progress, revision, result),
                                            translation_state=lambda value: self._emit(self.translation_state, revision, value))
                             options["max_lookup_length"] = config.max_lookup_length
-                            options.update(arabic_context=arabic_context, analysis_progress=analysis_progress)
+                            options["analysis_progress"] = analysis_progress
                         result = engine.search(text, source=source, foreign=foreign, translate=translate, **options)
                         mark("lookup_done", revision)
                         if not cancelled.is_set():

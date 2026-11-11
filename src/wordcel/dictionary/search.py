@@ -111,7 +111,7 @@ class SearchEngine:
 
     def search(self, text, source="auto", foreign="ja", translate=False, target=None, pair=None, translation_settings=None,
                morphology=False, context=None, translation_progress=None, translation_state=None, cancelled=None, request_id=0,
-               exact_only=False, max_lookup_length=25, romaji=False, arabic_context=False, analysis_progress=None):
+               exact_only=False, max_lookup_length=25, romaji=False, analysis_progress=None):
         if cancelled is not None and cancelled.is_set():
             raise RuntimeError("Translation cancelled.")
         self.refresh_if_changed()
@@ -127,7 +127,7 @@ class SearchEngine:
         requested_target = language_code(target) if target else None
         pair = tuple(language_code(code) for code in pair) if pair else None
         cache_key = (self.library.revision, text, source, foreign, translate, translator_key, requested_target, pair,
-                     morphology, context if morphology else None, exact_only, max_lookup_length, romaji, arabic_context)
+                     morphology, context if morphology else None, exact_only, max_lookup_length, romaji)
         if cache_key in self.cache:
             self.cache.move_to_end(cache_key)
             return self.cache[cache_key]
@@ -224,10 +224,6 @@ class SearchEngine:
                     entries = self._arabic_morphology(text, context, entries, cancelled=cancelled)
                     if entries:
                         matched_length, suggestions, message = len(text), (), ""
-                    if arabic_context and available("context"):
-                        if entries and analysis_progress:
-                            analysis_progress(SearchResult(text, source, target, entries, matched_length=matched_length))
-                        entries = self._arabic_morphology(text, context, entries, contextual=True, cancelled=cancelled)
                 except InterruptedError:
                     raise
                 except (RuntimeError, OSError, EOFError) as error:
@@ -351,14 +347,14 @@ class SearchEngine:
                                             inflection=(*labels, *entry.inflection))
         return tuple(entries.values())[:60]
 
-    def _arabic_morphology(self, text, context, existing=(), *, contextual=False, cancelled=None):
+    def _arabic_morphology(self, text, context, existing=(), *, cancelled=None):
         from wordcel.language.arabic_analyzer import ArabicAnalyzer, grammar_labels, matches_entry
         original, start, end = context or (text, 0, len(text))
         if original[start:end] != text:
             return existing
         if self._arabic_analyzer is None:
             self._arabic_analyzer = ArabicAnalyzer()
-        analyses = self._arabic_analyzer.candidates(original, start, end, contextual=contextual, cancelled=cancelled)
+        analyses = self._arabic_analyzer.candidates(original, start, end, cancelled=cancelled)
         entries = {entry.id: entry for entry in existing}
         candidates = {}
         for reading in analyses:
@@ -370,20 +366,12 @@ class SearchEngine:
                 if not matches_entry(reading, entry):
                     continue
                 previous = entries.get(entry.id, replace(entry, route="morphology"))
-                attached = tuple(dict.fromkeys((reading, *previous.morphology))) if contextual else tuple(
-                    dict.fromkeys((*previous.morphology, reading)))
+                attached = tuple(dict.fromkeys((*previous.morphology, reading)))
                 # Keep the complete reading list in one disclosure chain per analysis.
                 previous_labels = " OR ".join(grammar_labels(previous.morphology))
                 entries[entry.id] = replace(previous, morphology=attached,
                     inflection=(" OR ".join(grammar_labels(attached)), *(label for label in previous.inflection
                                                                         if label != previous_labels)))
-        if contextual:
-            rank = {entry.id: index for index, reading in reversed(tuple(enumerate(analyses)))
-                    if reading.provenance == "Context suggestion"
-                    for entry in entries.values() if matches_entry(reading, entry)}
-            # Attested entries/forms precede new model-only lemma matches.
-            return tuple(sorted(entries.values(), key=lambda entry: (
-                entry.route == "morphology", rank.get(entry.id, len(analyses)))))[:60]
         return tuple(entries.values())[:60]
 
     def _persian_lookup(self, text):

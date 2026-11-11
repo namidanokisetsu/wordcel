@@ -55,8 +55,7 @@ Paths are under `src/wordcel/`. Languages share input and rendering.
   Stanza; Windows Arabic optionally uses an isolated CAMeL worker with Stanza
   fallback. Keep NLP imports lazy and runtime analysis offline. Arabic matching
   preserves spelling distinctions and supplied vowels; roots never replace lemmas.
-  Context ranks readings without removing alternatives. Keep expensive resource
-  preparation out of runtime lookup.
+  Keep expensive resource preparation out of runtime lookup.
 - **Workers:** capture, OCR, lookup, downloads, history and Anki preparation stay
   off the UI thread. Reuse analyzers/providers and reject stale results by request,
   profile and resource revision. Preloading uses installed resources and yields
@@ -150,7 +149,7 @@ Targeted diagnostics:
   `python -m unittest discover -s tests -p test_native_capture_workflow.py` for
   the native Windows workflow. Requires installed Japanese OCR and briefly covers
   the primary screen. `WORDCEL_TEST_OCR=windows` selects Windows OCR.
-- `python -m wordcel.scripts.check_arabic --library <path> --mode <dictionary|stanza|morphology|context>`
+- `python -m wordcel.scripts.check_arabic --library <path> --mode <dictionary|stanza|morphology>`
   runs curated MSA smoke checks. Setup is separate; these are not corpus accuracy
   measurements.
 
@@ -163,7 +162,7 @@ Builds: [.github/workflows](../.github/workflows). Bundle and installer helpers:
   optional engines/models require explicit setup. `packaging/optional_runtimes.py`
   owns pinned wheel URLs/hashes. Validate core and optional engines separately.
 - Keep Paddle in its isolated runtime site and Arabic morphology/context in their
-  own worker. Morphology excludes Torch; context adds it. Prevent implicit model
+  own worker. Arabic morphology excludes Torch. Prevent implicit model
   downloads. MeikiOCR/PaddleX OpenCV coexistence still requires frozen Windows
   validation in both installation orders before claiming support.
 - Upgrades preserve settings/data. Uninstall may remove them with

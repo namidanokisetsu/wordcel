@@ -47,8 +47,6 @@ def grammar_labels(readings):
             parts.append("suffix: " + " + ".join(_clitic(value) for value in reading.enclitics))
         if reading.root:
             parts.append("root: " + reading.root.replace(".", " "))
-        if reading.provenance == "Context suggestion":
-            parts.append("context suggestion")
         label = " · ".join(dict.fromkeys(part for part in parts if part))
         if label not in labels:
             labels.append(label)
@@ -90,7 +88,7 @@ def close_worker():
 
 
 class ArabicAnalyzer:
-    def candidates(self, text, start, end, *, contextual=False, cancelled=None):
+    def candidates(self, text, start, end, *, cancelled=None):
         if not 0 <= start < end <= len(text):
             return ()
         from .arabic_resources import available, model_root
@@ -98,23 +96,18 @@ class ArabicAnalyzer:
         from .arabic_worker import ArabicWorker
         if not available():
             return ()
-        context_installed = available("context")
-        contextual = contextual and context_installed
         root = model_root().parent
-        identity = (str(root), tuple((root / name / "complete.json").stat().st_mtime_ns
-                                   for name in (model_root().name, model_root("context").name)
-                                   if (root / name / "complete.json").exists()), context_installed)
+        identity = (str(root), (model_root() / "complete.json").stat().st_mtime_ns)
         global _worker, _identity
         with _guard:
             if cancelled is not None and cancelled.is_set():
                 raise InterruptedError("Arabic analysis cancelled")
             if _worker is None or _worker.closed or identity != _identity:
                 close_worker()
-                _worker = ArabicWorker(root, runtime_site("arabic"),
-                                       runtime_site("arabic-context") if context_installed else None)
+                _worker = ArabicWorker(root, runtime_site("arabic"))
                 _identity = identity
             try:
-                rows = _worker.analyze(dict(text=text, start=start, end=end, contextual=contextual), cancelled)
+                rows = _worker.analyze(dict(text=text, start=start, end=end), cancelled)
                 return tuple(ArabicAnalysis(**dict(row, features=tuple(tuple(p) for p in row["features"]),
                                                   proclitics=tuple(row["proclitics"]), enclitics=tuple(row["enclitics"])))
                              for row in rows)

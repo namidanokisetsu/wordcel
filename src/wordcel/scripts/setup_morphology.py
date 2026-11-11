@@ -43,9 +43,9 @@ def _run(arguments, cancelled=None):
 
 
 def install(language, progress=None, cancelled=None):
-    if language in {"ar", "ar-context"}:
+    if language == "ar":
         from wordcel.language.arabic_resources import install as install_arabic
-        return install_arabic("context" if language == "ar-context" else "morphology", progress=progress, cancelled=cancelled)
+        return install_arabic(progress=progress, cancelled=cancelled)
     from wordcel.language.stanza_analyzer import STANZA_VERSION
     from wordcel.language.morphology import numpy_requirement, torch_version
     from wordcel.language.support import STANZA_LANGUAGES

@@ -9,8 +9,8 @@ Treat this table as a starting point. Quality and coverage vary by language, so 
 Most **dictionary downloads** come from Wiktionary.
 
 Arabic presentation supports RTL and vowelled headings. Windows Python 3.12 builds
-offer optional CALIMA MSA morphology and experimental contextual ranking; existing
-Stanza installations remain available as a fallback. Models are downloaded separately.
+offer optional CALIMA MSA morphology; existing Stanza installations remain available
+as a fallback. The morphology database is downloaded separately.
 Dialect and Classical Arabic accuracy are not covered by the MSA analyzer.
 
 | Language | OCR models | Word forms | Dictionary downloads |
