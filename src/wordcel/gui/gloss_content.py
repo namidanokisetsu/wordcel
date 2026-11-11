@@ -7,6 +7,7 @@ from PyQt6.QtGui import QTextDocument
 
 from wordcel.config.config import config
 from wordcel.dictionary.structured_content import StructuredContentConverter
+from wordcel.dictionary.parts_of_speech import is_tag, part_of_speech
 from wordcel.gui.action_icons import disclosure_html
 from wordcel.gui.popup_style import surface_colors
 from wordcel.gui.ruby import TAG_PREFIX, ruby_html
@@ -28,40 +29,52 @@ class _GlossConverter(StructuredContentConverter):
         "other surface forms and readings": "forms", "unclassified": "unclassified",
     }
 
-    @staticmethod
-    def _is_tag(node):
-        data = node.get("data") if isinstance(node, dict) else None
-        return (isinstance(data, dict) and data.get("content") != "forms-label"
-                and (data.get("class") == "tag" or data.get("content") == "tag"))
+    _is_tag = staticmethod(is_tag)
 
     def _tags_to_html(self, nodes):
-        if not self.grammar:
-            return ""
-        labels, descriptions = [], []
+        labels, descriptions, parts, part_descriptions = [], [], [], []
         for node in nodes:
+            pos = part_of_speech(node)
+            if pos:
+                parts.append(pos)
+            if not self.grammar and not pos:
+                continue
             html = super()._node_to_html(node.get("content"))
             document = QTextDocument()
             document.setHtml(html)
             description = document.toPlainText().strip()
             if description:
                 descriptions.append(description)
+                if pos:
+                    part_descriptions.append(description)
+                    if self.language != "ja" and description not in ("transitive verb", "intransitive verb"):
+                        continue
                 if not re.fullmatch(r"JMdict Sense #\d+", description, re.IGNORECASE):
-                    labels.append(self._tag_labels.get(description, description))
+                    labels.append(self._tag_labels.get(description, description) if self.grammar else pos)
+        heading = ""
+        if self.language != "ja" and parts:
+            description = " · ".join(dict.fromkeys(part_descriptions))
+            heading = (f'<p class="part-of-speech"><a href="{TAG_PREFIX}{quote(description, safe="")}" '
+                       f'style="color:{self.colors["muted"]};text-decoration:none">'
+                       + escape(" · ".join(dict.fromkeys(parts)).capitalize()) + '</a></p>')
+            if not self.grammar:
+                labels = []
         if not labels:
-            return ""
+            return heading
         description = " · ".join(dict.fromkeys(descriptions))
         label = " · ".join(dict.fromkeys(labels))
-        return (f'<div class="metadata"><a href="{TAG_PREFIX}{quote(description, safe="")}" '
+        return heading + (f'<div class="metadata"><a href="{TAG_PREFIX}{quote(description, safe="")}" '
                 f'style="color:{self.colors["muted"]};text-decoration:none">'
                 f'<small>[{escape(label)}]</small></a></div>')
 
     def __init__(self, expanded=False, limit=360, preview=False, generic_source=False, term="",
                  details_expanded=(), detail_prefix="", definitions=(), definition_furigana=False, preview_definitions=2,
-                 grammar=True, hidden_sections=(), compact=None):
+                 grammar=True, hidden_sections=(), compact=None, language="ja"):
         super().__init__()
         self.preview_definitions = preview_definitions
         self.definition_furigana = definition_furigana
         self.grammar = grammar
+        self.language = language
         self.hidden_sections = hidden_sections
         self.colors = surface_colors(config.color_background, config.color_foreground)
         self.expanded = expanded

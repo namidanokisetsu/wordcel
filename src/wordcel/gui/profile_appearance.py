@@ -89,6 +89,8 @@ class ProfileAppearance(QWidget):
         self.pinned_frequency = QCheckBox("Frequency")
         self.pinned_pitch = QCheckBox("Pitch")
         self.pinned_grammar = QCheckBox("Grammar labels")
+        for control in (self.preview_grammar, self.pinned_grammar):
+            control.setToolTip("Additional labels and inflection details; part of speech stays visible")
         self.dictionary_labels = QCheckBox("Dictionary labels")
         self.dictionary_labels.setToolTip("Show dictionary names and collapse controls")
         self.preview_definitions = QSpinBox()

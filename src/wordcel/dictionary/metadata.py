@@ -30,30 +30,38 @@ def harmonic_rank(frequencies):
     return smallest * (len(ranks) / math.fsum(smallest / rank for rank in ranks.values()))
 
 
+@dataclass(frozen=True)
+class DefinitionTag:
+    description: str
+    category: str = ""
+
+
 def definition_tags(archive):
     labels = {}
     for row in _bank_rows(archive, "tag_bank"):
         if len(row) >= 4 and isinstance(row[0], str) and isinstance(row[3], str):
-            labels[row[0]] = row[3] or row[0]
+            labels[row[0]] = DefinitionTag(row[3] or row[0], row[1] if isinstance(row[1], str) else "")
     return labels
 
 
 def tagged_definitions(definitions, tags, labels):
     if not isinstance(tags, str) or not tags.strip() or not definitions:
         return definitions
-    def supplied(node):
-        if isinstance(node, list):
-            return any(supplied(child) for child in node)
-        if isinstance(node, dict):
-            data = node.get("data", {})
-            if isinstance(data, dict) and (data.get("class") == "tag" or data.get("content") == "tag"):
-                return True
-            return supplied(node.get("content"))
-        return False
-    if supplied(definitions):
+    from .parts_of_speech import leading_tags, tag_text
+    # Sense-level tags cannot replace metadata supplied for the whole entry.
+    supplied = {tag_text(node.get("content")).strip().casefold() for node in leading_tags(definitions[0])}
+    nodes = []
+    for tag in dict.fromkeys(tags.split()):
+        metadata = labels.get(tag, tag)
+        description = metadata.description if isinstance(metadata, DefinitionTag) else metadata
+        if description.strip().casefold() in supplied:
+            continue
+        data = {"content": "tag"}
+        if isinstance(metadata, DefinitionTag) and metadata.category:
+            data["category"] = metadata.category
+        nodes.append({"tag": "span", "data": data, "content": description})
+    if not nodes:
         return definitions
-    nodes = [{"tag": "span", "data": {"content": "tag"}, "content": labels.get(tag, tag)}
-             for tag in dict.fromkeys(tags.split())]
     for index, first in enumerate(definitions):
         if isinstance(first, str):
             content = first

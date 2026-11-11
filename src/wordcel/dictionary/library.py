@@ -136,7 +136,8 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
             media_ready = assets_ready(existing_metadata, directory, destination.stem)
             forms_ready = source_language != "ar" or (existing_metadata.get("form_metadata_version") == "1"
                                                        and existing_metadata.get("arabic_alias_version") == "1")
-            if existing_metadata.get("schema_version") == "3" and forms_ready and (not has_images or media_ready):
+            if (existing_metadata.get("schema_version") == "3" and forms_ready
+                    and existing_metadata.get("definition_tags_version") == "1" and (not has_images or media_ready)):
                 if progress:
                     progress(f"Importing {title} · 100%")
                 return destination
@@ -300,7 +301,7 @@ def import_yomitan(archive, directory=None, language=None, progress=None, cancel
                             target_language=str(index.get("targetLanguage", "")),
                             frequency_mode=str(index.get("frequencyMode", "rank-based")),
                             revision=str(index.get("revision", "")), sha256=sha,
-                            entries=str(count), forms=str(redirects), form_metadata_version="1",
+                            entries=str(count), forms=str(redirects), form_metadata_version="1", definition_tags_version="1",
                             frequencies=str(frequency_count), kanji=str(kanji_count), pitches=str(pitch_count))
             metadata.update(index_url=str(index.get("indexUrl", "")), download_url=str(index.get("downloadUrl", "")),
                             source=str(source or index.get("url", "")), publisher=str(index.get("author", "")))

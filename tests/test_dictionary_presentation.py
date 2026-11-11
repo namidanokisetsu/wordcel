@@ -2,6 +2,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import unittest
+import json
 from unittest.mock import patch
 
 from PyQt6.QtGui import QFontMetricsF, QTextCursor, QTextFormat
@@ -131,8 +132,8 @@ class DictionaryPresentationTests(unittest.TestCase):
         for grammar in (False, True):
             with self.subTest(grammar=grammar):
                 text = self.render(value, preview=True, preview_definitions=0, grammar=grammar)
-                self.assertEqual("[adjective]" in text, grammar)
-                self.assertEqual("[noun]" in text, grammar)
+                self.assertIn("Adjective", text)
+                self.assertIn("Noun", text)
                 doc = self.browser.document()
                 heading_x = self.browser.cursorRect(QTextCursor(doc.begin())).left()
                 for meaning in ("Ready to do something.", "Second sense.", "The execution of a will."):
@@ -160,6 +161,104 @@ class DictionaryPresentationTests(unittest.TestCase):
             self.assertEqual(self.browser.cursorRect(QTextCursor(block)).left(), 0)
         self.render(value)
         self.assertEqual(self.browser.document().find("Third meaning").block().textList().count(), 3)
+
+    def test_wiktionary_legacy_pos_headings_separate_numbered_entries_with_grammar_hidden(self):
+        def definitions(meanings):
+            return ({"type": "structured-content", "content": {"tag": "ol", "content": [
+                {"tag": "li", "content": meaning} for meaning in meanings]}},)
+        entries = (
+            Entry("adj", "sovereign", "", "wty-en-en", "en", definitions(("Rule.", "Royal.")), ("adj",)),
+            Entry("noun", "sovereign", "", "wty-en-en", "en", definitions(("A monarch.", "A coin.")), ("n",)))
+        value = SearchResult("sovereign", "en", "en", entries)
+        original = json.dumps([entry.definitions for entry in entries])
+        for grammar in (False, True):
+            for preview, compact in ((False, False), (True, False), (True, True)):
+                with self.subTest(grammar=grammar, preview=preview, compact=compact):
+                    text = self.render(value, grammar=grammar, preview=preview, compact=compact,
+                                       preview_definitions=0, hidden_sections={"wty-en-en": {"grammar", "etymology"}})
+                    self.assertLess(text.index("Adjective"), text.index("Rule."))
+                    self.assertLess(text.index("Royal."), text.index("Noun"))
+                    self.assertLess(text.index("Noun"), text.index("A monarch."))
+                    self.assertEqual(text.count("Adjective"), 1)
+                    self.assertEqual(text.count("Noun"), 1)
+                    doc = self.browser.document()
+                    self.assertIsNone(doc.find("Adjective").block().textList())
+                    self.assertIsNone(doc.find("Noun").block().textList())
+                    if not compact:
+                        first = doc.find("Rule.").block()
+                        second = doc.find("A monarch.").block()
+                        self.assertEqual(first.textList().itemText(first), "1.")
+                        self.assertEqual(second.textList().itemText(second), "1.")
+                        self.assertNotEqual(first.textList().objectIndex(), second.textList().objectIndex())
+                    self.assertEqual(render_result(value, grammar=grammar, preview=preview, compact=compact,
+                                                   preview_definitions=0).count('<hr style='), 1)
+        self.assertEqual(json.dumps([entry.definitions for entry in entries]), original)
+        text = self.render(value, preview=True, preview_definitions=2, grammar=False)
+        self.assertIn("Adjective", text)
+        self.assertNotIn("Noun", text)
+        self.assertNotIn("A monarch.", text)
+
+    def test_plain_dictionary_pos_is_outside_numbering_and_usage_stays_optional(self):
+        definition = {"type": "structured-content", "content": [
+            {"tag": "span", "data": {"content": "tag", "category": "partOfSpeech"}, "content": "noun"},
+            {"tag": "span", "data": {"content": "tag", "category": "usage"}, "content": "archaic"},
+            "First meaning"]}
+        value = SearchResult("word", "en", "en", (
+            Entry("word", "word", "", "Custom", "en", (definition, "Second meaning")),))
+        for grammar in (False, True):
+            text = self.render(value, grammar=grammar)
+            self.assertEqual(text.count("Noun"), 1)
+            self.assertEqual("archaic" in text, grammar)
+            doc = self.browser.document()
+            self.assertIsNone(doc.find("Noun").block().textList())
+            first = doc.find("archaic" if grammar else "First meaning").block()
+            self.assertEqual(first.textList().itemText(first), "1.")
+            self.assertEqual(first.textList().count(), 2)
+
+    def test_pos_scope_is_preserved_for_japanese_sense_groups_with_grammar_off(self):
+        groups = [{"tag": "div", "data": {"content": "sense-group"}, "content": [
+            {"tag": "span", "data": {"class": "tag", "content": "part-of-speech-info"}, "content": label},
+            {"tag": "div", "data": {"content": "sense"}, "content": meaning}]}
+            for label, meaning in (("noun", "First meaning"), ("adverb", "Second meaning"))]
+        value = result(({"type": "structured-content", "content": groups},), "Jitendex")
+        text = self.render(value, grammar=False)
+        self.assertLess(text.index("[noun]"), text.index("First meaning"))
+        self.assertLess(text.index("First meaning"), text.index("[adverb]"))
+        self.assertLess(text.index("[adverb]"), text.index("Second meaning"))
+
+    def test_pos_fallback_is_exporter_specific_and_explicit_tags_take_priority(self):
+        definition = {"type": "structured-content", "content": [
+            {"tag": "span", "data": {"content": "tag"}, "content": "proper noun"}, "A name."]}
+        for source in ("wty-en-en", "Custom"):
+            value = SearchResult("word", "en", "en", (
+                Entry("word", "word", "", source, "en", (definition,), ("n",)),))
+            text = self.render(value, grammar=False)
+            self.assertIn("Proper noun", text)
+            self.assertNotIn("\nNoun\n", text)
+        unknown = SearchResult("word", "en", "en", (
+            Entry("1", "word", "", "Custom", "en", ("A noun in an example.",), ("n",)),
+            Entry("2", "word", "", "Custom", "en", ("An adjective in prose.",), ("adj",))))
+        html = render_result(unknown, grammar=False)
+        self.assertNotIn('<p class="part-of-speech">', html)
+        self.assertEqual(html.count('<hr style='), 1)
+
+    def test_explicit_pos_categories_and_jmdict_classes_stay_visible_without_guessing_from_topics(self):
+        for language, label, data, expected in (
+                ("en", "classifier", {"content": "tag", "category": "partOfSpeech"}, "Classifier"),
+                ("ja", "Godan verb with 'ru' ending", {"class": "tag"}, "[verb]"),
+                ("ja", "noun (common) (futsuumeishi)", {"content": "tag"}, "[noun]")):
+            with self.subTest(language=language, label=label):
+                definition = {"type": "structured-content", "content": [
+                    {"tag": "span", "data": data, "content": label}, "Meaning"]}
+                value = SearchResult("word", language, "en", (
+                    Entry("word", "word", "", "Custom", language, (definition,)),))
+                text = self.render(value, grammar=False)
+                self.assertIn(expected, text)
+                self.assertIn("Meaning", text)
+        definition = {"type": "structured-content", "content": [
+            {"tag": "span", "data": {"content": "tag", "category": "topic"}, "content": "noun"}, "Meaning"]}
+        value = SearchResult("word", "en", "en", (Entry("word", "word", "", "Custom", "en", (definition,)),))
+        self.assertNotIn("noun", self.render(value, grammar=False).lower())
 
     def test_compact_nested_lists_keep_lines_and_sense_limit(self):
         definition = {"type": "structured-content", "content": {"tag": "ol", "content": [

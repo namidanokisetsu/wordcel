@@ -14,6 +14,7 @@ from wordcel.gui.action_icons import disclosure_html
 from wordcel.gui.gloss_content import _GlossConverter, normalize_definitions
 from wordcel.gui.popup_style import surface_colors
 from wordcel.gui.ruby import ruby_html
+from wordcel.dictionary.parts_of_speech import split_entry_part_of_speech, with_entry_part_of_speech
 
 
 def _metadata(entries, combine_frequencies=True, show_frequencies=True, pitch="", inline=False, show_inflections=True,
@@ -165,6 +166,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
     show_inflections = grammar is not False
     reading_size = config.font_size_reading
     muted = surface_colors(config.color_background, config.color_foreground)["muted"]
+    border = surface_colors(config.color_background, config.color_foreground)["border"]
     clearance = 96 if overlay_actions is True else int(overlay_actions)
     if source_text is None:
         source_text = result.text if result.translation else ""
@@ -176,6 +178,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
              f'h2 {{font-size:{config.font_size_header}px;font-weight:normal;margin:0 {heading_clearance}px 0 0;}} '
              'p {margin:2px 0;} ol,ul {margin:2px 0 4px 0;padding:0;} '
              'li {margin:1px 0;} hr {margin:6px 0;} '
+             f'.part-of-speech {{margin:{round(config.font_size_definitions * .35)}px 0 1px;font-weight:bold;color:{muted};}} '
              f'.metadata {{margin:0;color:{muted};}} .source {{margin:4px 0 1px;color:{muted};}}</style>']
     if show_source and source_text:
         parts.append(f'<p style="margin:0 {clearance}px 4px 0;font-size:{config.font_size_sentence}px">'
@@ -262,7 +265,13 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
             more = bool(maximum and len(entries) > maximum)
             hidden = dictionary_labels and (source in collapsed or section_key in collapsed) and not compact
             generic_source = source in ("Turkish Bilingual", "Turkish Monolingual", "Turkish Etymology")
-            normalized = [normalize_definitions(entry.definitions, source) for entry in entries]
+            normalized = [with_entry_part_of_speech(normalize_definitions(entry.definitions, source), entry.rules, source)
+                          for entry in entries]
+            entry_tags = [()] * len(normalized)
+            if result.source != "ja":
+                prepared = [split_entry_part_of_speech(definitions) for definitions in normalized]
+                entry_tags = [tags for tags, _ in prepared]
+                normalized = [definitions for _, definitions in prepared]
             from wordcel.dictionary.wiktionary_sections import is_wiktionary
             hidden_details = (hidden_sections or {}).get(source, ()) if is_wiktionary(source) else ()
             converter = _GlossConverter(expanded=full, limit=None, hidden_sections=hidden_details,
@@ -270,19 +279,20 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                                         generic_source=generic_source, term=term,
                                         details_expanded=details_expanded, detail_prefix=f"{group_index}:{index}",
                                         definition_furigana=definition_furigana,
-                                        grammar=grammar_tags,
+                                        grammar=grammar_tags, language=result.source,
                                         definitions=tuple(definition for definitions in normalized for definition in definitions))
             definitions, sections = [], []
-            visible_entries = () if hidden else normalized
-            for entry_definitions in visible_entries:
+            visible_entries = () if hidden else zip(entry_tags, normalized)
+            for tags, entry_definitions in visible_entries:
                 more = more or bool(maximum and len(entry_definitions) > maximum)
                 definitions.extend(converter.glosses(entry_definitions))
-                if converter.supplements:
+                if converter.supplements or result.source != "ja":
                     # Keep each record's forms beside its definitions, especially homonyms.
-                    sections.append((definitions, converter.supplements))
+                    if definitions or converter.supplements:
+                        sections.append((converter._tags_to_html(tags), definitions, converter.supplements))
                     definitions, converter.supplements = [], []
             if definitions:
-                sections.append((definitions, []))
+                sections.append(("", definitions, []))
             more = more or converter.clipped
             if source not in anchored:
                 parts.append(f'<a name="dictionary-{index}"></a>')
@@ -298,7 +308,10 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                                  f'{escape(label)}</small></a></p>')
                 else:
                     parts.append(section)
-            for definitions, supplements in sections:
+            for section_index, (heading, definitions, supplements) in enumerate(sections):
+                if section_index and result.source != "ja":
+                    parts.append(f'<hr style="background-color:{border};margin:{round(config.font_size_definitions * .35)}px 0">')
+                parts.append(heading)
                 # Structured groups already carry their own sense lists.
                 listed_groups = definitions and all(re.search(r"<(?:ol|ul)\b", gloss) for gloss in definitions)
                 if len(definitions) > 1 and not compact and not listed_groups:
