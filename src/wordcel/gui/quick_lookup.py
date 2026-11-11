@@ -1427,7 +1427,7 @@ class QuickLookupWindow(QDialog):
                 hidden_sections=hidden_sections,
                 preview_frequency=self.settings.value(prefix + "preview_frequency", True, bool),
                 preview_pitch=self.settings.value(prefix + "preview_pitch", True, bool),
-                preview_definitions=self.settings.value(prefix + "preview_definitions", 2, int),
+                preview_definitions=self.settings.value(prefix + "preview_definitions", 3, int),
                 pinned_frequency=self.settings.value(prefix + "pinned_frequency", True, bool),
                 pinned_pitch=self.settings.value(prefix + "pinned_pitch", True, bool),
                 dictionary_labels=self.settings.value(prefix + "dictionary_labels", True, bool),

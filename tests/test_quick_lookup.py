@@ -1278,7 +1278,8 @@ class QuickLookupTests(unittest.TestCase):
         text = self.window.browser.toPlainText()
         self.assertIn("first", text)
         self.assertIn("second", text)
-        self.assertNotIn("third", text)
+        self.assertIn("third", text)
+        self.assertNotIn("fourth", text)
         self.window.audio.play.assert_not_called()
         self.window.pin.setChecked(True)
         self.assertIn("fourth", self.window.browser.toPlainText())
@@ -5170,7 +5171,7 @@ class DictionaryManagerTests(unittest.TestCase):
         self.dialog.appearance.preview_definitions.setValue(0)
         self.assertEqual(self.settings.value('profiles/tr/preview_definitions', type=int), 0)
         self.dialog.sync_profile('ja')
-        self.assertEqual(self.dialog.appearance.preview_definitions.value(), 2)
+        self.assertEqual(self.dialog.appearance.preview_definitions.value(), 3)
         self.dialog.sync_profile('tr')
         self.assertEqual(self.dialog.appearance.preview_definitions.text(), 'All')
 
