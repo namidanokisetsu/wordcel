@@ -283,8 +283,6 @@ class _GlossConverter(StructuredContentConverter):
                                    if isinstance(child, dict) and child.get("tag") == "li" else child
                                    for child in children]
             safe_style = {}
-            if tag == "ol" and isinstance(content, list) and len(content) > 9:
-                safe_style["marginLeft"] = "20px"
             for name, values in (("fontStyle", ("italic", "normal")),
                                  ("fontWeight", ("bold", "normal", "400", "700"))):
                 if style.get(name) in values:

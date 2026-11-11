@@ -174,7 +174,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
     parts = [f'<style>body {{color:{config.color_foreground};}} '
              f'a,h2 {{color:{config.color_highlight_word};text-decoration:none;}} '
              f'h2 {{font-size:{config.font_size_header}px;font-weight:normal;margin:0 {heading_clearance}px 0 0;}} '
-             'p {margin:2px 0;} ol,ul {margin:2px 0 4px 8px;padding:0;} '
+             'p {margin:2px 0;} ol,ul {margin:2px 0 4px 0;padding:0;} '
              'li {margin:1px 0;} hr {margin:6px 0;} '
              f'.metadata {{margin:0;color:{muted};}} .source {{margin:4px 0 1px;color:{muted};}}</style>']
     if show_source and source_text:
@@ -299,8 +299,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
             # Structured groups already carry their own sense lists.
             listed_groups = definitions and all(re.search(r"<(?:ol|ul)\b", gloss) for gloss in definitions)
             if len(definitions) > 1 and not compact and not listed_groups:
-                opening = '<ol style="margin-left:20px">' if len(definitions) > 9 else "<ol>"
-                parts.append(opening + "".join(f"<li>{gloss}</li>" for gloss in definitions) + "</ol>")
+                parts.append("<ol>" + "".join(f"<li>{gloss}</li>" for gloss in definitions) + "</ol>")
             else:
                 parts.append("".join(f"<div>{gloss}</div>" for gloss in definitions))
             for label, supplement in converter.supplements:

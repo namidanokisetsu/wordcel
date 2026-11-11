@@ -56,6 +56,42 @@ class DictionaryPresentationTests(unittest.TestCase):
                             self.assertGreaterEqual(left - marker_width, self.browser.document().documentMargin())
                         block = block.next()
 
+    def test_numbered_lists_only_reserve_marker_width(self):
+        for size in (14, 28, 48):
+            self.browser.setFont(document_font("Noto Sans JP", size, "ja"))
+            for structured in (False, True):
+                for count in (2, 12, 101):
+                    with self.subTest(size=size, structured=structured, count=count):
+                        meanings = tuple(f"Meaning {i}" for i in range(count))
+                        definitions = ({"type": "structured-content", "content": {
+                            "tag": "ol", "content": [{"tag": "li", "content": text}
+                                                       for text in meanings]}},) if structured else meanings
+                        self.render(result(definitions))
+                        doc = self.browser.document()
+                        block = doc.find(meanings[-1]).block()
+                        metrics = QFontMetricsF(block.charFormat().font().resolve(doc.defaultFont()))
+                        marker = block.textList().itemText(block)
+                        left = self.browser.cursorRect(QTextCursor(block)).left()
+                        self.assertGreaterEqual(left, metrics.horizontalAdvance(marker))
+                        self.assertLessEqual(left, metrics.horizontalAdvance(marker + " ") + 1)
+
+    def test_list_continuations_align_and_nested_margins_do_not_accumulate(self):
+        definition = {"type": "structured-content", "content": {"tag": "ol", "content": [
+            {"tag": "li", "content": ["Label", {"tag": "div", "content": "Meaning"},
+                {"tag": "ul", "content": [{"tag": "li", "content": "Explanation"}]}]}]}}
+        for size in (14, 28, 48):
+            for preview in (False, True):
+                with self.subTest(size=size, preview=preview):
+                    self.browser.setFont(document_font("Noto Sans JP", size, "ja"))
+                    self.render(result((definition,)), preview=preview, compact=False)
+                    doc = self.browser.document()
+                    def left(text):
+                        return self.browser.cursorRect(QTextCursor(doc.find(text).block())).left()
+                    self.assertEqual(left("Label"), left("Meaning"))
+                    self.assertAlmostEqual(left("Explanation"), 2 * left("Meaning"), delta=1)
+                    metrics = QFontMetricsF(doc.find("Label").block().charFormat().font().resolve(doc.defaultFont()))
+                    self.assertLessEqual(left("Meaning"), metrics.horizontalAdvance("1. ") + 1)
+
     def test_compact_meanings_are_unindented_and_keep_grammar_preferences(self):
         groups = tuple({"type": "structured-content", "content": [
             {"tag": "span", "data": {"content": "tag"}, "content": label},
