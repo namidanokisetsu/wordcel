@@ -3656,7 +3656,7 @@ class QuickLookupTests(unittest.TestCase):
         self.assertIn("#400", self.window.browser.toPlainText())
         self.assertIn("A #100/900㋕ B #400", self.window.browser.toPlainText().replace("\xa0", " "))
 
-    def test_structured_preview_keeps_lists_and_hides_examples_and_extra_senses(self):
+    def test_structured_preview_keeps_meanings_and_hides_examples_and_extra_senses(self):
         # Mirrors Turkdict's export_prototype.Structured output (classes become styles).
         definition = {"type": "structured-content", "content": {"tag": "ol", "content": [
             {"tag": "li", "content": ["vehicle", {"tag": "div", "style": {
@@ -3667,7 +3667,9 @@ class QuickLookupTests(unittest.TestCase):
             entry("araç", "Turkdict", (definition,), "tr"),
             entry("araç", "Other", ("vehicle", "device", "tool", "Fourth sense"), "tr")))
         preview = render_result(result, preview=True, preview_definitions=2)
-        self.assertIn("<ol><li>vehicle", preview)
+        self.window.browser.setHtml(preview)
+        self.assertIn("vehicle\nmeans", self.window.browser.toPlainText())
+        self.assertIsNone(self.window.browser.document().find("vehicle").block().textList())
         self.assertNotIn("Hidden example", preview)
         self.assertNotIn("Third sense", preview)
         expanded = render_result(result, {"Turkdict"})

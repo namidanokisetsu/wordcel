@@ -275,6 +275,13 @@ class _GlossConverter(StructuredContentConverter):
                 node["content"] = children
             # Keep a small, safe subset of typography. Dictionary CSS must not
             # inject attributes, override the theme or stretch the popup.
+            if self.compact and tag == "ol":
+                tag = node["tag"] = "div"
+                children = node.get("content")
+                children = children if isinstance(children, list) else [children]
+                node["content"] = [dict(child, tag="div")
+                                   if isinstance(child, dict) and child.get("tag") == "li" else child
+                                   for child in children]
             safe_style = {}
             if tag == "ol" and isinstance(content, list) and len(content) > 9:
                 safe_style["marginLeft"] = "20px"

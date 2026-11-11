@@ -296,7 +296,9 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                                  f'{escape(label)}</small></a></p>')
                 else:
                     parts.append(section)
-            if len(definitions) > 1:
+            # Structured groups already carry their own sense lists.
+            listed_groups = definitions and all(re.search(r"<(?:ol|ul)\b", gloss) for gloss in definitions)
+            if len(definitions) > 1 and not compact and not listed_groups:
                 opening = '<ol style="margin-left:20px">' if len(definitions) > 9 else "<ol>"
                 parts.append(opening + "".join(f"<li>{gloss}</li>" for gloss in definitions) + "</ol>")
             else:

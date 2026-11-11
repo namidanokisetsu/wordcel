@@ -56,6 +56,63 @@ class DictionaryPresentationTests(unittest.TestCase):
                             self.assertGreaterEqual(left - marker_width, self.browser.document().documentMargin())
                         block = block.next()
 
+    def test_compact_meanings_are_unindented_and_keep_grammar_preferences(self):
+        groups = tuple({"type": "structured-content", "content": [
+            {"tag": "span", "data": {"content": "tag"}, "content": label},
+            {"tag": "ol", "content": [{"tag": "li", "content": text} for text in meanings]}]}
+            for label, meanings in (("adjective", ("Ready to do something.", "Second sense.")),
+                                    ("noun", ("The execution of a will.",))))
+        value = SearchResult("willing", "en", "en", (
+            Entry("fixture", "willing", "", "Fixture", "en", groups),))
+        for grammar in (False, True):
+            with self.subTest(grammar=grammar):
+                text = self.render(value, preview=True, grammar=grammar)
+                self.assertEqual("[adjective]" in text, grammar)
+                self.assertEqual("[noun]" in text, grammar)
+                doc = self.browser.document()
+                heading_x = self.browser.cursorRect(QTextCursor(doc.begin())).left()
+                for meaning in ("Ready to do something.", "Second sense.", "The execution of a will."):
+                    block = doc.find(meaning).block()
+                    self.assertTrue(block.isValid())
+                    self.assertIsNone(block.textList())
+                    self.assertEqual(self.browser.cursorRect(QTextCursor(block)).left(), heading_x)
+        for options in ({}, {"preview": True, "compact": False}):
+            with self.subTest(options=options):
+                self.render(value, grammar=False, **options)
+                doc = self.browser.document()
+                for meaning in ("Ready to do something.", "The execution of a will."):
+                    text_list = doc.find(meaning).block().textList()
+                    self.assertEqual(text_list.format().indent(), 1)
+
+    def test_compact_plain_meanings_keep_limits_without_numbering(self):
+        value = result(("First meaning", "Second meaning", "Third meaning"))
+        text = self.render(value, preview=True, preview_definitions=2)
+        self.assertIn("First meaning\nSecond meaning", text)
+        self.assertNotIn("Third meaning", text)
+        doc = self.browser.document()
+        for meaning in ("First meaning", "Second meaning"):
+            block = doc.find(meaning).block()
+            self.assertIsNone(block.textList())
+            self.assertEqual(self.browser.cursorRect(QTextCursor(block)).left(), 0)
+        self.render(value)
+        self.assertEqual(self.browser.document().find("Third meaning").block().textList().count(), 3)
+
+    def test_compact_nested_lists_keep_lines_and_sense_limit(self):
+        definition = {"type": "structured-content", "content": {"tag": "ol", "content": [
+            {"tag": "li", "content": ["First meaning", {"tag": "ul", "content": [
+                {"tag": "li", "content": "Synonym"}]}]},
+            {"tag": "li", "content": "Second meaning"},
+            {"tag": "li", "content": "Third meaning"}]}}
+        text = self.render(result((definition,)), preview=True, preview_definitions=2)
+        self.assertIn("First meaning\nSynonym\nSecond meaning", text)
+        self.assertNotIn("Third meaning", text)
+        doc = self.browser.document()
+        for meaning in ("First meaning", "Second meaning"):
+            block = doc.find(meaning).block()
+            self.assertIsNone(block.textList())
+            self.assertEqual(self.browser.cursorRect(QTextCursor(block)).left(), 0)
+        self.assertEqual(doc.find("Synonym").block().textList().format().indent(), 1)
+
     def test_bunpro_preview_keeps_meaning_and_expansion_separates_sections(self):
         definition = {"type": "structured-content", "content": [
             "【 Meaning 】", {"tag": "div", "content": "Persistently"},
