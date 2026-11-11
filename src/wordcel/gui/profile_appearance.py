@@ -9,6 +9,7 @@ from wordcel.gui.themes import THEMES, theme_name
 from wordcel.gui.settings_section import SettingsSection, align_form_columns
 from wordcel.gui.typography import default_family
 from wordcel.gui.action_icons import DEFAULT_POPUP_ACTIONS, POPUP_ACTIONS
+from wordcel.gui.profile_preferences import parts_of_speech_visible
 
 KEYS = ("theme_name", "font_family", "font_size_header", "font_size_reading", "font_size_definitions", "font_size_sentence",
         "color_background", "color_foreground", "color_highlight_word", "color_highlight_reading",
@@ -91,7 +92,8 @@ class ProfileAppearance(QWidget):
         self.pinned_grammar = QCheckBox("Grammar labels")
         for control in (self.preview_grammar, self.pinned_grammar):
             control.setToolTip("Usage labels and inflection details")
-        self.parts_of_speech = QCheckBox("Parts of speech")
+        self.preview_parts_of_speech = QCheckBox("Parts of speech")
+        self.pinned_parts_of_speech = QCheckBox("Parts of speech")
         self.dictionary_labels = QCheckBox("Dictionary labels")
         self.dictionary_labels.setToolTip("Show dictionary names and collapse controls")
         self.preview_definitions = QSpinBox()
@@ -100,10 +102,12 @@ class ProfileAppearance(QWidget):
         self.preview_definitions.setToolTip("Meanings per headword and dictionary in preview")
         preview_form.addRow(self.preview_frequency)
         preview_form.addRow(self.preview_pitch)
+        preview_form.addRow(self.preview_parts_of_speech)
         preview_form.addRow(self.preview_grammar)
         preview_form.addRow("Meanings", self.preview_definitions)
         pinned_form.addRow(self.pinned_frequency)
         pinned_form.addRow(self.pinned_pitch)
+        pinned_form.addRow(self.pinned_parts_of_speech)
         pinned_form.addRow(self.pinned_grammar)
         pinned_form.addRow(self.dictionary_labels)
         self.pinned_sentence = QCheckBox("Show sentence when pinned")
@@ -154,7 +158,6 @@ class ProfileAppearance(QWidget):
         content_layout.setContentsMargins(0, 0, 0, 0)
         reading = QWidget()
         self.content_form = QFormLayout(reading)
-        self.content_form.addRow(self.parts_of_speech)
         for control in (self.headword_furigana, self.definition_furigana, self.kanji_stroke_order, self.font_install):
             detail_form.takeRow(control)
             self.content_form.addRow(control)
@@ -183,7 +186,7 @@ class ProfileAppearance(QWidget):
         self.preview_frequency.toggled.connect(self.save)
         self.preview_pitch.toggled.connect(self.save)
         for control in (self.preview_grammar, self.pinned_frequency, self.pinned_pitch, self.pinned_grammar,
-                        self.dictionary_labels, self.parts_of_speech):
+                        self.dictionary_labels, self.preview_parts_of_speech, self.pinned_parts_of_speech):
             control.toggled.connect(self.save)
         self.preview_definitions.valueChanged.connect(self.save)
         self.compact_preview.toggled.connect(self.save)
@@ -211,7 +214,9 @@ class ProfileAppearance(QWidget):
         self.preview_grammar.setChecked(self.settings.value(prefix + "preview_grammar", False, bool))
         for name, control in self.action_controls.items():
             control.setChecked(self.settings.value(prefix + "buttons/" + name, name in DEFAULT_POPUP_ACTIONS, bool))
-        for name in ("pinned_frequency", "pinned_pitch", "pinned_grammar", "dictionary_labels", "parts_of_speech"):
+        self.preview_parts_of_speech.setChecked(parts_of_speech_visible(self.settings, self.profile(), True))
+        self.pinned_parts_of_speech.setChecked(parts_of_speech_visible(self.settings, self.profile(), False))
+        for name in ("pinned_frequency", "pinned_pitch", "pinned_grammar", "dictionary_labels"):
             getattr(self, name).setChecked(self.settings.value(prefix + name, True, bool))
         self.preview_definitions.setValue(self.settings.value(prefix + "preview_definitions", 3, int))
         self.preview_form.setRowVisible(self.preview_pitch, self.japanese_controls)
@@ -292,8 +297,9 @@ class ProfileAppearance(QWidget):
         for name, control in self.action_controls.items():
             self.settings.setValue(prefix + "buttons/" + name, control.isChecked())
         for name in ("preview_grammar", "pinned_frequency", "pinned_pitch", "pinned_grammar", "dictionary_labels",
-                     "parts_of_speech"):
+                     "preview_parts_of_speech", "pinned_parts_of_speech"):
             self.settings.setValue(prefix + name, getattr(self, name).isChecked())
+        self.settings.remove(prefix + "parts_of_speech")
         self.settings.setValue(prefix + "preview_definitions", self.preview_definitions.value())
         self.settings.setValue(prefix + "pinned_sentence", self.pinned_sentence.isChecked())
         if self.sender() is self.font:

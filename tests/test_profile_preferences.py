@@ -9,6 +9,7 @@ from PyQt6.QtCore import QSettings
 
 from wordcel.config.profiles import (APP_SHORTCUT_DEFAULTS, create_profile, ensure_private_connection,
                                      reset_app_page, reset_page, reset_profile)
+from wordcel.gui.profile_preferences import parts_of_speech_visible
 
 
 class ProfilePreferenceTests(unittest.TestCase):
@@ -56,6 +57,21 @@ class ProfilePreferenceTests(unittest.TestCase):
         reset_page(self.settings, "ja", "Dictionaries")
         for kind in ("grammar", "examples", "etymology"):
             self.assertFalse(self.settings.contains(f"profiles/ja/hidden_{kind}_dictionaries"))
+
+    def test_split_pos_preferences_preserve_legacy_choices_and_reset_together(self):
+        for enabled in (False, True):
+            self.settings.setValue("profiles/ja/parts_of_speech", enabled)
+            self.assertEqual(parts_of_speech_visible(self.settings, "ja", True), enabled)
+            self.assertEqual(parts_of_speech_visible(self.settings, "ja", False), enabled)
+        self.settings.setValue("profiles/ja/preview_parts_of_speech", False)
+        self.settings.setValue("profiles/ja/pinned_parts_of_speech", True)
+        self.assertFalse(parts_of_speech_visible(self.settings, "ja", True))
+        self.assertTrue(parts_of_speech_visible(self.settings, "ja", False))
+        reset_page(self.settings, "ja", "Popup")
+        for name in ("parts_of_speech", "preview_parts_of_speech", "pinned_parts_of_speech"):
+            self.assertFalse(self.settings.contains("profiles/ja/" + name))
+        self.assertTrue(parts_of_speech_visible(self.settings, "ja", True))
+        self.assertTrue(parts_of_speech_visible(self.settings, "ja", False))
 
     def test_page_and_profile_resets_preserve_data_enablement_and_assignments(self):
         profile = "ja"

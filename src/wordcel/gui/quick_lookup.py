@@ -22,7 +22,7 @@ from wordcel.gui.ruby import RubyBrowser
 from wordcel.gui.language_names import LANGUAGE_NAMES, language_name
 from wordcel.gui.lookup_render import (_compact_context, _dictionary_section_key, group_headwords, render_result)
 from wordcel.gui.lookup_worker import LookupWorker
-from wordcel.gui.profile_preferences import audio_autoplay_mode
+from wordcel.gui.profile_preferences import audio_autoplay_mode, parts_of_speech_visible
 from wordcel.language.profiles import default_partner
 from wordcel.config.profiles import (profile_ids, profile_language, profile_name, languages as profile_languages,
                                      dictionary_preferences)
@@ -1431,7 +1431,7 @@ class QuickLookupWindow(QDialog):
                 pinned_frequency=self.settings.value(prefix + "pinned_frequency", True, bool),
                 pinned_pitch=self.settings.value(prefix + "pinned_pitch", True, bool),
                 dictionary_labels=self.settings.value(prefix + "dictionary_labels", True, bool),
-                parts_of_speech=self.settings.value(prefix + "parts_of_speech", True, bool),
+                parts_of_speech=parts_of_speech_visible(self.settings, self.active_profile, self._peek and not self.is_pinned),
                 grammar=self.settings.value(prefix + "preview_grammar", False, bool)
                 if self._peek and not self.is_pinned else self.settings.value(prefix + "pinned_grammar", True, bool))
             separate_headwords = (not self.browser.section_scroll.enabled and
