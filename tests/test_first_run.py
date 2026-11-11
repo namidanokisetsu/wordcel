@@ -390,7 +390,7 @@ class FirstRunTests(unittest.TestCase):
     def test_language_plan_uses_supported_models_and_native_mac_ocr(self):
         from wordcel.gui.language_setup import language_plan
         japanese = language_plan("ja", platform="win32")
-        self.assertEqual([task.kind for task in japanese], ["dictionary"] * 4 + ["ocr", "fonts", "translation"])
+        self.assertEqual([task.kind for task in japanese], ["dictionary"] * 5 + ["ocr", "fonts", "translation"])
         self.assertEqual(japanese[-1].value, "compact")
         with patch("wordcel.ocr.macos_vision.supported_languages", return_value={"tr"}):
             turkish = language_plan("tr", platform="darwin")

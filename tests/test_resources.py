@@ -362,7 +362,7 @@ class ResourceTests(unittest.TestCase):
                         dialog.resources.dictionary_install.click()
                     dictionaries = install.call_args.kwargs["recommended"]
                     self.assertEqual([item.pack_title for item in dictionaries],
-                                     ["JMdict [", "KANJIDIC", "Jiten", "Wadoku Pitch Accent"])
+                                     ["JMdict [", "wty-ja-en", "KANJIDIC", "Jiten", "Wadoku Pitch Accent"])
                 finally:
                     dialog.deleteLater()
                     self.app.processEvents()
@@ -375,10 +375,10 @@ class ResourceTests(unittest.TestCase):
         results = []
         operation.finished.connect(lambda status, changed: results.append((status, changed)))
         with patch("wordcel.dictionary.import_job.background_import", side_effect=[
-                ("Installed", True), RuntimeError("Offline"), ("Installed", True), ("Installed", True)]) as install:
+                ("Installed", True), RuntimeError("Offline"), *[("Installed", True)] * (len(dictionaries) - 2)]) as install:
             operation._run()
-        self.assertEqual(install.call_count, 4)
-        self.assertEqual(results, [("Kanji · KANJIDIC: Offline", True)])
+        self.assertEqual(install.call_count, len(dictionaries))
+        self.assertEqual(results, [("Wiktionary · English definitions: Offline", True)])
 
     def test_cancelling_recommended_batch_stops_before_next_dictionary(self):
         from wordcel.dictionary.catalog import recommendations

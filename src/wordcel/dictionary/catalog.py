@@ -35,10 +35,16 @@ def recommendations(language):
     language = language_code(language)
     if language not in DICTIONARY_LANGUAGES:
         return ()
+    # Mandarin headwords are published under Chinese; the cmn pack is a small supplement.
+    archive_language = "zh" if language == "cmn" else language
+    wiktionary = RecommendedDictionary("Wiktionary · English definitions", language,
+            f"https://huggingface.co/datasets/daxida/wty-release/resolve/main/latest/dict/{archive_language}/en/wty-{archive_language}-en.zip?download=true",
+            "https://yomidevs.github.io/wiktionary-to-yomitan/download/", f"wty-{archive_language}-en")
     if language == "ja":
         return (RecommendedDictionary("JMdict", "ja",
                 "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download/JMdict_english.zip",
                 "https://github.com/yomidevs/jmdict-yomitan", "JMdict ["),
+                wiktionary,
                 RecommendedDictionary("Kanji · KANJIDIC", "ja",
                 "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download/KANJIDIC_english.zip",
                 "https://github.com/yomidevs/jmdict-yomitan", "KANJIDIC"),
@@ -50,11 +56,7 @@ def recommendations(language):
                 "https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan/releases/latest/download/wadoku-pitch.zip",
                 "https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan", "Wadoku Pitch Accent",
                 "https://github.com/classicsc/wadoku-pitch-dictionary-for-yomitan/releases/latest/download/index.json"))
-    # Mandarin headwords are published under Chinese; the cmn pack is a small supplement.
-    archive_language = "zh" if language == "cmn" else language
-    return (RecommendedDictionary("Wiktionary · English definitions", language,
-            f"https://huggingface.co/datasets/daxida/wty-release/resolve/main/latest/dict/{archive_language}/en/wty-{archive_language}-en.zip?download=true",
-            "https://yomidevs.github.io/wiktionary-to-yomitan/download/", f"wty-{archive_language}-en"),)
+    return (wiktionary,)
 
 
 def install_recommended(dictionary, directory, progress, cancelled):
