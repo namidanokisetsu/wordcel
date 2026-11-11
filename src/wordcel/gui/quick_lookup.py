@@ -1431,6 +1431,7 @@ class QuickLookupWindow(QDialog):
                 pinned_frequency=self.settings.value(prefix + "pinned_frequency", True, bool),
                 pinned_pitch=self.settings.value(prefix + "pinned_pitch", True, bool),
                 dictionary_labels=self.settings.value(prefix + "dictionary_labels", True, bool),
+                parts_of_speech=self.settings.value(prefix + "parts_of_speech", True, bool),
                 grammar=self.settings.value(prefix + "preview_grammar", False, bool)
                 if self._peek and not self.is_pinned else self.settings.value(prefix + "pinned_grammar", True, bool))
             separate_headwords = (not self.browser.section_scroll.enabled and

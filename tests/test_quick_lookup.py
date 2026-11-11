@@ -1565,6 +1565,21 @@ class QuickLookupTests(unittest.TestCase):
         self.assertIn("[intransitive]", self.window.browser.toPlainText())
         self.assertIn("lemma", self.window.browser.toPlainText())
 
+    def test_parts_of_speech_preference_applies_to_preview_and_pinned_results(self):
+        definition = {"type": "structured-content", "content": [
+            {"tag": "span", "data": {"class": "tag"}, "content": "noun"}, "meaning"]}
+        self.window.show_entries((entry(definitions=(definition,)),), "猫", peek=True)
+        self.assertIn("[noun]", self.window.browser.toPlainText())
+        self.settings.setValue("profiles/ja/parts_of_speech", False)
+        self.window._render()
+        self.assertNotIn("[noun]", self.window.browser.toPlainText())
+        self.assertIn("meaning", self.window.browser.toPlainText())
+        self.window.pin.setChecked(True)
+        self.assertNotIn("[noun]", self.window.browser.toPlainText())
+        self.settings.setValue("profiles/ja/parts_of_speech", True)
+        self.window._render()
+        self.assertIn("[noun]", self.window.browser.toPlainText())
+
     def test_collapsed_dictionaries_keep_headings_and_compact_ocr_definitions(self):
         definition = {"type": "structured-content", "content": {"tag": "div", "content": [
             {"tag": "div", "data": {"class": "level1"}, "content": f"Meaning {index}"}

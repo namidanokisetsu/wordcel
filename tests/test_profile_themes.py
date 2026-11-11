@@ -35,12 +35,15 @@ class ProfileThemeTests(unittest.TestCase):
                 self.assertFalse(widget.preview_grammar.isChecked())
                 self.assertTrue(widget.pinned_grammar.isChecked())
                 self.assertTrue(widget.dictionary_labels.isChecked())
+                self.assertTrue(widget.parts_of_speech.isChecked())
+                widget.parts_of_speech.setChecked(False)
                 widget.dictionary_labels.setChecked(False)
                 widget.controls['font_size_sentence'].setValue(22)
                 widget.save()
                 widget.reload()
                 self.assertEqual(widget.controls['font_size_sentence'].value(), 22)
                 self.assertFalse(widget.dictionary_labels.isChecked())
+                self.assertFalse(widget.parts_of_speech.isChecked())
                 for name, control in widget.action_controls.items():
                     self.assertEqual(control.isChecked(), name in {"audio", "anki", "translate", "back"})
                 widget.action_controls['audio_sentence'].setChecked(True)
@@ -52,11 +55,13 @@ class ProfileThemeTests(unittest.TestCase):
                 profile[0] = 'tr'
                 widget.reload()
                 self.assertTrue(widget.dictionary_labels.isChecked())
+                self.assertTrue(widget.parts_of_speech.isChecked())
                 for name, control in widget.action_controls.items():
                     self.assertEqual(control.isChecked(), name in {"audio", "anki", "translate", "back"})
                 profile[0] = 'ja'
                 widget.reload()
                 self.assertFalse(widget.dictionary_labels.isChecked())
+                self.assertFalse(widget.parts_of_speech.isChecked())
             finally:
                 widget.deleteLater()
 

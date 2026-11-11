@@ -13,6 +13,11 @@ from wordcel.gui.popup_style import surface_colors
 from wordcel.gui.ruby import TAG_PREFIX, ruby_html
 
 
+def sense_separator(border):
+    # Qt sizes a rule's empty block from the parent font, leaving a full text line otherwise.
+    return f'<div style="font-size:1px"><hr style="background-color:{border};margin:2px 0"></div>'
+
+
 class _GlossConverter(StructuredContentConverter):
     """Prune structured previews before conversion, retaining lists and emphasis."""
     _tag_labels = {
@@ -33,8 +38,12 @@ class _GlossConverter(StructuredContentConverter):
 
     def _tags_to_html(self, nodes):
         labels, descriptions, parts, part_descriptions = [], [], [], []
+        separator = ""
         for node in nodes:
             pos = part_of_speech(node)
+            if pos and not self.parts_of_speech:
+                parts.append(pos)
+                continue
             if pos:
                 parts.append(pos)
             if not self.grammar and not pos:
@@ -52,28 +61,35 @@ class _GlossConverter(StructuredContentConverter):
                 if not re.fullmatch(r"JMdict Sense #\d+", description, re.IGNORECASE):
                     labels.append(self._tag_labels.get(description, description) if self.grammar else pos)
         heading = ""
-        if self.language != "ja" and parts:
+        if parts and not self.parts_of_speech:
+            current = tuple(dict.fromkeys(parts))
+            if self._previous_parts and current != self._previous_parts:
+                separator = sense_separator(self.colors["border"])
+            self._previous_parts = current
+        if self.language != "ja" and parts and self.parts_of_speech:
             description = " · ".join(dict.fromkeys(part_descriptions))
             heading = (f'<p class="part-of-speech"><a href="{TAG_PREFIX}{quote(description, safe="")}" '
                        f'style="color:{self.colors["muted"]};text-decoration:none">'
-                       + escape(" · ".join(dict.fromkeys(parts)).capitalize()) + '</a></p>')
+                       + '<small>' + escape(" · ".join(dict.fromkeys(parts)).capitalize()) + '</small></a></p>')
             if not self.grammar:
                 labels = []
         if not labels:
-            return heading
+            return separator + heading
         description = " · ".join(dict.fromkeys(descriptions))
         label = " · ".join(dict.fromkeys(labels))
-        return heading + (f'<div class="metadata"><a href="{TAG_PREFIX}{quote(description, safe="")}" '
+        return separator + heading + (f'<div class="metadata"><a href="{TAG_PREFIX}{quote(description, safe="")}" '
                 f'style="color:{self.colors["muted"]};text-decoration:none">'
                 f'<small>[{escape(label)}]</small></a></div>')
 
     def __init__(self, expanded=False, limit=360, preview=False, generic_source=False, term="",
                  details_expanded=(), detail_prefix="", definitions=(), definition_furigana=False, preview_definitions=3,
-                 grammar=True, hidden_sections=(), compact=None, language="ja"):
+                 grammar=True, hidden_sections=(), compact=None, language="ja", parts_of_speech=True):
         super().__init__()
         self.preview_definitions = preview_definitions
         self.definition_furigana = definition_furigana
         self.grammar = grammar
+        self.parts_of_speech = parts_of_speech
+        self._previous_parts = ()
         self.language = language
         self.hidden_sections = hidden_sections
         self.colors = surface_colors(config.color_background, config.color_foreground)
@@ -387,6 +403,8 @@ class _GlossConverter(StructuredContentConverter):
         return super()._node_to_html(node)
 
     def glosses(self, definitions):
+        if self.language != "ja":
+            self._previous_parts = ()
         parts = []
         for definition in definitions:
             if isinstance(definition, str):

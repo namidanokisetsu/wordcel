@@ -77,8 +77,8 @@ Paths are under `src/wordcel/`. Languages share input and rendering.
   Autoplay runs only for new results or the explicit pin preference.
 - **Definitions:** keep each dictionary's content in preference order. Normalize
   recognized structured senses while preserving unrecognized text and raw Anki
-  records. Part of speech stays with its entry or sense group and remains visible
-  independently of optional grammar details. Preview budgets apply per headword
+  records. Part of speech stays with its entry or sense group; its visibility is
+  configured separately from grammar details. Preview budgets apply per headword
   and source. Compact previews show
   complete senses without examples, synonyms or form supplements, even with an
   unlimited budget. Japanese readings share headings only when full dictionary

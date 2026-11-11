@@ -11,7 +11,7 @@ from PyQt6.QtGui import QFontMetricsF, QTextLayout, QTextOption
 
 from wordcel.config.config import config
 from wordcel.gui.action_icons import disclosure_html
-from wordcel.gui.gloss_content import _GlossConverter, normalize_definitions
+from wordcel.gui.gloss_content import _GlossConverter, normalize_definitions, sense_separator
 from wordcel.gui.popup_style import surface_colors
 from wordcel.gui.ruby import ruby_html
 from wordcel.dictionary.parts_of_speech import split_entry_part_of_speech, with_entry_part_of_speech
@@ -157,7 +157,8 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                   definition_furigana=False, collapsed=(), kanji_details=(),
                   preview_frequency=True, preview_pitch=True, preview_definitions=3,
                   pinned_frequency=True, pinned_pitch=True, grammar=None, separate_headwords=False,
-                  headword_actions=0, hidden_sections=None, dictionary_labels=True, compact=None, groups=None):
+                  headword_actions=0, hidden_sections=None, dictionary_labels=True, compact=None, groups=None,
+                  parts_of_speech=True):
     """Share lexical headings while preserving the configured dictionary order."""
     preview_definitions = max(0, min(50, preview_definitions))
     compact = preview if compact is None else preview and compact
@@ -178,7 +179,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
              f'h2 {{font-size:{config.font_size_header}px;font-weight:normal;margin:0 {heading_clearance}px 0 0;}} '
              'p {margin:2px 0;} ol,ul {margin:2px 0 4px 0;padding:0;} '
              'li {margin:1px 0;} hr {margin:6px 0;} '
-             f'.part-of-speech {{margin:{round(config.font_size_definitions * .35)}px 0 1px;font-weight:bold;color:{muted};}} '
+             f'.part-of-speech {{margin:0 0 1px;font-weight:normal;color:{muted};}} '
              f'.metadata {{margin:0;color:{muted};}} .source {{margin:4px 0 1px;color:{muted};}}</style>']
     if show_source and source_text:
         parts.append(f'<p style="margin:0 {clearance}px 4px 0;font-size:{config.font_size_sentence}px">'
@@ -279,7 +280,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                                         generic_source=generic_source, term=term,
                                         details_expanded=details_expanded, detail_prefix=f"{group_index}:{index}",
                                         definition_furigana=definition_furigana,
-                                        grammar=grammar_tags, language=result.source,
+                                        grammar=grammar_tags, language=result.source, parts_of_speech=parts_of_speech,
                                         definitions=tuple(definition for definitions in normalized for definition in definitions))
             definitions, sections = [], []
             visible_entries = () if hidden else zip(entry_tags, normalized)
@@ -289,7 +290,8 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                 if converter.supplements or result.source != "ja":
                     # Keep each record's forms beside its definitions, especially homonyms.
                     if definitions or converter.supplements:
-                        sections.append((converter._tags_to_html(tags), definitions, converter.supplements))
+                        sections.append((converter._tags_to_html(tags) if parts_of_speech else "",
+                                         definitions, converter.supplements))
                     definitions, converter.supplements = [], []
             if definitions:
                 sections.append(("", definitions, []))
@@ -310,7 +312,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                     parts.append(section)
             for section_index, (heading, definitions, supplements) in enumerate(sections):
                 if section_index and result.source != "ja":
-                    parts.append(f'<hr style="background-color:{border};margin:{round(config.font_size_definitions * .35)}px 0">')
+                    parts.append(sense_separator(border))
                 parts.append(heading)
                 # Structured groups already carry their own sense lists.
                 listed_groups = definitions and all(re.search(r"<(?:ol|ul)\b", gloss) for gloss in definitions)

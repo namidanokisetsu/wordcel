@@ -215,6 +215,54 @@ class DictionaryPresentationTests(unittest.TestCase):
             self.assertEqual(first.textList().itemText(first), "1.")
             self.assertEqual(first.textList().count(), 2)
 
+    def test_hidden_pos_keeps_entry_separators_and_numbering(self):
+        entries = tuple(Entry(str(index), "sovereign", "", "wty-en-en", "en",
+                              ({"type": "structured-content", "content": {"tag": "ol", "content": [
+                                  {"tag": "li", "content": meaning}]}},), (rule,))
+                        for index, (rule, meaning) in enumerate((("adj", "Royal."), ("n", "A monarch."))))
+        for language in ("en", "tr", "ru"):
+            value = SearchResult("sovereign", language, "en", entries)
+            for grammar in (False, True):
+                for preview, compact in ((False, False), (True, False), (True, True)):
+                    with self.subTest(language=language, grammar=grammar, preview=preview, compact=compact):
+                        options = dict(grammar=grammar, preview=preview, compact=compact,
+                                       preview_definitions=0, parts_of_speech=False)
+                        text = self.render(value, **options)
+                        self.assertNotIn("Adjective", text)
+                        self.assertNotIn("Noun", text)
+                        self.assertLess(text.index("Royal."), text.index("A monarch."))
+                        self.assertEqual(render_result(value, **options).count('<hr style='), 1)
+                        if not compact:
+                            for meaning in ("Royal.", "A monarch."):
+                                block = self.browser.document().find(meaning).block()
+                                self.assertEqual(block.textList().itemText(block), "1.")
+
+    def test_hidden_japanese_pos_keeps_sense_groups_and_optional_usage_labels(self):
+        groups = [{"tag": "div", "data": {"content": "sense-group"}, "content": [
+            {"tag": "span", "data": {"class": "tag", "content": "part-of-speech-info"}, "content": label},
+            {"tag": "span", "data": {"content": "tag", "category": "usage"}, "content": "archaic"},
+            {"tag": "div", "data": {"content": "sense"}, "content": meaning}]}
+            for label, meaning in (("noun", "First meaning"), ("adverb", "Second meaning"))]
+        value = result(({"type": "structured-content", "content": groups},), "Jitendex")
+        for grammar in (False, True):
+            for preview in (False, True):
+                with self.subTest(grammar=grammar, preview=preview):
+                    options = dict(grammar=grammar, preview=preview, preview_definitions=0, parts_of_speech=False)
+                    text = self.render(value, **options)
+                    self.assertNotIn("noun", text)
+                    self.assertNotIn("adverb", text)
+                    self.assertEqual("archaic" in text, grammar)
+                    self.assertLess(text.index("First meaning"), text.index("Second meaning"))
+                    self.assertEqual(render_result(value, **options).count('<hr style='), 1)
+        entries = tuple(Entry(str(index), "word", "", "Jitendex", "ja",
+                              ({"type": "structured-content", "content": group},))
+                        for index, group in enumerate(groups))
+        value = SearchResult("word", "ja", "en", entries)
+        text = self.render(value, parts_of_speech=False)
+        self.assertIn("First meaning", text)
+        self.assertIn("Second meaning", text)
+        self.assertEqual(render_result(value, parts_of_speech=False).count('<hr style='), 1)
+
     def test_pos_scope_is_preserved_for_japanese_sense_groups_with_grammar_off(self):
         groups = [{"tag": "div", "data": {"content": "sense-group"}, "content": [
             {"tag": "span", "data": {"class": "tag", "content": "part-of-speech-info"}, "content": label},
