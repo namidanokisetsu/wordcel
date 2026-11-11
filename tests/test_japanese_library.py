@@ -105,6 +105,23 @@ class JapaneseRankingTests(unittest.TestCase):
         self.assertEqual([entry.term for entry in self.engine().search("はし", source="ja").entries],
                          ["橋", "箸"])
 
+    def test_frequency_precedes_spelling_for_romaji_and_kana_queries(self):
+        self.install("Words", [self.word("ブタ", "ブタ"), self.word("ぶた", "ぶた"), self.word("豚", "ぶた")])
+        self.install("Ranks", frequencies=[["ブタ", "freq", 16101], ["ぶた", "freq", 26593], ["豚", "freq", 5152]])
+        engine = self.engine()
+        for _ in range(2):
+            self.assertEqual([e.term for e in engine.search("buta", source="ja", romaji=True).entries],
+                             ["豚", "ブタ", "ぶた"])
+            self.assertEqual(engine.search("ぶた", source="ja").entries[0].term, "豚")
+
+    def test_tied_frequency_prefers_only_the_explicit_spelling(self):
+        self.install("Words", [self.word("豚", "ぶた", score=100), self.word("ブタ", "ブタ"), self.word("ぶた", "ぶた")])
+        self.install("Ranks", frequencies=[[word, "freq", 1000] for word in ("豚", "ブタ", "ぶた")])
+        engine = self.engine()
+        self.assertEqual(engine.search("ぶた", source="ja").entries[0].term, "ぶた")
+        self.assertEqual(engine.search("ブタ", source="ja").entries[0].term, "ブタ")
+        self.assertEqual(engine.search("buta", source="ja", romaji=True).entries[0].term, "豚")
+
     def test_kana_ranking_uses_installed_frequency_metadata(self):
         self.install("Words", [self.word("荒れ", "あれ"), self.word("あれ", "あれ")])
         self.install("Ranks", frequencies=[["荒れ", "freq", 38009], ["あれ", "freq", 265]])

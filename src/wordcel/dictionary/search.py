@@ -203,7 +203,7 @@ class SearchEngine:
                 converted = []
                 for kana in kana_candidates(text):
                     converted.extend(self.library.lookup(kana, "ja") if exact_only else
-                                     self._japanese(kana, max_lookup_length, full_only=True))
+                                     self._japanese(kana, max_lookup_length, full_only=True, prefer_spelling=False))
                 if converted:
                     if source == "ja" and matched_length < len(text):
                         entries = ()
@@ -439,10 +439,9 @@ class SearchEngine:
                 return entries, length
         return (), 0
 
-    def _japanese(self, text, max_lookup_length=25, *, full_only=False):
+    def _japanese(self, text, max_lookup_length=25, *, full_only=False, prefer_spelling=True):
         self._matched_length = 0
         from .deconjugator import Deconjugator
-        from .kanji import kanji_characters
         from .metadata import harmonic_rank
         if self.deconjugator is None:
             rules = Path(__file__).parents[1] / "scripts/deconjugator.json"
@@ -495,8 +494,6 @@ class SearchEngine:
                 groups = OrderedDict()
                 for entry, cost in unique.values():
                     groups.setdefault((entry.term, entry.reading), []).append((entry, cost))
-                kana_query = not kanji_characters(prefix, 1)
-
                 def priority(group):
                     entries = groups[group]
                     cost = min(cost for _, cost in entries)
@@ -504,9 +501,8 @@ class SearchEngine:
                     rank = harmonic_rank(f for entry, _ in entries for f in entry.frequencies)
                     if rank is not None and rank < 999_999:
                         score += 10 * (1 - math.log(max(1, rank)) / math.log(999_999))
-                    if kana_query and not cost and not kanji_characters(group[0], 1):
-                        score += 3
-                    return score
+                    # The typed spelling breaks ties; romaji supplies only a reading.
+                    return score, prefer_spelling and not cost and group[0] == prefix
 
                 # Limit lexical groups after ranking, keeping their senses and sources together.
                 ranked = [replace(entry, lookup_length=length) for group in sorted(groups, key=priority, reverse=True)[:60]
