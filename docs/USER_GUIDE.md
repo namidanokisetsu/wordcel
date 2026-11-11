@@ -1,137 +1,99 @@
 # Using Wordcel
 
-[Quickstart](#quickstart) · [Settings](#settings) · [FAQ](#faq) · [Supported languages](LANGUAGES.md)
+[Download](https://github.com/namidanokisetsu/wordcel/releases) · [Supported languages](LANGUAGES.md)
 
-## Quickstart
+Having trouble? See [Troubleshooting](#troubleshooting).
 
-1. [Download](https://github.com/namidanokisetsu/wordcel/releases) and open Wordcel.
-2. Choose a language and install a dictionary. Install OCR for screen lookup;
-   translation is optional.
-3. Try a lookup below. On macOS, use **Command** for **Ctrl**.
+## Get started
 
-### Look up words
+Choose a language and install a dictionary. For screen lookup, choose an engine
+in **Settings > Lookup > OCR model** and complete any offered download.
 
-| Use case | What to do |
+## Look up words
+
+Press **Ctrl+Shift+D** and type or paste a word. Results appear as you type.
+To look up selected text in another app, select it and use the same shortcut.
+On macOS, use **Command+Shift+D**.
+
+For text in a game, image or video, hold **Shift** and point at a word.
+Point at the first character of Japanese or Chinese words. Release Shift and
+hold it again to capture new text.
+
+Click while holding **Shift** to pin the popup and read the full definitions.
+Press **Escape** to close it. Click a word in captured text to look it up,
+or a kanji for details.
+
+For subtitles, enable **Hover scan** in the tray menu, select an area when
+prompted, then hover over words. To copy a passage from the screen, choose
+**Grab text** and drag over it; **Escape** cancels selection.
+
+Click the tray/menu-bar icon to open Search; right-click for the menu.
+Closing Search leaves Wordcel running. Choose **Quit** in the menu to exit.
+
+## Audio, translation and saved words
+
+- **Listen:** click a word or sentence audio icon. Choose sources in **Audio**;
+  right-click word audio for other readings and sources.
+- **Translate:** download a model in **Translation**, then open **Translate** from
+  the tray and type or paste text. You can also translate captured text from
+  the popup. Translation works offline after setup.
+- **Anki:** keep Anki open with [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
+  In **Settings > Anki**, enable it, click **Refresh**, select a deck and note type,
+  and map **Word** to the first field. Sentence, screenshot and audio are optional.
+  Click **+** in a result to save; a checkmark opens an existing note.
+- **History:** enable recording in **App settings > History**, then open
+  **History** from the tray. Double-click to look up a saved word; right-click
+  to copy, save to Anki or delete. History stays on your computer.
+
+## Essential settings
+
+Choose a profile under **Editing** to change it without activating it.
+
+| Setting | Where |
 | --- | --- |
-| Type or paste a word | Press **Ctrl+Shift+D**, enter text and press **Enter**. |
-| Look up selected text | Select text in another app, then press **Ctrl+Shift+D**. |
-| Read a game, image or video | Hold **Shift** and point at a word. Requires OCR. |
-| Read subtitles hands-free | Choose **Hover scan** in the tray, select the subtitle area and hover over words. |
-| Read full definitions | Click while holding **Shift** to pin. **Escape** closes it. |
-| Copy a passage from an image | Choose **Grab text** in the tray, drag over text and release to copy. **Escape** cancels. |
+| OCR engine | **Lookup > OCR model** |
+| Yomitan dictionaries | **Dictionaries > Import ZIPs** |
+| Keyboard and mouse shortcuts | **Shortcuts** |
+| Appearance, vertical placement and cursor-leave closing | **Popup** |
+| Audio sources | **Audio** |
+| Translation models and optional automatic translation | **Translation** |
+| Start at login, preload OCR | **App settings > Startup** |
+| Profile shortcuts | **App settings > Profile switching** |
+| Downloads and stored resources | **App settings > Storage** |
 
-- Point at the first character of Japanese or Chinese words.
-- **Popup > Place beside vertical text** opens vertical OCR results to either side,
-  choosing a side that fits. Enabled by default; turn it off for above/below placement.
-- For new subtitles, release Shift and hold it again.
-- Click a kanji for details; use Back to return to the word.
-- Click a word in captured text to look it up.
-- Popups stay open when the cursor leaves by default. Enable cursor-leave closing in **Popup**; it also applies to pinned results.
+**Compact view** shows meanings from the first headword and dictionary; pin for
+examples, synonyms, forms and the full entry. **Meanings** limits senses per
+headword and dictionary in either preview mode; **All** keeps every meaning.
+Popups stay open when the cursor leaves unless cursor-leave closing is enabled.
 
-Click the tray/menu-bar icon for **Search**; right-click for **Settings** or **Quit**.
-Closing Search leaves Wordcel running.
+For inflected or attached words, install **word-form support** in
+**Dictionaries** if offered for your language.
 
-### Listen or translate
+Downloads continue when setup closes. Dictionary removal affects all profiles.
+Resets and reinstalls keep resources and saved data.
 
-- **Listen:** click a word or sentence audio icon. Choose sources in **Audio**.
-- **Translate:** download a model in **Translation**, then open **Translate**
-  from the tray and enter text. You can also translate captured text from lookup.
-  Works offline after setup.
+## Troubleshooting
 
-### Save a word to Anki
+**Screen lookup does nothing:** confirm the engine is ready in **Lookup > OCR model**,
+then try another engine and check **Shortcuts > Screen lookup key**. Windows OCR
+requires the relevant Windows language pack. Manual Search works without OCR.
 
-Keep Anki open with [AnkiConnect](https://ankiweb.net/shared/info/2055492159) installed.
-
-1. In **Settings > Anki**, enable Anki and click **Refresh**.
-2. Choose a deck and note type. Map **Word** to the first field; optionally map
-   sentence, screenshot and audio.
-3. Click **+** in a result. A checkmark opens an existing note.
-
-### Revisit a word
-
-Enable recording in **App settings > History**, then open **History** from the tray.
-Search by word or sentence. Double-click to look it up;
-right-click to copy, save to Anki or delete. History stays on your computer.
-
-## Settings
-
-Choose a profile under **Editing** to change its settings without activating it.
-
-| Task | Where |
-| --- | --- |
-| Install or change the OCR engine | **Lookup > OCR model** |
-| Add a Yomitan dictionary ZIP | **Dictionaries > Import ZIPs** |
-| Change scan keys or text shortcuts | **Shortcuts** |
-| Change appearance or cursor-leave closing | **Popup** |
-| Set audio sources or import Yomitan audio settings | **Audio** |
-| Download a translation model | **Translation** |
-| Start at login or preload OCR | **App settings > Startup** |
-| Set profile-switching shortcuts | **App settings > Profile switching** |
-| Manage downloads and stored resources | **App settings > Storage** |
-
-- **Downloads:** continue when setup closes. Use **Cancel** to stop them.
-- **Dictionaries:** extract ZIPs containing other ZIPs first. Removing a dictionary affects every profile.
-- **Word forms:** install the language's word-form model for attached words in
-  Arabic/Hebrew, French elisions and Korean endings. Arabic dictionary reimport
-  adds vowelled-form matching to older imports. Click a grammar summary to see
-  its alternative forms.
-- **Arabic:** vowelled dictionary readings appear directly on the headword, without
-  Latin transliteration. Arabic reads right to left; English definitions remain
-  left to right. **Dictionaries > Download Arabic morphology** adds offline MSA
-  analysis on Windows (about 42 MB including its runtime). Contextual analysis is a
-  separate optional download (about 1.1 GB more, including its CPU runtime), disabled
-  by default. Enable its experimental checkbox after downloading. It ranks readings
-  from visible context and keeps alternatives; it cannot repair missing OCR context.
-  In Anki, **Word** uses the vowelled heading; optionally map **Encountered form**
-  and **Dictionary word** to retain the original spellings.
-- **Popup:** Compact view shows the first headword and dictionary without labels
-  or extra details. The preview definition limit applies with Compact view on or off;
-  pin to see full definitions. **Text & colors > Reading size** controls pitch and
-  plain readings independently of Word size. Furigana size controls readings above kanji.
-  Japanese reading variants share definitions only when every dictionary's full
-  content matches. Left-click audio plays the first reading; right-click offers
-  other readings and sources. Anki offers a reading choice for shared entries.
-- **Shortcuts:** change or disable bindings independently. Grab text, Hover scan
-  and Translate have optional presets.
-- **Translation:** enable automatic translation per profile for submitted text.
-  **Add model…** accepts compatible GGUF files.
-- **Resets and reinstalls:** keep your resources and saved data.
-
-## FAQ
-
-### OCR or Shift lookup does nothing
-
-1. **Check the engine is installed:** open **Settings > Lookup > OCR model**.
-   Confirm the selected engine is ready and finish any offered download.
-2. **Try another engine on the same text.** On Windows, try **Windows OCR** if
-   PaddleOCR fails. Windows OCR needs the relevant Windows language pack.
-3. **Check your scan key** in **Shortcuts > Screen lookup key**. Try another key
-   if an app already uses Shift or your chosen key.
-4. **On macOS, check permissions below**, then quit and reopen Wordcel.
-
-For lookup without OCR, press **Ctrl+Shift+D** and type a word.
-
-### Wordcel won't open on macOS
-
-Move it from the DMG to **Applications**. If blocked, use
-**System Settings > Privacy & Security > Open Anyway**, then **Open**.
+**macOS won't open Wordcel:** move it from the DMG to **Applications**, then use
+**System Settings > Privacy & Security > Open Anyway** if blocked.
 [Apple's instructions](https://support.apple.com/en-us/102445).
 
-### Scanning or shortcuts don't work on macOS
-
-In **System Settings > Privacy & Security**, enable these permissions for Wordcel:
+**macOS scanning or shortcuts fail:** enable these permissions in
+**System Settings > Privacy & Security**, then quit and reopen Wordcel:
 
 | Permission | Needed for |
 | --- | --- |
 | Screen Recording / Screen & System Audio Recording | Capture |
 | Input Monitoring | Scan keys, mouse buttons and shortcuts |
-| Accessibility | Pinning and copying selected text |
+| Accessibility | Scan controls and copying selected text |
 
-Quit and reopen after changes. If it still fails, toggle the permission off and on
-or remove and re-add Wordcel. Source runs need permissions for the launching
-terminal or app. Manual Search needs none.
+If needed, toggle the permission or remove and re-add Wordcel. Source runs need
+permissions for the launching terminal or app. Manual Search needs none.
 
-### Still stuck, or have a suggestion?
-
-[Open an issue](https://github.com/namidanokisetsu/wordcel/issues/new) for bugs,
-suggestions or feature requests. Include reproduction steps and OCR engines tried.
+[Report an issue](https://github.com/namidanokisetsu/wordcel/issues/new) with your
+Wordcel version, operating system, steps to reproduce, and what you expected
+versus what happened.
