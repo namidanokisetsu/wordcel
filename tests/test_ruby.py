@@ -116,13 +116,13 @@ class RubyTests(unittest.TestCase):
 
                             def ink_top(start, end):
                                 return next(y for y in range(picture.height())
-                                            if any(picture.pixelColor(x, y).lightness() > 128
+                                            if any(picture.pixelColor(x, y).lightness() > 0
                                                    for x in range(round(start * ratio), round(end * ratio))))
 
                             glyph_top = ink_top(left.left(), left.left() + bounds.width())
                             text_top = ink_top(right.left(), right.left() + line.naturalTextWidth())
-                            # CoreText antialiasing can move the half-bright edge two
-                            # logical pixels from the glyph outline used for layout.
+                            # Compare outer edges; CoreText's half-bright threshold varies
+                            # with font weight even when the outlines share a top anchor.
                             self.assertLessEqual(abs(glyph_top - text_top) / ratio, 2)
                         revision = browser.document().revision()
                         browser.fit_glyphs()
