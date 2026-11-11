@@ -1128,7 +1128,7 @@ class UnifiedOCR(QObject):
                 not self.window.geometry().contains(QCursor.pos())
                 and not self.window.lookup_entry_path_contains(QCursor.pos())):
             settings = getattr(self.window, "settings", None)
-            if settings is not None and settings.value(f"profiles/{getattr(self.window, 'active_profile', self.window.preferred_foreign)}/close_on_cursor_leave", True, bool):
+            if settings is not None and settings.value(f"profiles/{getattr(self.window, 'active_profile', self.window.preferred_foreign)}/close_on_cursor_leave", False, bool):
                 self.window._check_cursor_leave()
             else:
                 self.window.hide()

@@ -112,7 +112,7 @@ Paths below are under `src/wordcel/`. All languages share input and rendering.
   OCR hits retain writing orientation. With the default-on profile preference
   `vertical_popup_sides`, vertical previews open beside the captured lookup point.
   Keep the path to the facing popup edge available until first entry, including
-  across blank OCR space and pinning; then resume normal cursor-leave dismissal.
+  across blank OCR space and pinning; then resume cursor-leave dismissal if enabled.
   Suspend cursor-leave dismissal during resizing until the released pointer returns
   inside the popup, including when minimum size or screen bounds clamp the drag.
   Kanji uses the shared content stack; the existing breadcrumb and Back restore

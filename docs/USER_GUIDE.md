@@ -26,7 +26,7 @@
 - For new subtitles, release Shift and hold it again.
 - Click a kanji for details; use Back to return to the word.
 - Click a word in captured text to look it up.
-- By default, popups close when the cursor leaves, including pinned results. Change this in **Popup**.
+- Popups stay open when the cursor leaves by default. Enable cursor-leave closing in **Popup**; it also applies to pinned results.
 
 Click the tray/menu-bar icon for **Search**; right-click for **Settings** or **Quit**.
 Closing Search leaves Wordcel running.

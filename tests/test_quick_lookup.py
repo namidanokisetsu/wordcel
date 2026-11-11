@@ -908,6 +908,9 @@ class QuickLookupTests(unittest.TestCase):
         with patch("wordcel.gui.quick_lookup.QCursor.pos", return_value=QPoint(-500, -500)), \
                 patch.object(self.window, "hide") as hide:
             self.window.leaveEvent(leave)
+            hide.assert_not_called()
+            self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
+            self.window.leaveEvent(leave)
             hide.assert_called_once_with()
             hide.reset_mock()
             self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", False)
@@ -1037,6 +1040,7 @@ class QuickLookupTests(unittest.TestCase):
             hide.assert_called_once_with()
 
     def test_resize_keeps_popup_open_until_released_pointer_returns(self):
+        self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
         for pinned in (False, True):
             for kind in ("edge", "native", "grip"):
                 with self.subTest(pinned=pinned, kind=kind):
@@ -1092,6 +1096,7 @@ class QuickLookupTests(unittest.TestCase):
                         self.assertFalse(self.window.isVisible())
 
     def test_hiding_during_resize_restores_cursor_dismissal_on_reopen(self):
+        self.settings.setValue(f"profiles/{self.window.active_profile}/close_on_cursor_leave", True)
         self.window.show_entries((entry(),), peek=True)
         self.window.pin.setChecked(True)
         origin = self.window.mapToGlobal(QPoint(self.window.width() - 2, self.window.height() - 2))
@@ -1110,6 +1115,8 @@ class QuickLookupTests(unittest.TestCase):
 
     def test_cursor_grace_area_setting_is_shared_and_saved(self):
         dialog = SetupDialog(self.temp.name, self.settings, self.window.apply_shortcut, self.window)
+        self.assertFalse(dialog.cursor_close_margin.isEnabled())
+        dialog.close_on_cursor_leave.setChecked(True)
         self.assertTrue(dialog.cursor_close_margin.isEnabled())
         self.assertEqual(dialog.cursor_close_margin.value(), 60)
         dialog.cursor_close_margin.setValue(48)
@@ -3254,6 +3261,7 @@ class QuickLookupTests(unittest.TestCase):
                 display.assert_not_called()
 
     def test_vertical_ocr_source_pin_and_pointer_entry_cross_blank_space(self):
+        self.settings.setValue('profiles/ja/close_on_cursor_leave', True)
         from wordcel.gui.unified_ocr import UnifiedOCR
         from wordcel.ocr.context import hit_paragraphs
         from wordcel.ocr.frames import RecognizedFrame
