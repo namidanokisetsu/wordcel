@@ -42,7 +42,7 @@ class ProfileThemeTests(unittest.TestCase):
                 self.assertEqual(widget.controls['font_size_sentence'].value(), 22)
                 self.assertFalse(widget.dictionary_labels.isChecked())
                 for name, control in widget.action_controls.items():
-                    self.assertEqual(control.isChecked(), name != "audio_sentence")
+                    self.assertEqual(control.isChecked(), name in {"audio", "anki", "translate", "back"})
                 widget.action_controls['audio_sentence'].setChecked(True)
                 widget.action_controls['close'].setChecked(False)
                 widget.reload()
@@ -53,7 +53,7 @@ class ProfileThemeTests(unittest.TestCase):
                 widget.reload()
                 self.assertTrue(widget.dictionary_labels.isChecked())
                 for name, control in widget.action_controls.items():
-                    self.assertEqual(control.isChecked(), name != "audio_sentence")
+                    self.assertEqual(control.isChecked(), name in {"audio", "anki", "translate", "back"})
                 profile[0] = 'ja'
                 widget.reload()
                 self.assertFalse(widget.dictionary_labels.isChecked())
@@ -79,7 +79,7 @@ class ProfileThemeTests(unittest.TestCase):
                 load_appearance(settings, 'ja')
                 self.assertEqual(config.font_size_reading, 36)
                 self.assertEqual(config.font_size_header, 48)
-                self.assertEqual(config.font_size_definitions, 21)
+                self.assertEqual(config.font_size_definitions, 24)
                 settings.sync()
                 self.assertEqual(QSettings(path, QSettings.Format.IniFormat).value(
                     'profiles/ja/font_size_reading', type=int), 24)

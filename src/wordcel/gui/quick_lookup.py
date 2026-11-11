@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 from wordcel.config.config import config
 from wordcel.dictionary.search import SearchResult
 from wordcel.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, expanded_geometry, frame_stylesheet, popup_entry_path_contains, popup_position, surface_colors
-from wordcel.gui.action_icons import action_button, action_icon
+from wordcel.gui.action_icons import DEFAULT_POPUP_ACTIONS, action_button, action_icon
 from wordcel.gui.ruby import RubyBrowser
 from wordcel.gui.language_names import LANGUAGE_NAMES, language_name
 from wordcel.gui.lookup_render import (_compact_context, _dictionary_section_key, group_headwords, render_result)
@@ -735,6 +735,10 @@ class QuickLookupWindow(QDialog):
             self.foreign.setCurrentIndex(self.foreign.findData(target))
         self.foreign.setToolTip(tooltip or ("Translate in either direction within this pair" if target in codes
                                            else "The selected model does not support this language"))
+
+    def anki_available(self):
+        from wordcel.anki import load_settings
+        return load_settings(self.settings, self.active_profile).available
 
     def translation_available(self):
         from wordcel.gui.resources import profile_translation_available
@@ -2062,11 +2066,11 @@ class QuickLookupWindow(QDialog):
         self._sync_headword_actions()
         self.mode_row.hide()
         for name, button in self._popup_actions.items():
-            visible = self.settings.value(f"profiles/{self.active_profile}/buttons/{name}", name != "audio_sentence", bool)
+            visible = self.settings.value(f"profiles/{self.active_profile}/buttons/{name}", name in DEFAULT_POPUP_ACTIONS, bool)
             if self._peek and not self.is_pinned and name in ("back", "translate", "copy", "close"):
                 visible = False
             if name == "anki":
-                visible = visible and self.settings.value(f"profiles/{self.active_profile}/anki/enabled", False, bool)
+                visible = visible and self.anki_available()
             if name == "translate":
                 visible = visible and self.translation_available()
             if name == "back":
@@ -2185,7 +2189,7 @@ class QuickLookupWindow(QDialog):
                 self._headword_rows[key] = row, anki, audio
             row, anki, audio = self._headword_rows[key]
             prefix = f"profiles/{self.active_profile}/"
-            anki.setVisible(self.settings.value(prefix + "anki/enabled", False, bool)
+            anki.setVisible(self.anki_available()
                             and self.settings.value(prefix + "buttons/anki", True, bool))
             audio.setVisible(self.settings.value(prefix + "buttons/audio", True, bool))
             audio.setEnabled(self._display_revision == self.revision)
@@ -2447,7 +2451,7 @@ class QuickLookupWindow(QDialog):
             button.setToolTip(description)
             button.setAccessibleName(description)
             button.setEnabled(ready)
-        self.anki_button.setVisible(options.enabled and self.settings.value(
+        self.anki_button.setVisible(options.available and self.settings.value(
             f"profiles/{self.active_profile}/buttons/anki", True, bool) and not self._headword_rows)
         if hasattr(self, "anki_shortcut"):
             binding = self.settings.value(f"profiles/{self.active_profile}/anki/shortcut", "")

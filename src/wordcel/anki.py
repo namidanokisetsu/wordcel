@@ -86,6 +86,10 @@ class AnkiSettings:
     duplicate_decks: tuple = ()
     check_all_models: bool = False
 
+    @property
+    def available(self):
+        return bool(self.enabled and self.deck and self.model and self.fields)
+
 
 def load_settings(settings, profile):
     prefix = f"profiles/{profile}/anki/"

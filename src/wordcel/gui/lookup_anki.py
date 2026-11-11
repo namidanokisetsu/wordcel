@@ -25,11 +25,11 @@ class LookupAnki(QObject):
         window = self.window
         from wordcel.anki import load_settings
         options = load_settings(window.settings, window.active_profile)
-        enabled = options.enabled
+        enabled = options.available
         groups = window._headword_groups()
         first = next(iter(groups), None)
         identity = (window.revision, options, tuple(groups))
-        if (enabled and options.deck and options.model and options.fields and groups
+        if (enabled and groups
                 and window._display_revision == window.revision and not window._shutting_down
                 and self._check_task is None and self._check_identity != identity):
             from wordcel.anki import AnkiClient

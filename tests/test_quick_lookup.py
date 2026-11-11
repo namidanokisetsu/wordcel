@@ -58,6 +58,27 @@ class FakeEngine:
 
 
 class QuickLookupTests(unittest.TestCase):
+    def test_default_buttons_gate_translation_and_keep_breadcrumb_back(self):
+        for name in self.window._popup_actions:
+            self.settings.remove(f"profiles/ja/buttons/{name}")
+        self.window.show_entries((entry(),), "\u732b")
+        for available in (False, True):
+            with patch.object(self.window, "translation_available", return_value=available):
+                self.window._place_actions()
+                self.assertEqual(self.window.translate.isHidden(), not available)
+                self.assertTrue(self.window.copy_button.isHidden())
+                self.assertTrue(self.window.dismiss_button.isHidden())
+                self.assertTrue(self.window.sentence_audio_button.isHidden())
+                self.assertTrue(self.window.back.isHidden())
+                _, anki, audio = self.window._headword_rows[("\u732b", "\u306d\u3053")]
+                self.assertTrue(anki.isHidden())
+                self.assertFalse(audio.isHidden())
+        self.window._display(SearchResult("\u72ac", "ja", "en", (entry("\u72ac"),)), remember=True)
+        self.assertFalse(self.window.back.isHidden())
+        self.window.back.click()
+        self.assertEqual(self.window._result.text, "\u732b")
+        self.assertTrue(self.window.back.isHidden())
+
     def test_reopening_empty_search_discards_previous_headword_buttons_before_typing(self):
         for language in ("ja", "ar"):
             with self.subTest(language=language):
@@ -1427,7 +1448,8 @@ class QuickLookupTests(unittest.TestCase):
         for profile in ("ja", "tr", "id"):
             self.settings.setValue(f"profiles/{profile}/audio_autoplay_mode", "off")
             self.settings.setValue(f"profiles/{profile}/snap_scrolling", False)
-            self.settings.setValue(f"profiles/{profile}/buttons/audio_sentence", True)
+            for name in ("audio_sentence", "translate", "copy", "close", "back"):
+                self.settings.setValue(f"profiles/{profile}/buttons/{name}", True)
         self.model_status_patch = patch("wordcel.language.stanza_analyzer.model_status", return_value="Model needed")
         self.model_status = self.model_status_patch.start()
         self.addCleanup(self.model_status_patch.stop)

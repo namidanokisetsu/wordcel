@@ -8,7 +8,7 @@ from wordcel.config.profiles import profile_language
 from wordcel.gui.themes import THEMES, theme_name
 from wordcel.gui.settings_section import SettingsSection, align_form_columns
 from wordcel.gui.typography import default_family
-from wordcel.gui.action_icons import POPUP_ACTIONS
+from wordcel.gui.action_icons import DEFAULT_POPUP_ACTIONS, POPUP_ACTIONS
 
 KEYS = ("theme_name", "font_family", "font_size_header", "font_size_reading", "font_size_definitions", "font_size_sentence",
         "color_background", "color_foreground", "color_highlight_word", "color_highlight_reading",
@@ -208,7 +208,7 @@ class ProfileAppearance(QWidget):
         self.preview_pitch.setChecked(self.settings.value(prefix + "preview_pitch", True, bool))
         self.preview_grammar.setChecked(self.settings.value(prefix + "preview_grammar", False, bool))
         for name, control in self.action_controls.items():
-            control.setChecked(self.settings.value(prefix + "buttons/" + name, name != "audio_sentence", bool))
+            control.setChecked(self.settings.value(prefix + "buttons/" + name, name in DEFAULT_POPUP_ACTIONS, bool))
         for name in ("pinned_frequency", "pinned_pitch", "pinned_grammar", "dictionary_labels"):
             getattr(self, name).setChecked(self.settings.value(prefix + name, True, bool))
         self.preview_definitions.setValue(self.settings.value(prefix + "preview_definitions", 2, int))

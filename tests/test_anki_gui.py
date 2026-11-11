@@ -698,7 +698,15 @@ class AnkiGuiTests(unittest.TestCase):
         self.assertTrue(window.anki_button.isHidden())
         window.show_entries([Entry("1", "猫", "ねこ", "Words", "ja", ("cat",))], "猫")
         self.settings.setValue("profiles/ja/anki/enabled", True)
-        window.reload_appearance()
+        for key, value in (("deck", "Japanese"), ("model", "Basic"),
+                           ("fields", json.dumps({"Front": "expression"}))):
+            window.reload_appearance()
+            window.update_anki()
+            self.assertTrue(window._headword_rows[("\u732b", "\u306d\u3053")][1].isHidden())
+            self.settings.setValue(f"profiles/ja/anki/{key}", value)
+        with patch("wordcel.anki.AnkiClient.existing_notes", return_value={}):
+            window.reload_appearance()
+            self.wait_until(lambda: window.lookup_anki._check_task is None)
         window.update_anki()
         row, button, _ = window._headword_rows[("猫", "ねこ")]
         self.assertTrue(button.isEnabled())
@@ -717,7 +725,8 @@ class AnkiGuiTests(unittest.TestCase):
         with patch.object(window, "open_settings") as open_settings:
             from unittest.mock import Mock
             window._setup = Mock()
-            button.click()
+            self.settings.remove("profiles/ja/anki/fields")
+            window.add_to_anki()
             open_settings.assert_called_once()
             window._setup.show_anki.assert_called_once()
             window._setup = None

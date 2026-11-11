@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication, QToolButton
 POPUP_ACTIONS = (("anki", "Add to Anki"), ("audio_sentence", "Sentence audio"),
                  ("audio", "Word audio"), ("translate", "Translate"),
                  ("copy", "Copy"), ("close", "Close"), ("back", "Back"))
+DEFAULT_POPUP_ACTIONS = frozenset(("audio", "anki", "translate", "back"))
 
 
 @lru_cache(maxsize=128)
