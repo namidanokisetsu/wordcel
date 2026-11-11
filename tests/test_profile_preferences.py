@@ -49,6 +49,14 @@ class ProfilePreferenceTests(unittest.TestCase):
         self.settings.setValue(f"connections/anki/{private}/endpoint", "http://127.0.0.1:9999")
         self.assertEqual(self.settings.value("connections/anki/source/endpoint"), "http://127.0.0.1:8765")
 
+    def test_dictionary_reset_restores_all_section_visibility_preferences(self):
+        self.settings.setValue("profiles/ja/language", "ja")
+        for kind in ("grammar", "examples", "etymology"):
+            self.settings.setValue(f"profiles/ja/hidden_{kind}_dictionaries", ["fixture"])
+        reset_page(self.settings, "ja", "Dictionaries")
+        for kind in ("grammar", "examples", "etymology"):
+            self.assertFalse(self.settings.contains(f"profiles/ja/hidden_{kind}_dictionaries"))
+
     def test_page_and_profile_resets_preserve_data_enablement_and_assignments(self):
         profile = "ja"
         self.settings.setValue(f"profiles/{profile}/language", "ja")

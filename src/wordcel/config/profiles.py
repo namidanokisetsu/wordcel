@@ -257,7 +257,8 @@ def delete_profile(settings, identity):
 PROFILE_PAGE_KEYS = {
     "Lookup": ("freeze_while_held",),
     "Dictionaries": ("arabic_context", "dictionaries/", "collapsed_dictionaries", "expanded_dictionaries",
-                      "hidden_examples_dictionaries", "hidden_grammar_dictionaries", "combine_frequencies"),
+                      "hidden_examples_dictionaries", "hidden_grammar_dictionaries", "hidden_etymology_dictionaries",
+                      "combine_frequencies"),
     "Shortcuts": ("hotkey", "hotkey_preset", "translation_hotkey", "translation_hotkey_preset",
                   "copy_hotkey", "copy_hotkey_preset", "hover_hotkey", "hover_hotkey_preset", "popup/",
                   "anki/shortcut", "anki/shortcut_preset", "pin_shortcut", "pin_shortcut_preset", "pin_gesture",
