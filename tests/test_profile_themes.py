@@ -72,7 +72,7 @@ class ProfileThemeTests(unittest.TestCase):
             previous = dict(config.__dict__)
             widget = ProfileAppearance(settings, lambda: profile[0], Mock())
             try:
-                self.assertEqual(widget.controls['font_size_reading'].value(), 15)
+                self.assertEqual(widget.controls['font_size_reading'].value(), 17)
                 widget.controls['font_size_reading'].setValue(24)
                 widget.controls['font_size_header'].setValue(32)
                 widget.controls['scale'].setValue(150)
@@ -85,7 +85,7 @@ class ProfileThemeTests(unittest.TestCase):
                     'profiles/ja/font_size_reading', type=int), 24)
                 profile[0] = 'tr'
                 widget.reload()
-                self.assertEqual(widget.controls['font_size_reading'].value(), 15)
+                self.assertEqual(widget.controls['font_size_reading'].value(), 17)
                 widget.controls['font_size_reading'].setValue(18)
                 load_appearance(settings, 'tr')
                 self.assertEqual(config.font_size_reading, 18)
