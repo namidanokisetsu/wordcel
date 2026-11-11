@@ -67,7 +67,7 @@ class QuickLookupTests(unittest.TestCase):
                 self.window._place_actions()
                 self.assertEqual(self.window.translate.isHidden(), not available)
                 self.assertTrue(self.window.copy_button.isHidden())
-                self.assertTrue(self.window.dismiss_button.isHidden())
+                self.assertFalse(self.window.dismiss_button.isHidden())
                 self.assertTrue(self.window.sentence_audio_button.isHidden())
                 self.assertTrue(self.window.back.isHidden())
                 _, anki, audio = self.window._headword_rows[("\u732b", "\u306d\u3053")]

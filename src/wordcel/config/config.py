@@ -17,10 +17,10 @@ class Config:
     audio_volume: int = 80
     theme_name: str = "Dark"
     font_family: str = ""
-    font_size_definitions: int = 16
-    font_size_sentence: int = 16
-    font_size_header: int = 21
-    font_size_reading: int = 17
+    font_size_definitions: int = 15
+    font_size_sentence: int = 15
+    font_size_header: int = 20
+    font_size_reading: int = 16
     pitch_colors: bool = True
     kanji_stroke_order: bool = True
     color_background: str = "#000000"

@@ -47,7 +47,7 @@ class ProfileThemeTests(unittest.TestCase):
                 self.assertFalse(widget.preview_parts_of_speech.isChecked())
                 self.assertTrue(widget.pinned_parts_of_speech.isChecked())
                 for name, control in widget.action_controls.items():
-                    self.assertEqual(control.isChecked(), name in {"audio", "anki", "translate", "back"})
+                    self.assertEqual(control.isChecked(), name in {"audio", "anki", "translate", "close", "back"})
                 widget.action_controls['audio_sentence'].setChecked(True)
                 widget.action_controls['close'].setChecked(False)
                 widget.reload()
@@ -60,7 +60,7 @@ class ProfileThemeTests(unittest.TestCase):
                 self.assertTrue(widget.preview_parts_of_speech.isChecked())
                 self.assertTrue(widget.pinned_parts_of_speech.isChecked())
                 for name, control in widget.action_controls.items():
-                    self.assertEqual(control.isChecked(), name in {"audio", "anki", "translate", "back"})
+                    self.assertEqual(control.isChecked(), name in {"audio", "anki", "translate", "close", "back"})
                 profile[0] = 'ja'
                 widget.reload()
                 self.assertFalse(widget.dictionary_labels.isChecked())
@@ -81,20 +81,20 @@ class ProfileThemeTests(unittest.TestCase):
             previous = dict(config.__dict__)
             widget = ProfileAppearance(settings, lambda: profile[0], Mock())
             try:
-                self.assertEqual(widget.controls['font_size_reading'].value(), 17)
+                self.assertEqual(widget.controls['font_size_reading'].value(), 16)
                 widget.controls['font_size_reading'].setValue(24)
                 widget.controls['font_size_header'].setValue(32)
                 widget.controls['scale'].setValue(150)
                 load_appearance(settings, 'ja')
                 self.assertEqual(config.font_size_reading, 36)
                 self.assertEqual(config.font_size_header, 48)
-                self.assertEqual(config.font_size_definitions, 24)
+                self.assertEqual(config.font_size_definitions, 22)
                 settings.sync()
                 self.assertEqual(QSettings(path, QSettings.Format.IniFormat).value(
                     'profiles/ja/font_size_reading', type=int), 24)
                 profile[0] = 'tr'
                 widget.reload()
-                self.assertEqual(widget.controls['font_size_reading'].value(), 17)
+                self.assertEqual(widget.controls['font_size_reading'].value(), 16)
                 widget.controls['font_size_reading'].setValue(18)
                 load_appearance(settings, 'tr')
                 self.assertEqual(config.font_size_reading, 18)
