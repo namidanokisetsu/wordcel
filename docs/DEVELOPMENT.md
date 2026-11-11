@@ -80,7 +80,7 @@ Paths are under `src/wordcel/`. Languages share input and rendering.
   records. Part of speech stays with its entry or sense group; its visibility is
   configured separately from grammar details. Preview budgets apply per headword
   and source. Compact previews show
-  complete senses without examples, synonyms or form supplements, even with an
+  complete top-level senses without examples, synonyms or form supplements, even with an
   unlimited budget. Japanese readings share headings only when full dictionary
   content, rules and analyses match; retain original word/reading choices.
   Arabic headings use compatible vowelled readings, with direction per block.

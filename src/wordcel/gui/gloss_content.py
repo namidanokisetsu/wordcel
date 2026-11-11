@@ -7,7 +7,7 @@ from PyQt6.QtGui import QTextDocument
 
 from wordcel.config.config import config
 from wordcel.dictionary.structured_content import StructuredContentConverter
-from wordcel.dictionary.parts_of_speech import is_tag, part_of_speech
+from wordcel.dictionary.parts_of_speech import is_tag, part_of_speech, tag_text
 from wordcel.gui.action_icons import disclosure_html
 from wordcel.gui.popup_style import surface_colors
 from wordcel.gui.ruby import TAG_PREFIX, ruby_html
@@ -35,12 +35,20 @@ class _GlossConverter(StructuredContentConverter):
     }
 
     _is_tag = staticmethod(is_tag)
+    _verb_details = {"vt": "transitive", "vi": "intransitive", "transitive verb": "transitive",
+                     "intransitive verb": "intransitive"}
 
-    def _tags_to_html(self, nodes):
+    def _tags_to_html(self, nodes, *, entry=False):
         labels, descriptions, parts, part_descriptions = [], [], [], []
         separator = ""
         for node in nodes:
             pos = part_of_speech(node)
+            detail = self._verb_details.get(tag_text(node).strip().casefold(), "")
+            if pos and detail and self.language != "ja" and not entry:
+                if self.grammar:
+                    labels.append(detail)
+                    descriptions.append(node.get("title") or detail + " verb")
+                continue
             if pos and not self.parts_of_speech:
                 parts.append(pos)
                 continue
@@ -56,10 +64,10 @@ class _GlossConverter(StructuredContentConverter):
                 descriptions.append(description)
                 if pos:
                     part_descriptions.append(description)
-                    if self.language != "ja" and description not in ("transitive verb", "intransitive verb"):
+                    if self.language != "ja" and not detail:
                         continue
                 if not re.fullmatch(r"JMdict Sense #\d+", description, re.IGNORECASE):
-                    labels.append(self._tag_labels.get(description, description) if self.grammar else pos)
+                    labels.append((detail or self._tag_labels.get(description, description)) if self.grammar else pos)
         heading = ""
         if parts and not self.parts_of_speech:
             current = tuple(dict.fromkeys(parts))
@@ -104,6 +112,7 @@ class _GlossConverter(StructuredContentConverter):
         self.clipped = False
         self.supplements = []
         self.sense_count = 0
+        self._group_sense_start = 0
         self._sense_depth = 0
         self.details_expanded = details_expanded
         self._detail_keys = {}
@@ -124,7 +133,7 @@ class _GlossConverter(StructuredContentConverter):
         data = node.get("data", {})
         kind = data.get("content", "") if isinstance(data, dict) else ""
         content = node.get("content")
-        if kind in ("glossary", "infoGlossary"):
+        if kind in ("glossary", "infoGlossary", "sense-group", "sense-groups"):
             return None
         if node.get("tag") in ("ol", "ul"):
             return content if isinstance(content, list) else [content]
@@ -165,7 +174,7 @@ class _GlossConverter(StructuredContentConverter):
             self._sense_depth -= 1
         if not (re.sub(r"<[^>]*>", "", html).strip() or '<img ' in html):
             return ""
-        gap = round(config.font_size_definitions * .25) if self.sense_count else 0
+        gap = round(config.font_size_definitions * .25) if self.sense_count > self._group_sense_start else 0
         self.sense_count += 1
         return f'<div style="margin-top:{gap}px;margin-bottom:0">{html}</div>' if self.compact else html
 
@@ -258,6 +267,10 @@ class _GlossConverter(StructuredContentConverter):
             data = node.get("data", {})
             kind = str(data.get("content", "")) if isinstance(data, dict) else ""
             semantic_kind = re.sub(r"[-_]", "", kind).lower()
+            if (self.compact and self._sense_depth and tag in ("ol", "ul")
+                    and kind not in ("glossary", "infoGlossary")):
+                self.clipped = True
+                return ""
             if kind == "form-notation":
                 description = str(data.get("description", ""))
                 return (f'<a href="{TAG_PREFIX}{quote(description, safe="")}" '
@@ -405,6 +418,7 @@ class _GlossConverter(StructuredContentConverter):
     def glosses(self, definitions):
         if self.language != "ja":
             self._previous_parts = ()
+            self._group_sense_start = self.sense_count
         parts = []
         for definition in definitions:
             if isinstance(definition, str):

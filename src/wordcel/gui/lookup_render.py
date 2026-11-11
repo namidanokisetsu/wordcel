@@ -290,7 +290,7 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                 if converter.supplements or result.source != "ja":
                     # Keep each record's forms beside its definitions, especially homonyms.
                     if definitions or converter.supplements:
-                        sections.append((converter._tags_to_html(tags) if parts_of_speech else "",
+                        sections.append((converter._tags_to_html(tags, entry=True) if parts_of_speech else "",
                                          definitions, converter.supplements))
                     definitions, converter.supplements = [], []
             if definitions:

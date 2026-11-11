@@ -4,6 +4,7 @@ import re
 
 _LABELS = {
     "n": "noun", "adj": "adjective", "v": "verb", "adv": "adverb",
+    "vt": "transitive verb", "vi": "intransitive verb",
     "pron": "pronoun", "prep": "preposition", "conj": "conjunction",
     "intj": "interjection", "num": "numeral", "propn": "proper noun",
     "noun (common) (futsuumeishi)": "noun",

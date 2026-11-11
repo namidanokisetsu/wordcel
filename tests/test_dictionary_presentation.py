@@ -215,6 +215,72 @@ class DictionaryPresentationTests(unittest.TestCase):
             self.assertEqual(first.textList().itemText(first), "1.")
             self.assertEqual(first.textList().count(), 2)
 
+    def test_preview_pos_headings_have_equal_gaps_without_resetting_meaning_budget(self):
+        entries = tuple(Entry(str(index), "right-to-left", "", "wty-en-en", "en",
+                              ({"type": "structured-content", "content": {"tag": "ol", "content": [
+                                  {"tag": "li", "content": meaning}]}},), (rule,))
+                        for index, (rule, meaning) in enumerate((("adj", "Written in reverse."),
+                                                                ("adv", "From right to left."))))
+        value = SearchResult("right-to-left", "en", "en", entries)
+        for size in (14, 28, 48):
+            with self.subTest(size=size), patch.object(config, "font_size_definitions", size):
+                self.browser.setFont(document_font(config.font_family, size, "en"))
+                self.render(value, preview=True, grammar=False, preview_definitions=0)
+                doc = self.browser.document()
+                layout = doc.documentLayout()
+                gaps = [layout.blockBoundingRect(doc.find(meaning).block()).top()
+                        - layout.blockBoundingRect(doc.find(label).block()).bottom()
+                        for label, meaning in (("Adjective", "Written in reverse."),
+                                               ("Adverb", "From right to left."))]
+                self.assertAlmostEqual(*gaps, delta=1)
+        text = self.render(value, preview=True, preview_definitions=1)
+        self.assertIn("Written in reverse.", text)
+        self.assertNotIn("From right to left.", text)
+
+    def test_transitivity_details_follow_grammar_setting_without_becoming_pos_headings(self):
+        for detail in ("vt", "vi", "transitive verb", "intransitive verb"):
+            definition = {"type": "structured-content", "content": {"tag": "ol", "content": [
+                {"tag": "li", "content": "To finish."},
+                {"tag": "li", "content": [
+                    {"tag": "div", "data": {"content": "tags"}, "content": [
+                        {"tag": "span", "data": {"content": "tag", "category": "partOfSpeech"},
+                         "content": detail}]}, "To make whole."]}]}}
+            value = SearchResult("complete", "en", "en", (
+                Entry("verb", "complete", "", "wty-en-en", "en", (definition,), ("v",)),))
+            for grammar in (False, True):
+                for parts in (False, True):
+                    with self.subTest(detail=detail, grammar=grammar, parts=parts):
+                        text = self.render(value, preview=True, preview_definitions=0,
+                                           grammar=grammar, parts_of_speech=parts)
+                        self.assertEqual("\nVerb\n" in text, parts)
+                        label = "intransitive" if detail in ("vi", "intransitive verb") else "transitive"
+                        self.assertEqual("[" + label + "]" in text, grammar)
+                        self.assertNotIn("\nVt\n", text)
+                        self.assertNotIn("\nVi\n", text)
+                        self.assertIn("To finish.", text)
+                        self.assertIn("To make whole.", text)
+
+    def test_transitivity_changes_do_not_insert_separators_when_pos_is_hidden(self):
+        definition = {"type": "structured-content", "content": {"tag": "ol", "content": [
+            {"tag": "li", "content": [
+                {"tag": "div", "data": {"content": "tags"}, "content": [
+                    {"tag": "span", "title": title, "data": {"content": "tag", "category": "partOfSpeech"},
+                     "content": label}]}, meaning]}
+            for title, label, meaning in (("transitive verb", "vt", "To make something better."),
+                                          ("intransitive verb", "vi", "To become better."))]}}
+        value = SearchResult("improve", "en", "en", (
+            Entry("verb", "improve", "", "wty-en-en", "en", (definition,), ("v",)),))
+        for parts in (False, True):
+            with self.subTest(parts=parts):
+                options = dict(preview=True, grammar=False, parts_of_speech=parts)
+                text = self.render(value, **options)
+                self.assertNotIn("transitive", text.lower())
+                self.assertNotIn("\nVt", text)
+                self.assertNotIn("\nVi", text)
+                self.assertIn("To make something better.", text)
+                self.assertIn("To become better.", text)
+                self.assertEqual(render_result(value, **options).count('<hr'), 0)
+
     def test_hidden_pos_keeps_entry_separators_and_numbering(self):
         entries = tuple(Entry(str(index), "sovereign", "", "wty-en-en", "en",
                               ({"type": "structured-content", "content": {"tag": "ol", "content": [
@@ -308,21 +374,25 @@ class DictionaryPresentationTests(unittest.TestCase):
         value = SearchResult("word", "en", "en", (Entry("word", "word", "", "Custom", "en", (definition,)),))
         self.assertNotIn("noun", self.render(value, grammar=False).lower())
 
-    def test_compact_nested_lists_keep_lines_and_sense_limit(self):
+    def test_compact_preview_omits_subdefinitions_and_keeps_top_level_sense_limit(self):
         definition = {"type": "structured-content", "content": {"tag": "ol", "content": [
             {"tag": "li", "content": ["First meaning", {"tag": "ul", "content": [
-                {"tag": "li", "content": "Synonym"}]}]},
+                {"tag": "li", "content": "Subdefinition"}]}]},
             {"tag": "li", "content": "Second meaning"},
             {"tag": "li", "content": "Third meaning"}]}}
         text = self.render(result((definition,)), preview=True, preview_definitions=2)
-        self.assertIn("First meaning\nSynonym\nSecond meaning", text)
+        self.assertIn("First meaning\nSecond meaning", text)
+        self.assertNotIn("Subdefinition", text)
         self.assertNotIn("Third meaning", text)
         doc = self.browser.document()
         for meaning in ("First meaning", "Second meaning"):
             block = doc.find(meaning).block()
             self.assertIsNone(block.textList())
             self.assertEqual(self.browser.cursorRect(QTextCursor(block)).left(), 0)
-        self.assertEqual(doc.find("Synonym").block().textList().format().indent(), 1)
+        for options in ({}, {"preview": True, "compact": False, "preview_definitions": 2}):
+            text = self.render(result((definition,)), **options)
+            self.assertIn("Subdefinition", text)
+            self.assertIsNotNone(self.browser.document().find("Subdefinition").block().textList())
 
     def test_bunpro_preview_keeps_meaning_and_expansion_separates_sections(self):
         definition = {"type": "structured-content", "content": [
