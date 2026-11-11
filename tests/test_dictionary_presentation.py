@@ -88,9 +88,37 @@ class DictionaryPresentationTests(unittest.TestCase):
                     def left(text):
                         return self.browser.cursorRect(QTextCursor(doc.find(text).block())).left()
                     self.assertEqual(left("Label"), left("Meaning"))
-                    self.assertAlmostEqual(left("Explanation"), 2 * left("Meaning"), delta=1)
                     metrics = QFontMetricsF(doc.find("Label").block().charFormat().font().resolve(doc.defaultFont()))
                     self.assertLessEqual(left("Meaning"), metrics.horizontalAdvance("1. ") + 1)
+                    bullet_inset = metrics.lineSpacing() / 3 + metrics.horizontalAdvance(" ")
+                    self.assertGreaterEqual(left("Explanation") - left("Meaning"), bullet_inset)
+                    self.assertLessEqual(left("Explanation") - left("Meaning"), bullet_inset + 1)
+
+    def test_unrelated_long_list_does_not_widen_short_list(self):
+        short = Entry("short", "word", "", "Short", "ja", ("First", "Second"))
+        long = Entry("long", "word", "", "Long", "ja", tuple(f"Other {i}" for i in range(101)))
+        self.render(SearchResult("word", "ja", "en", (short,)))
+        def left(text):
+            return self.browser.cursorRect(QTextCursor(self.browser.document().find(text).block())).left()
+        original = left("First")
+        self.render(SearchResult("word", "ja", "en", (short, long)))
+        self.assertEqual(left("First"), original)
+        self.assertGreater(left("Other 100"), original)
+
+    def test_rtl_list_markers_and_continuations_use_right_inset(self):
+        self.browser.setHtml('<div dir="rtl"><ol><li>معنى<div>شرح</div>'
+                             '<ul><li>تفصيل</li></ul></li></ol></div>')
+        self.app.processEvents()
+        doc = self.browser.document()
+        def right(text):
+            block = doc.find(text).block()
+            self.assertEqual(block.blockFormat().leftMargin(), 0)
+            return self.browser.cursorRect(QTextCursor(block)).right()
+        self.assertEqual(right("معنى"), right("شرح"))
+        self.assertLess(right("تفصيل"), right("معنى"))
+        block = doc.find("معنى").block()
+        metrics = QFontMetricsF(block.charFormat().font().resolve(doc.defaultFont()))
+        self.assertGreaterEqual(block.blockFormat().rightMargin(), metrics.horizontalAdvance("1. "))
 
     def test_compact_meanings_are_unindented_and_keep_grammar_preferences(self):
         groups = tuple({"type": "structured-content", "content": [
@@ -102,7 +130,7 @@ class DictionaryPresentationTests(unittest.TestCase):
             Entry("fixture", "willing", "", "Fixture", "en", groups),))
         for grammar in (False, True):
             with self.subTest(grammar=grammar):
-                text = self.render(value, preview=True, grammar=grammar)
+                text = self.render(value, preview=True, preview_definitions=0, grammar=grammar)
                 self.assertEqual("[adjective]" in text, grammar)
                 self.assertEqual("[noun]" in text, grammar)
                 doc = self.browser.document()
@@ -114,7 +142,7 @@ class DictionaryPresentationTests(unittest.TestCase):
                     self.assertEqual(self.browser.cursorRect(QTextCursor(block)).left(), heading_x)
         for options in ({}, {"preview": True, "compact": False}):
             with self.subTest(options=options):
-                self.render(value, grammar=False, **options)
+                self.render(value, grammar=False, preview_definitions=0, **options)
                 doc = self.browser.document()
                 for meaning in ("Ready to do something.", "The execution of a will."):
                     text_list = doc.find(meaning).block().textList()
@@ -246,11 +274,11 @@ class DictionaryPresentationTests(unittest.TestCase):
         self.assertNotIn("Sense 3", text)
         self.assertIn("Sense 6", self.render(value))
 
-    def test_unstructured_japanese_preview_is_bounded(self):
+    def test_unstructured_japanese_preview_keeps_complete_meanings(self):
         value = result(("長い意味" * 200,))
         text = self.render(value, preview=True)
-        self.assertLess(len(text), 270)
-        self.assertIn("…", text)
+        self.assertNotIn("…", text)
+        self.assertIn("長い意味" * 200, text)
         self.assertIn("長い意味" * 200, self.render(value, expanded=("Fixture",)))
 
     def test_all_readings_are_visible_without_expanding(self):

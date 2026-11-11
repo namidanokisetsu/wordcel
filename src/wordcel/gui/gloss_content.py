@@ -74,6 +74,8 @@ class _GlossConverter(StructuredContentConverter):
         self.remaining = limit
         self.clipped = False
         self.supplements = []
+        self.sense_count = 0
+        self._sense_depth = 0
         self.details_expanded = details_expanded
         self._detail_keys = {}
         def index_details(node):
@@ -85,6 +87,58 @@ class _GlossConverter(StructuredContentConverter):
                     self._detail_keys[id(node)] = f"{detail_prefix}:{len(self._detail_keys)}"
                 index_details(node.get("content"))
         index_details(definitions)
+
+    @staticmethod
+    def _sense_items(node):
+        if not isinstance(node, dict):
+            return None
+        data = node.get("data", {})
+        kind = data.get("content", "") if isinstance(data, dict) else ""
+        content = node.get("content")
+        if kind in ("glossary", "infoGlossary"):
+            return None
+        if node.get("tag") in ("ol", "ul"):
+            return content if isinstance(content, list) else [content]
+        if not isinstance(content, list) or not content:
+            return None
+        if all(isinstance(child, dict) and isinstance(child.get("data"), dict)
+               and "meaning" in child["data"] for child in content):
+            return content
+        if all(isinstance(child, dict) and child.get("tag") == "div"
+               and isinstance(child.get("content"), list) and child["content"]
+               and isinstance(child["content"][0], str)
+               and re.match(r"\d+\.\s", child["content"][0]) for child in content):
+            return content
+        return None
+
+    def _has_senses(self, node):
+        if isinstance(node, (list, tuple)):
+            return any(self._has_senses(child) for child in node)
+        if not isinstance(node, dict) or node.get("tag") == "details":
+            return False
+        data = node.get("data", {})
+        kind = data.get("content", "") if isinstance(data, dict) else ""
+        semantic_kind = re.sub(r"[-_]", "", kind).lower()
+        if (semantic_kind.startswith(("relatedword", "synonym", "antonym")) or "example" in semantic_kind
+                or semantic_kind in ("extrainfo", "forms", "infoglossary", "references")):
+            return False
+        return (kind == "sense" or self._sense_items(node) is not None
+                or self._has_senses(node.get("content")))
+
+    def _render_sense(self, node):
+        if self.preview_definitions and self.sense_count >= self.preview_definitions:
+            self.clipped = True
+            return ""
+        self._sense_depth += 1
+        try:
+            html = self._node_to_html(node)
+        finally:
+            self._sense_depth -= 1
+        if not (re.sub(r"<[^>]*>", "", html).strip() or '<img ' in html):
+            return ""
+        gap = round(config.font_size_definitions * .25) if self.sense_count else 0
+        self.sense_count += 1
+        return f'<div style="margin-top:{gap}px;margin-bottom:0">{html}</div>' if self.compact else html
 
     def _details_to_html(self, node):
         from wordcel.dictionary.wiktionary_sections import section_kind
@@ -175,21 +229,37 @@ class _GlossConverter(StructuredContentConverter):
             data = node.get("data", {})
             kind = str(data.get("content", "")) if isinstance(data, dict) else ""
             semantic_kind = re.sub(r"[-_]", "", kind).lower()
+            if kind == "form-notation":
+                description = str(data.get("description", ""))
+                return (f'<a href="{TAG_PREFIX}{quote(description, safe="")}" '
+                        f'style="color:{config.color_foreground};text-decoration:none">'
+                        f'{self._node_to_html(content)}</a>')
             if kind == "backlink" or semantic_kind == "formslabel":
                 return ""
             if semantic_kind in ("forms", "formstable", "formslist"):
                 self.clipped = True
-                if self.expanded or not self.compact:
+                if not self.compact:
                     supplement = dict(node, data={})
                     self.supplements.append(("Forms", self._node_to_html(supplement)))
                 return ""
             if semantic_kind == "attribution":
                 return ""
-            if not self.expanded and self.compact and semantic_kind in ("explanation", "extrainfo"):
+            if self.compact and (semantic_kind in ("explanation", "extrainfo", "preamble", "sensenumber",
+                                                    "relatedwords", "synonyms", "antonyms", "references")
+                                 or semantic_kind.startswith(("relatedword", "synonym", "antonym"))
+                                 or "example" in semantic_kind):
                 self.clipped = True
                 return ""
+            if semantic_kind == "references" or semantic_kind.startswith(("relatedword", "synonym", "antonym")):
+                self._sense_depth += 1
+                try:
+                    body = self._node_to_html(dict(node, data={}))
+                finally:
+                    self._sense_depth -= 1
+                label = {"synonyms": "Synonyms", "antonyms": "Antonyms"}.get(semantic_kind)
+                return (f'<p class="source"><small>{label}</small></p>' if label else "") + body
             if kind == "section-heading":
-                if not self.expanded and self.compact:
+                if self.compact:
                     return ""
                 return f'<p style="margin:6px 0 2px;font-weight:bold">{self._node_to_html(content)}</p>'
             style = node.get("style", {})
@@ -216,30 +286,27 @@ class _GlossConverter(StructuredContentConverter):
             # examples, translations and sense context, but no CSS class name.
             turkdict_example = (tag == "div" and style.get("fontSize") == "0.9em"
                                 and style.get("marginTop") == "0.1em")
-            if not self.expanded:
-                if self.compact and kind in ("forms", "attribution", "extra-info"):
-                    self.clipped = True
-                    return ""
-                if self.compact and ("example" in kind.lower() or turkdict_example):
-                    self.clipped = True
-                    return ""
-                # Turkdict exports numbered senses as divs rather than list items.
-                numbered_senses = (self.preview and isinstance(content, list) and bool(content) and all(
-                    isinstance(child, dict) and child.get("tag") == "div"
-                    and isinstance(child.get("content"), list) and child["content"]
-                    and isinstance(child["content"][0], str)
-                    and re.match(r"\d+\.\s", child["content"][0]) for child in content))
-                marked_senses = (isinstance(content, list) and bool(content) and all(
-                    isinstance(child, dict) and isinstance(child.get("data"), dict)
-                    and "meaning" in child["data"] for child in content))
-                if ((tag in ("ol", "ul") and kind != "glossary") or kind == "glosses" or numbered_senses or marked_senses) and isinstance(content, list):
-                    senses = [child for child in content if (not isinstance(child, str) or child.strip())
-                              and not (isinstance(child, dict) and isinstance(child.get("data"), dict)
-                                       and child["data"].get("content") == "section-heading")]
-                    maximum = self.preview_definitions if self.preview else 0
-                    if maximum and len(senses) > maximum:
-                        node["content"] = senses[:maximum]
-                        self.clipped = True
+            if self.compact and turkdict_example:
+                self.clipped = True
+                return ""
+            if self.preview and not self._sense_depth:
+                if kind == "sense":
+                    return self._render_sense(node)
+                senses = self._sense_items(node)
+                if senses is not None:
+                    parts = []
+                    for child in senses:
+                        if not child or isinstance(child, str) and not child.strip():
+                            continue
+                        if self.compact and isinstance(child, dict):
+                            child = dict(child, tag="div")
+                            if tag not in ("ol", "ul") and isinstance(child.get("content"), list):
+                                children = child["content"]
+                                if children and isinstance(children[0], str):
+                                    child["content"] = [re.sub(r"^\d+\.\s+", "", children[0]), *children[1:]]
+                        parts.append(self._render_sense(child))
+                    wrapper = tag if not self.compact and tag in ("ol", "ul") else "div"
+                    return f'<{wrapper}>' + "".join(parts) + f'</{wrapper}>'
             if kind == "glossary":
                 children = node.get("content")
                 children = children if isinstance(children, list) else [children]
@@ -317,7 +384,15 @@ class _GlossConverter(StructuredContentConverter):
                 content = definition.get("text" if definition["type"] == "text" else "content")
             else:
                 continue
-            rendered = self._node_to_html(content)
+            previous_count = self.sense_count
+            grouped = self.preview and self._has_senses(content)
+            data = content.get("data", {}) if isinstance(content, dict) else {}
+            kind = re.sub(r"[-_]", "", str(data.get("content", ""))).lower() if isinstance(data, dict) else ""
+            extra = kind == "references" or kind.startswith(("relatedword", "synonym", "antonym", "forms"))
+            rendered = (self._render_sense(content) if self.preview and not grouped and not extra
+                        else self._node_to_html(content))
+            if self.preview and grouped and self.sense_count == previous_count:
+                continue
             if rendered and (re.sub(r"<[^>]*>", "", rendered).strip() or '<img ' in rendered):
                 parts.append(rendered)
         return parts
@@ -332,6 +407,21 @@ def _section(label, content):
 
 
 def normalize_definitions(definitions, source):
+    from wordcel.dictionary.semantic_content import annotate_jmdict_form, normalize_content
+    definitions = tuple(normalize_content(definition) for definition in definitions)
+    first = definitions[0] if definitions else None
+    content = first.get("content") if isinstance(first, dict) else None
+    if (isinstance(content, list) and content and _GlossConverter._is_tag(content[0])
+            and content[0].get("content") == "other surface forms and readings"):
+        # JMdict exports alternative spellings as a separate record, not senses.
+        children = [{"tag": "div", "content": [annotate_jmdict_form(child) if isinstance(child, str) else child
+                                                for child in content[1:] if not isinstance(child, str) or child.strip()]}]
+        for definition in definitions[1:]:
+            body = (definition.get("content", definition.get("text", ""))
+                    if isinstance(definition, dict) else definition)
+            children.append({"tag": "div", "content": annotate_jmdict_form(body) if isinstance(body, str) else body})
+        return ({"type": "structured-content", "content": {
+            "tag": "div", "data": {"content": "forms"}, "content": children}},)
     result = []
     for definition in definitions:
         if isinstance(definition, str):

@@ -8,7 +8,7 @@ import math
 import sys
 
 from PyQt6.QtCore import QEvent, QPoint, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QCursor, QFontMetricsF, QImage, QKeyEvent, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat
+from PyQt6.QtGui import QCursor, QFontMetricsF, QImage, QKeyEvent, QKeySequence, QShortcut, QTextCursor, QTextDocument, QTextFormat, QTextListFormat
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel,
     QKeySequenceEdit, QLineEdit, QMenu, QSizePolicy, QSplitter, QStackedWidget, QTextEdit, QToolButton, QToolTip, QVBoxLayout, QWidget,
@@ -74,14 +74,20 @@ class LocalDictionaryBrowser(RubyBrowser):
                 fmt.setFont(font)
             return fmt
 
-        indent = 0
+        list_widths = {}
         block = self.document().begin()
         while block.isValid():
             text_list = block.textList()
             if text_list is not None:
                 metrics = QFontMetricsF(block.charFormat().font().resolve(self.document().defaultFont()))
-                marker = text_list.itemText(block) or "•"
-                indent = max(indent, math.ceil(metrics.horizontalAdvance(marker + " ")))
+                marker = text_list.itemText(block)
+                # Qt paints bullets as shapes one third of the line spacing wide.
+                bullet = text_list.format().style() in (QTextListFormat.Style.ListDisc,
+                         QTextListFormat.Style.ListCircle, QTextListFormat.Style.ListSquare)
+                marker_width = metrics.lineSpacing() / 3 if bullet else metrics.horizontalAdvance(marker)
+                identity = text_list.objectIndex()
+                list_widths[identity] = max(list_widths.get(identity, 0),
+                                           math.ceil(marker_width + metrics.horizontalAdvance(" ")))
             if block.blockFormat().headingLevel():
                 # Qt retains h2's relative enlargement alongside our explicit size.
                 cursor = QTextCursor(block)
@@ -98,8 +104,27 @@ class LocalDictionaryBrowser(RubyBrowser):
                     cursor.setCharFormat(heading_format(fmt))
             block = block.next()
 
-        if indent:
-            self.document().setIndentWidth(indent)
+        if list_widths:
+            # Qt's single indent width otherwise lets an unrelated long list
+            # enlarge every list in the document, including nested bullets.
+            self.document().setIndentWidth(0)
+            ancestors = {}
+            block = self.document().begin()
+            while block.isValid():
+                text_list = block.textList()
+                fmt = block.blockFormat()
+                depth = text_list.format().indent() if text_list is not None else fmt.indent()
+                ancestors = {level: width for level, width in ancestors.items() if level <= depth}
+                if text_list is not None:
+                    ancestors[depth] = list_widths[text_list.objectIndex()]
+                if depth:
+                    inset = sum(ancestors.values())
+                    if block.textDirection() == Qt.LayoutDirection.RightToLeft:
+                        fmt.setRightMargin(fmt.rightMargin() + inset)
+                    else:
+                        fmt.setLeftMargin(fmt.leftMargin() + inset)
+                    QTextCursor(block).setBlockFormat(fmt)
+                block = block.next()
         # Qt can leave trailing blocks unlaid after inline replacements and heading edits.
         self.document().markContentsDirty(0, self.document().characterCount())
 

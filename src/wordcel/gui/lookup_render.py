@@ -263,24 +263,26 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
             hidden = dictionary_labels and (source in collapsed or section_key in collapsed) and not compact
             generic_source = source in ("Turkish Bilingual", "Turkish Monolingual", "Turkish Etymology")
             normalized = [normalize_definitions(entry.definitions, source) for entry in entries]
-            limit = 240 if result.source == "ja" and compact and not full else None
             from wordcel.dictionary.wiktionary_sections import is_wiktionary
             hidden_details = (hidden_sections or {}).get(source, ()) if is_wiktionary(source) else ()
-            converter = _GlossConverter(expanded=full, limit=limit, hidden_sections=hidden_details,
+            converter = _GlossConverter(expanded=full, limit=None, hidden_sections=hidden_details,
                                         preview=preview, compact=compact, preview_definitions=preview_definitions,
                                         generic_source=generic_source, term=term,
                                         details_expanded=details_expanded, detail_prefix=f"{group_index}:{index}",
                                         definition_furigana=definition_furigana,
                                         grammar=grammar_tags,
                                         definitions=tuple(definition for definitions in normalized for definition in definitions))
-            definitions = []
-            visible_entries = () if hidden else (normalized if full else normalized[:maximum])
+            definitions, sections = [], []
+            visible_entries = () if hidden else normalized
             for entry_definitions in visible_entries:
                 more = more or bool(maximum and len(entry_definitions) > maximum)
-                definitions.extend(converter.glosses(entry_definitions if full else entry_definitions[:maximum]))
-            if not full:
-                more = more or len(definitions) > maximum
-                definitions = definitions[:maximum]
+                definitions.extend(converter.glosses(entry_definitions))
+                if converter.supplements:
+                    # Keep each record's forms beside its definitions, especially homonyms.
+                    sections.append((definitions, converter.supplements))
+                    definitions, converter.supplements = [], []
+            if definitions:
+                sections.append((definitions, []))
             more = more or converter.clipped
             if source not in anchored:
                 parts.append(f'<a name="dictionary-{index}"></a>')
@@ -296,16 +298,17 @@ def render_result(result, expanded=(), preview=False, overlay_actions=False, sho
                                  f'{escape(label)}</small></a></p>')
                 else:
                     parts.append(section)
-            # Structured groups already carry their own sense lists.
-            listed_groups = definitions and all(re.search(r"<(?:ol|ul)\b", gloss) for gloss in definitions)
-            if len(definitions) > 1 and not compact and not listed_groups:
-                parts.append("<ol>" + "".join(f"<li>{gloss}</li>" for gloss in definitions) + "</ol>")
-            else:
-                parts.append("".join(f"<div>{gloss}</div>" for gloss in definitions))
-            for label, supplement in converter.supplements:
-                if label:
-                    parts.append(f'<p class="source"><small>{label}</small></p>')
-                parts.append(supplement)
+            for definitions, supplements in sections:
+                # Structured groups already carry their own sense lists.
+                listed_groups = definitions and all(re.search(r"<(?:ol|ul)\b", gloss) for gloss in definitions)
+                if len(definitions) > 1 and not compact and not listed_groups:
+                    parts.append("<ol>" + "".join(f"<li>{gloss}</li>" for gloss in definitions) + "</ol>")
+                else:
+                    parts.append("".join(f"<div>{gloss}</div>" for gloss in definitions))
+                for label, supplement in supplements:
+                    if label:
+                        parts.append(f'<p class="source"><small>{label}</small></p>')
+                    parts.append(supplement)
             if more and not full and not hidden and not preview:
                 parts.append(f'<p class="metadata"><a href="expand:{group_index}:{index}" style="text-decoration:underline">More</a></p>')
     if result.analyses and not result.entries:
