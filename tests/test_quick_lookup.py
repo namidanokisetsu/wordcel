@@ -3258,14 +3258,21 @@ class QuickLookupTests(unittest.TestCase):
         self.addCleanup(dialog.deleteLater)
         profile = self.window.active_profile
         self.assertTrue(dialog.vertical_popup_sides.isChecked())
+        horizontal = dialog.popup_positions['horizontal']
+        self.assertEqual(horizontal.currentData(), 'more_room')
+        horizontal.setCurrentIndex(horizontal.findData('above'))
         dialog.vertical_popup_sides.setChecked(False)
+        self.assertFalse(dialog.popup_positions['vertical'].isEnabled())
         self.assertFalse(self.settings.value(f'profiles/{profile}/vertical_popup_sides', True, bool))
         dialog.profile.setCurrentIndex(dialog.profile.findData(other))
+        self.assertEqual(horizontal.currentData(), 'more_room')
         self.assertTrue(dialog.vertical_popup_sides.isChecked())
         dialog.profile.setCurrentIndex(dialog.profile.findData(profile))
+        self.assertEqual(horizontal.currentData(), 'above')
         self.assertFalse(dialog.vertical_popup_sides.isChecked())
         reset_page(self.settings, profile, 'Popup')
         dialog.profile_changed(only_page='Popup')
+        self.assertEqual(horizontal.currentData(), 'more_room')
         self.assertTrue(dialog.vertical_popup_sides.isChecked())
 
     def test_vertical_preview_pin_and_repeated_results_keep_side_anchor(self):

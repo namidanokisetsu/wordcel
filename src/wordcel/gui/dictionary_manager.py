@@ -303,7 +303,23 @@ class SetupDialog(SettingsNavigation, QDialog):
         self.vertical_popup_sides = QCheckBox("Place beside vertical text")
         self.vertical_popup_sides.setChecked(settings.value(f"profiles/{self.profile.currentData()}/vertical_popup_sides", True, bool))
         self.vertical_popup_sides.toggled.connect(lambda enabled: self.autosave(lambda: settings.setValue(f"profiles/{self.profile.currentData()}/vertical_popup_sides", enabled)))
+        self.popup_positions = {}
+        for axis, label, choices in (
+            ("horizontal", "Horizontal popup", (("Prefer above", "above"), ("Prefer below", "below"))),
+            ("vertical", "Vertical popup", (("Prefer left", "left"), ("Prefer right", "right"))),
+        ):
+            key = f"{axis}_popup_position"
+            control = QComboBox()
+            for title, value in (("More room", "more_room"), *choices):
+                control.addItem(title, value)
+            control.setToolTip("Use the preferred side when the expanded popup fits there")
+            control.currentIndexChanged.connect(lambda _, key=key, control=control: self.autosave(
+                lambda: settings.setValue(f"profiles/{self.profile.currentData()}/{key}", control.currentData())))
+            self.popup_positions[axis] = control
+            shared_layout.addRow(label, control)
         shared_layout.addRow(self.vertical_popup_sides)
+        self.vertical_popup_sides.toggled.connect(self.popup_positions["vertical"].setEnabled)
+        self.popup_positions["vertical"].setEnabled(self.vertical_popup_sides.isChecked())
         self.selected_text = QCheckBox("Look up selected text automatically")
         shortcut_layout.addRow(self.selected_text)
         self.selected_text.toggled.connect(self.save_text_triggers)
@@ -1092,6 +1108,8 @@ class SetupDialog(SettingsNavigation, QDialog):
                 self.close_on_cursor_leave.setChecked(self.settings.value(f"profiles/{code}/close_on_cursor_leave", False, bool))
                 self.cursor_close_margin.setValue(self.settings.value(f"profiles/{code}/cursor_close_margin", 60, int))
                 self.vertical_popup_sides.setChecked(self.settings.value(f"profiles/{code}/vertical_popup_sides", True, bool))
+                for axis, control in self.popup_positions.items():
+                    control.setCurrentIndex(max(0, control.findData(self.settings.value(f"profiles/{code}/{axis}_popup_position"))))
                 self.appearance.reload()
             if only_page in (None, "Audio"):
                 from wordcel.config.config import config

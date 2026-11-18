@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 
 from wordcel.config.config import config
 from wordcel.dictionary.search import SearchResult
-from wordcel.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, expanded_geometry, frame_stylesheet, popup_entry_path_contains, popup_position, surface_colors
+from wordcel.gui.popup_style import DIVIDER_WIDTH, FRAME_PADDING, PANE_PADDING, expanded_geometry, frame_stylesheet, lookup_geometry, popup_entry_path_contains, popup_position, surface_colors
 from wordcel.gui.action_icons import DEFAULT_POPUP_ACTIONS, action_button, action_icon
 from wordcel.gui.ruby import RubyBrowser
 from wordcel.gui.language_names import LANGUAGE_NAMES, language_name
@@ -1589,7 +1589,6 @@ class QuickLookupWindow(QDialog):
         minimum_height = 72 if preview else 190
         if reading and self._inline_actions() and not self._result.entries:
             minimum_height = 0
-        self.setMinimumHeight(minimum_height)
         self.layout().activate()
         document = self.browser.document()
         document.setTextWidth(self.browser.viewport().width())
@@ -1619,12 +1618,13 @@ class QuickLookupWindow(QDialog):
             if bottoms:
                 desired = max(bottoms) + chrome
         minimum = self._preview_viewport_height + chrome if reading and self._peek else 0
-        height = min(maximum, max(self.minimumSizeHint().height(), desired, minimum))
-        if self.height() != height:
+        height = min(maximum, max(minimum_height, self.minimumSizeHint().height(), desired, minimum))
+        if self.height() != height or self.minimumHeight() != minimum_height:
             mark("geometry", self.revision)
             if self.isVisible() and not self._needs_place:
-                self._resize_expanded(QSize(self.width(), height))
+                self._resize_expanded(QSize(self.width(), height), minimum_height=minimum_height)
             else:
+                self.setMinimumHeight(minimum_height)
                 self.resize(self.width(), height)
         if self.isVisible() and self._needs_place:
             self._place()
@@ -1994,7 +1994,7 @@ class QuickLookupWindow(QDialog):
 
     def _place(self):
         mark("place", self.revision)
-        point = (self._lookup_anchor if self._peek and self._lookup_vertical and self._lookup_anchor is not None
+        point = (self._lookup_anchor if self._peek and self._lookup_anchor is not None
                  else QCursor.pos())
         if self._peek:
             self._lookup_anchor = point
@@ -2016,6 +2016,13 @@ class QuickLookupWindow(QDialog):
                     y = min(y, area.bottom() + 1 - self.height())
                 self.move(max(area.left(), min(x - self.width() // 2, area.right() + 1 - self.width())),
                           max(area.top(), min(y, area.bottom() + 1 - self.height())))
+            elif self._peek:
+                key = "vertical_popup_position" if self._lookup_vertical else "horizontal_popup_position"
+                geometry = lookup_geometry(point, QSize(self._normal_size.width(), self.height()), self._normal_size, area,
+                                           self.settings.value(f"profiles/{self.active_profile}/{key}", "more_room"),
+                                           self._lookup_vertical)
+                self.setMinimumSize(min(340, geometry.width()), min(self.minimumHeight(), geometry.height()))
+                self.setGeometry(geometry)
             else:
                 self.move(*popup_position(point.x(), point.y(), self.size(), area, config.popup_position_mode,
                                           self._peek and self._lookup_vertical))
@@ -2030,8 +2037,9 @@ class QuickLookupWindow(QDialog):
         elif peek and not self._peek and (self._reading_size_custom or self.size() != self._auto_fit_size):
             self._normal_size = self.size()
         elif not peek and self._peek and not self.is_pinned:
-            self.setMinimumHeight(190)
             self._resize_expanded()
+        if not peek:
+            self.setMinimumSize(340, 190)
         self._peek = bool(peek)
         self.setSizeGripEnabled(self.is_pinned or not self._peek)
         for grip in self.findChildren(QWidget):
@@ -2040,16 +2048,18 @@ class QuickLookupWindow(QDialog):
         self._place_actions()
         self.search.setVisible(not self._peek)
 
-    def _resize_expanded(self, requested=None):
+    def _resize_expanded(self, requested=None, *, minimum_height=190):
         requested = requested or self._normal_size
         previous = self.geometry()
         screen = QApplication.screenAt(previous.center()) or QApplication.primaryScreen()
         if screen is None:
             self.resize(requested)
             return
-        self.setGeometry(expanded_geometry(previous, requested, screen.availableGeometry(),
-                                           self._lookup_anchor if self._peek else None,
-                                           self._peek and self._lookup_vertical))
+        geometry = expanded_geometry(previous, requested, screen.availableGeometry(),
+                                     self._lookup_anchor if self._peek else None,
+                                     self._peek and self._lookup_vertical)
+        self.setMinimumSize(min(340, geometry.width()), min(minimum_height, geometry.height()))
+        self.setGeometry(geometry)
         if not self._peek and not self._manual_at_cursor:
             rect = self.geometry()
             if sys.platform == "darwin":
@@ -2598,7 +2608,6 @@ class QuickLookupWindow(QDialog):
         if self._peek:
             if checked:
                 if self._reading_size_custom or self._normal_size != QSize(480, 340):
-                    self.setMinimumHeight(190)
                     self._resize_expanded()
             elif self._reading_size_custom or self.size() != self._auto_fit_size:
                 self._normal_size = self.size()

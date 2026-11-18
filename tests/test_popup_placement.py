@@ -1,6 +1,6 @@
 import unittest
 from PyQt6.QtCore import QPoint, QRect, QSize
-from wordcel.gui.popup_style import expanded_geometry, popup_entry_path_contains, popup_position
+from wordcel.gui.popup_style import expanded_geometry, lookup_geometry, popup_entry_path_contains, popup_position
 
 
 class PopupPlacementTests(unittest.TestCase):
@@ -64,11 +64,37 @@ class PopupPlacementTests(unittest.TestCase):
         result = expanded_geometry(previous, QSize(480, 340), QRect(0, 0, 1920, 1040), QPoint(200, 120))
         self.assertEqual(result.top(), previous.top())
 
-    def test_flipping_a_below_text_preview_does_not_cover_the_source(self):
+    def test_expanding_a_below_text_preview_stops_at_screen_edge(self):
         previous = QRect(200, 925, 350, 100)
         anchor = QPoint(200, 910)
         result = expanded_geometry(previous, QSize(480, 340), QRect(0, 0, 1920, 1040), anchor)
-        self.assertLess(result.bottom(), anchor.y())
+        self.assertEqual(result.top(), previous.top())
+        self.assertEqual(result.bottom(), 1039)
+
+    def test_preferred_side_must_fit_expanded_size_in_either_orientation(self):
+        area = QRect(-100, -100, 1000, 800)
+        preview, expanded = QSize(200, 72), QSize(480, 340)
+        for vertical, point, preference in ((False, QPoint(400, 90), 'above'),
+                                              (True, QPoint(100, 300), 'left')):
+            with self.subTest(vertical=vertical):
+                place = lambda preferred: lookup_geometry(point, preview, expanded, area, preferred, vertical)
+                self.assertEqual(place(preference), place('more_room'))
+                self.assertTrue(place(preference).left() > point.x() if vertical else place(preference).top() > point.y())
+
+    def test_preference_can_override_more_room_and_expansion_keeps_its_edge(self):
+        area = QRect(0, 0, 1200, 1000)
+        preview, expanded = QSize(200, 72), QSize(480, 340)
+        for vertical, point, preference in ((False, QPoint(400, 400), 'above'),
+                                              (True, QPoint(520, 320), 'left')):
+            with self.subTest(vertical=vertical):
+                previous = lookup_geometry(point, preview, expanded, area, preference, vertical)
+                result = expanded_geometry(previous, QSize(1300, 1100), area, point, vertical)
+                if vertical:
+                    self.assertEqual(result.right(), point.x() - 16)
+                    self.assertEqual(result.left(), area.left())
+                else:
+                    self.assertEqual(result.bottom(), point.y() - 16)
+                    self.assertEqual(result.top(), area.top())
 
     def test_no_room_below_grows_up_and_clamps_to_negative_origin_display(self):
         area = QRect(-1280, -200, 1280, 720)

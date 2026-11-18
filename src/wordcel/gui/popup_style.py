@@ -127,20 +127,48 @@ def popup_entry_path_contains(geometry, anchor, point):
             <= anchor.y() + progress * (geometry.bottom() - anchor.y()))
 
 
+def lookup_geometry(anchor, requested, expanded_size, area, preference="more_room", vertical=False):
+    from PyQt6.QtCore import QRect, QSize
+
+    offset = 15
+    sides = ("left", "right") if vertical else ("above", "below")
+    position = anchor.x() if vertical else anchor.y()
+    start, end = (area.left(), area.right() + 1) if vertical else (area.top(), area.bottom() + 1)
+    room = (max(0, position - offset - start), max(0, end - position - offset))
+    required = expanded_size.width() if vertical else expanded_size.height()
+    side = int(room[1] >= room[0])
+    if preference in sides and room[sides.index(preference)] >= required:
+        side = sides.index(preference)
+    width = min(requested.width(), area.width(), max(1, room[side]) if vertical else area.width())
+    height = min(requested.height(), area.height(), area.height() if vertical else max(1, room[side]))
+    x, y = popup_position(anchor.x(), anchor.y(), QSize(width, height), area, "visual_novel_mode", vertical)
+    if vertical:
+        x = position + offset if side else position - offset - width
+    else:
+        y = position + offset if side else position - offset - height
+    x = max(area.left(), min(x, area.right() + 1 - width))
+    y = max(area.top(), min(y, area.bottom() + 1 - height))
+    return QRect(x, y, width, height)
+
+
 def expanded_geometry(previous, requested, area, anchor=None, vertical=False):
     from PyQt6.QtCore import QRect
     width, height = min(requested.width(), area.width()), min(requested.height(), area.height())
     x, y = previous.x(), previous.y()
-    # Keep an above-text preview above the text; otherwise grow down if it fits.
-    above = anchor is not None and previous.bottom() < anchor.y()
-    if vertical and anchor is not None:
-        if previous.right() < anchor.x():
-            x = previous.right() + 1 - width
-    elif above:
-        y = previous.bottom() + 1 - height
+    if anchor is not None:
+        if vertical:
+            if previous.right() < anchor.x():
+                width = min(width, previous.right() + 1 - area.left())
+                x = previous.right() + 1 - width
+            else:
+                width = min(width, area.right() + 1 - x)
+        elif previous.bottom() < anchor.y():
+            height = min(height, previous.bottom() + 1 - area.top())
+            y = previous.bottom() + 1 - height
+        else:
+            height = min(height, area.bottom() + 1 - y)
     elif y + height > area.bottom() + 1:
-        edge = min(previous.bottom() + 1, anchor.y() - 15) if anchor is not None else previous.bottom() + 1
-        y = edge - height
+        y = previous.bottom() + 1 - height
     x = max(area.left(), min(x, area.right() + 1 - width))
     y = max(area.top(), min(y, area.bottom() + 1 - height))
     return QRect(x, y, width, height)
