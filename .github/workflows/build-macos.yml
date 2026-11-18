@@ -13,6 +13,11 @@ on:
         required: false
   workflow_dispatch:
     inputs:
+      architecture:
+        description: Build both architectures or one installer
+        type: choice
+        default: both
+        options: [both, arm64, x86_64]
       require_signing:
         description: Require persistent release signing
         type: boolean
@@ -26,13 +31,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: macos-15
-            arch: arm64
-          - runner: macos-15-intel
-            arch: x86_64
+        arch: ${{ fromJSON(inputs.architecture == 'arm64' && '["arm64"]' || inputs.architecture == 'x86_64' && '["x86_64"]' || '["arm64","x86_64"]') }}
 
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
 
     steps:
       - uses: actions/checkout@v4

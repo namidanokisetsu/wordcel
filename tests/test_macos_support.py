@@ -187,9 +187,8 @@ class MacBundleTests(unittest.TestCase):
         self.assertIn("src/wordcel/scripts/deconjugator.json", spec)
         self.assertIn("'Vision'", spec)
         workflow = (root / ".github/workflows/build-macos.yml").read_text(encoding="utf-8")
-        self.assertIn("runner: macos-15-intel", workflow)
-        self.assertIn("arch: arm64", workflow)
-        self.assertIn("arch: x86_64", workflow)
+        self.assertIn("options: [both, arm64, x86_64]", workflow)
+        self.assertIn("matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel'", workflow)
 
 
 @unittest.skipUnless(sys.platform == "darwin", "Native Apple Vision needs macOS")

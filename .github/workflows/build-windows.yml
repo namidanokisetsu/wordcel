@@ -61,6 +61,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Stanza engine setup failed' }
           & ./dist/wordcel/wordcel-cli.exe --check-optional-runtimes
           if ($LASTEXITCODE -ne 0) { throw 'Optional engine check failed' }
+          & ./dist/wordcel/wordcel-cli.exe --setup-ocr mida_vocr6
+          if ($LASTEXITCODE -ne 0) { throw 'mida + VOCR6 model setup failed' }
+          & ./dist/wordcel/wordcel-cli.exe --check-engine mida_vocr6
+          if ($LASTEXITCODE -ne 0) { throw 'mida + VOCR6 engine check failed' }
 
       - name: verify installation and data preservation
         run: |
