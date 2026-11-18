@@ -154,17 +154,23 @@ class LanguageSuggestion(QDialog):
         self.translation.setEnabled(any(task.kind == "translation" and check.isChecked() for task, check in self.choices))
         from wordcel.gui.resources import ocr_ready
         from wordcel.language.support import default_ocr_provider, ocr_supported
+        from wordcel.ocr.providers.mida_vocr6.models import available as mida_available
         self.ocr = QComboBox(self)
         self.ocr.addItem("No OCR download", None)
         providers = (("windows", "Windows OCR (local)"), ("vision", "Apple Vision (local)"),
                      ("meikiocr", "MeikiOCR (local)"), ("paddle", "PaddleOCR (local)"),
-                     ("screenai", "Chrome Screen AI (local)"))
-        available = [provider for provider, label in providers if ocr_supported(self.language, provider)]
+                     ("screenai", "Chrome Screen AI (local)"), ("mida_vocr6", "mida + VOCR6 (experimental)"))
+        available = [provider for provider, label in providers if ocr_supported(self.language, provider)
+                     and (provider != "mida_vocr6" or mida_available())]
         for provider, label in providers:
             if provider in available:
                 self.ocr.addItem(label, provider)
+                if provider == "mida_vocr6":
+                    self.ocr.setItemData(self.ocr.count() - 1, "Horizontal Japanese text only. For non-commercial use.",
+                                         Qt.ItemDataRole.ToolTipRole)
         saved = window.settings.value(f"profiles/{self.profile}/ocr_provider", "")
-        installed = [provider for provider in available if ocr_ready(provider, window.settings.value("screenai_directory", ""))]
+        installed = [provider for provider in available if provider != "mida_vocr6"
+                     and ocr_ready(provider, window.settings.value("screenai_directory", ""))]
         default = default_ocr_provider(self.language)
         preferred = default if self.language == "tr" else next(iter(installed), default)
         selected = saved if saved in available else preferred

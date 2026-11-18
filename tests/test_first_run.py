@@ -334,6 +334,17 @@ class FirstRunTests(unittest.TestCase):
         self.addCleanup(wizard.deleteLater)
         self.assertEqual(wizard.ocr.currentData(), "screenai")
 
+    def test_japanese_setup_offers_mida_without_selecting_it_automatically(self):
+        with patch("wordcel.ocr.providers.mida_vocr6.models.available", return_value=True), \
+                patch("wordcel.gui.resources.ocr_ready", side_effect=lambda provider, *_: provider == "mida_vocr6"):
+            wizard = LanguageSuggestion(self.window, "ja")
+        self.addCleanup(wizard.deleteLater)
+        index = wizard.ocr.findData("mida_vocr6")
+        self.assertGreaterEqual(index, 0)
+        self.assertNotEqual(wizard.ocr.currentData(), "mida_vocr6")
+        wizard.ocr.setCurrentIndex(index)
+        self.assertIn("mida_vocr6", [task.value for task in wizard.selected_tasks() if task.kind == "ocr"])
+
     def test_turkish_default_preserves_apple_vision(self):
         from wordcel.language.support import default_ocr_provider
         self.assertEqual(default_ocr_provider("tr", "darwin", ("tr",)), "vision")
