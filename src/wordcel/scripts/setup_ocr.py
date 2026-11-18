@@ -64,6 +64,10 @@ def install(provider, progress, cancelled):
         raise InterruptedError("Model setup cancelled.")
     if provider == "screenai":
         return install_screenai(progress, cancelled)
+    if provider == "mida_vocr6":
+        from wordcel.ocr.providers.mida_vocr6.models import install as install_mida
+        install_mida(progress, cancelled)
+        return ""
     if provider == "vision":
         return ""
     if provider == "paddle":
@@ -88,5 +92,8 @@ def setup_models(provider, *, onnx_dir=None):
     elif provider == "meikiocr":
         from meikiocr import MeikiOCR
         MeikiOCR(provider="CPUExecutionProvider")
+    elif provider == "mida_vocr6":
+        from wordcel.ocr.providers.mida_vocr6.models import install as install_mida
+        install_mida(print, None)
     else:
         raise ValueError("Unknown OCR provider.")

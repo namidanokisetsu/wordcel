@@ -313,6 +313,9 @@ class ScanWorker(threading.Thread):
         if selected == "vision":
             from wordcel.ocr.macos_vision import recognize
             return lambda image: recognize(image, language)
+        if selected == "mida_vocr6":
+            from wordcel.ocr.providers.mida_vocr6.provider import MidaVocr6
+            return MidaVocr6().scan
         if selected == "meikiocr":
             try:
                 from wordcel.ocr.providers.meikiocr.provider import MeikiOcrProvider

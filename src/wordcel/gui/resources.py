@@ -10,6 +10,9 @@ from PyQt6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QMenu, QPushButton, 
 
 
 def ocr_ready(provider, component_directory=""):
+    if provider == "mida_vocr6":
+        from wordcel.ocr.providers.mida_vocr6.models import available, ready
+        return available() and ready()
     if provider == "windows":
         from wordcel.ocr.windows_native import supported_languages
         try:

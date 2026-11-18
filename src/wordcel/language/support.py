@@ -91,7 +91,7 @@ def ocr_languages(provider, platform=None, vision_languages=None):
             except RuntimeError:
                 return frozenset()
         return frozenset(vision_languages)
-    return {"meikiocr": frozenset({"ja"}), "paddle": PADDLE_LANGUAGES,
+    return {"meikiocr": frozenset({"ja"}), "mida_vocr6": frozenset({"ja"}), "paddle": PADDLE_LANGUAGES,
             "screenai": SCREENAI_LANGUAGES}.get(provider, frozenset())
 
 

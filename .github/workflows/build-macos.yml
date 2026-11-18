@@ -60,7 +60,7 @@ jobs:
           python -m pip install --upgrade pip
           wordcel_torch_version=$(python -c "import sys; sys.path.insert(0, 'src'); from wordcel.language.morphology import torch_version; print(torch_version())")
           pip install "numpy<2; platform_machine == 'x86_64'" "torch==${wordcel_torch_version}" stanza==1.15.0
-          pip install -e .
+          pip install -e '.[mida-vocr6]'
           pip install pyinstaller==6.22.3
 
       - name: check native bridge and lookup fixtures
@@ -103,6 +103,8 @@ jobs:
           dist/wordcel.app/Contents/MacOS/wordcel --check-runtime
           dist/wordcel.app/Contents/MacOS/wordcel --setup-engine stanza
           dist/wordcel.app/Contents/MacOS/wordcel --check-optional-runtimes
+          dist/wordcel.app/Contents/MacOS/wordcel --setup-ocr mida_vocr6
+          dist/wordcel.app/Contents/MacOS/wordcel --check-engine mida_vocr6
 
       - name: create dmg
         run: |

@@ -40,6 +40,8 @@ def prepare(root):
     core = dependencies(["setuptools", *(value for value in project["dependencies"]
                         if Requirement(value).marker is None or Requirement(value).marker.evaluate())])
     groups = {"stanza": ["stanza", "torch"]}
+    if sys.platform == "darwin":
+        groups["mida_vocr6"] = ["onnxruntime", "opencv-python-headless"]
     if sys.platform == "win32":
         # PaddleX's OCR extra owns the contrib build of cv2.  Keep it in the
         # isolated engine site even though the base application may carry the

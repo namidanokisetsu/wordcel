@@ -369,6 +369,7 @@ class SetupDialog(SettingsNavigation, QDialog):
             self.ja_ocr_provider.addItem("Windows OCR (local)", "windows")
         if sys.platform == "darwin":
             self.ja_ocr_provider.addItem("Apple Vision", "vision")
+        self.ja_ocr_provider.addItem("mida + VOCR6 (experimental)", "mida_vocr6")
         default_provider = "vision" if sys.platform == "darwin" else "meikiocr"
         self.ja_ocr_provider.setCurrentIndex(max(0, self.ja_ocr_provider.findData(settings.value("profiles/ja/ocr_provider", default_provider))))
         scan_layout.addRow("OCR model", self.ja_ocr_provider)
@@ -1204,22 +1205,27 @@ class SetupDialog(SettingsNavigation, QDialog):
 
     def update_ocr_controls(self):
         from wordcel.language.support import default_ocr_provider, ocr_supported
+        from wordcel.ocr.providers.mida_vocr6.models import available as mida_available
         code = self.profile.currentData()
         provider = self.current_ocr_control()
         bundled_mac = sys.platform == "darwin" and getattr(sys, "frozen", False)
+        experimental = self.editing_language == "ja" and mida_available()
         supported = []
         for index in range(provider.count()):
             value = provider.itemData(index)
             enabled = bool(value and ocr_supported(self.editing_language, value)
-                           and not (bundled_mac and value in {"meikiocr", "paddle"}))
+                           and not (bundled_mac and value in {"meikiocr", "paddle"})
+                           and (value != "mida_vocr6" or experimental))
             item = provider.model().item(index)
             item.setEnabled(enabled)
             item.setToolTip("" if enabled else "Install this language's OCR pack in Windows Settings, then restart Wordcel"
                             if value == "windows" else "This OCR provider does not support this language on this computer")
+            if value == "mida_vocr6" and enabled:
+                item.setToolTip("Horizontal Japanese text only. For non-commercial use.")
             if enabled:
                 supported.append(value)
         default = default_ocr_provider(self.editing_language)
-        default = default if default in supported else next(iter(supported), None)
+        default = default if default in supported else next((value for value in supported if value != "mida_vocr6"), None)
         selected = self.settings.value(f"profiles/{code}/ocr_provider", default)
         index = provider.findData(selected)
         if index < 0:
@@ -1229,7 +1235,8 @@ class SetupDialog(SettingsNavigation, QDialog):
         with QSignalBlocker(provider):
             provider.setCurrentIndex(index)
         provider.setEnabled(bool(supported))
-        provider.setToolTip("" if selected in supported
+        provider.setToolTip("Horizontal Japanese text only. For non-commercial use." if selected == "mida_vocr6" and experimental
+                            else "" if selected in supported
                             else "No OCR provider supports this language on this computer" if not supported
                             else "The saved OCR provider does not support this language")
         for control in (self.scan_key, self.scan_mouse):

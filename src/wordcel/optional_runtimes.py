@@ -435,7 +435,14 @@ def validate(feature, site, cancelled=None):
 
 
 def check_engine(feature):
-    if feature == "arabic":
+    if feature == "mida_vocr6":
+        import cv2
+        import numpy as np
+        import onnxruntime
+        count, _ = cv2.connectedComponents(np.zeros((4, 4), dtype=np.uint8), connectivity=4)
+        if count != 1 or "CPUExecutionProvider" not in onnxruntime.get_available_providers():
+            raise RuntimeError("mida + VOCR6 engine validation failed.")
+    elif feature == "arabic":
         # CAMeL's import otherwise downloads a catalogue before opening a DB.
         with tempfile.TemporaryDirectory(prefix="wordcel-camel-check-") as folder:
             os.environ["CAMELTOOLS_DATA"] = folder

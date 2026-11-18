@@ -156,6 +156,10 @@ def inventory(directory, profiles=(), *, data_root=None, cache_root=None, screen
     ready = all(any(path.glob("snapshots/*/" + name)) for path, name in required)
     state = "Installed" if ready else "Incomplete" if any(path.exists() for path in meiki) else None
     add("ocr:meikiocr", "MeikiOCR", kind="ocr", value="meikiocr", paths=meiki, status=state)
+    from wordcel.ocr.providers.mida_vocr6.models import ready as mida_ready, root as mida_root
+    mida = mida_root(data)
+    state = "Installed" if mida_ready(data) else "Incomplete" if mida.exists() else None
+    add("ocr:mida_vocr6", "mida + VOCR6", kind="ocr", value="mida_vocr6", paths=(mida,), status=state)
     from wordcel.ocr.turkish_paddle import MODELS as PADDLE_MODELS, PADDLE_FILES
     paddle = data / "languages/tr/paddle/3.7.0"
     try:

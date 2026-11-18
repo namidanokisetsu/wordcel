@@ -45,7 +45,8 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=['packaging/runtime.py'],
-    excludes=['paddleocr', 'paddlex', 'paddle', 'meikiocr', 'onnxruntime', 'tkinter', 'IPython', 'pytest'],
+    # Keep OpenCV's wheel libraries from shadowing the bundle's OpenSSL.
+    excludes=['paddleocr', 'paddlex', 'paddle', 'meikiocr', 'cv2', 'tkinter', 'IPython', 'pytest'],
     noarchive=False,
     optimize=0,
 )
