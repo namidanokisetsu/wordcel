@@ -96,6 +96,27 @@ class PopupPlacementTests(unittest.TestCase):
                     self.assertEqual(result.bottom(), point.y() - 16)
                     self.assertEqual(result.top(), area.top())
 
+    def test_downward_growth_above_text_keeps_headword_and_source_in_place(self):
+        area = QRect(0, 0, 1000, 800)
+        source = QPoint(500, 560)
+        expanded = QSize(480, 340)
+        preview = lookup_geometry(source, QSize(480, 100), expanded, area, expand_down=True)
+        result = expanded_geometry(preview, QSize(480, 500), area, source, expand_down=True)
+        self.assertEqual(result.topLeft(), preview.topLeft())
+        self.assertEqual(result.size(), expanded)
+        self.assertEqual(result.bottom(), source.y() - 16)
+        self.assertTrue(popup_entry_path_contains(preview, source, source - QPoint(0, 40), vertical=False))
+        self.assertFalse(popup_entry_path_contains(preview, source, source + QPoint(0, 40), vertical=False))
+
+    def test_downward_growth_beside_vertical_text_keeps_top_and_facing_edge(self):
+        area = QRect(0, 0, 1200, 800)
+        source = QPoint(1000, 750)
+        expanded = QSize(480, 340)
+        preview = lookup_geometry(source, QSize(480, 100), expanded, area, vertical=True, expand_down=True)
+        result = expanded_geometry(preview, QSize(580, 450), area, source, vertical=True, expand_down=True)
+        self.assertEqual(result.topRight(), preview.topRight())
+        self.assertEqual(result.bottom(), area.bottom())
+
     def test_no_room_below_grows_up_and_clamps_to_negative_origin_display(self):
         area = QRect(-1280, -200, 1280, 720)
         previous = QRect(-200, 390, 190, 100)

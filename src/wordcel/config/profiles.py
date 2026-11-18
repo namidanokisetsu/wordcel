@@ -271,7 +271,7 @@ PROFILE_PAGE_KEYS = {
                    "preview_parts_of_speech", "pinned_parts_of_speech",
                    "pinned_frequency", "pinned_pitch", "pinned_grammar", "dictionary_labels", "pinned_sentence", "snap_scrolling",
                    "close_on_cursor_leave", "cursor_close_margin", "vertical_popup_sides", "horizontal_popup_position",
-                   "vertical_popup_position", "translation_side_by_side"),
+                   "vertical_popup_position", "popup_expansion", "translation_side_by_side"),
     "Audio": ("audio_volume", "audio_autoplay_mode", "audio_priority"),
     "Translation": ("target", "translation_source", "translation_target"),
     "Anki": ("anki/deck", "anki/model", "anki/fields", "anki/field_maps", "anki/tags",

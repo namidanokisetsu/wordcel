@@ -5,6 +5,7 @@ from PyQt6.QtGui import QColor
 PANE_PADDING = 4
 FRAME_PADDING = 6
 DIVIDER_WIDTH = 2
+POPUP_GAP = 15
 
 
 def surface_colors(background, foreground):
@@ -35,7 +36,7 @@ def frame_stylesheet(background, foreground, opacity, font_family):
 
 def popup_position(x, y, popup_size, screen_geo, mode, vertical=False):
     """Pointer-relative placement within the screen bounds."""
-    offset = 15
+    offset = POPUP_GAP
     # --- Positioning logic based on mode ---
 
     if vertical:
@@ -114,23 +115,26 @@ def popup_position(x, y, popup_size, screen_geo, mode, vertical=False):
     return int(final_x), int(final_y)
 
 
-def popup_entry_path_contains(geometry, anchor, point):
+def popup_entry_path_contains(geometry, anchor, point, *, vertical=True):
     """The triangle from the lookup point to the facing popup edge."""
     if anchor is None:
         return False
-    edge = geometry.left() if anchor.x() < geometry.left() else geometry.right()
-    if geometry.left() <= anchor.x() <= geometry.right():
+    along, across = (anchor.x(), anchor.y()) if vertical else (anchor.y(), anchor.x())
+    target, position = (point.x(), point.y()) if vertical else (point.y(), point.x())
+    near, far = (geometry.left(), geometry.right()) if vertical else (geometry.top(), geometry.bottom())
+    start, end = (geometry.top(), geometry.bottom()) if vertical else (geometry.left(), geometry.right())
+    if near <= along <= far:
         return False
-    progress = (point.x() - anchor.x()) / (edge - anchor.x())
+    edge = near if along < near else far
+    progress = (target - along) / (edge - along)
     return (0 <= progress <= 1
-            and anchor.y() + progress * (geometry.top() - anchor.y()) <= point.y()
-            <= anchor.y() + progress * (geometry.bottom() - anchor.y()))
+            and across + progress * (start - across) <= position <= across + progress * (end - across))
 
 
-def lookup_geometry(anchor, requested, expanded_size, area, preference="more_room", vertical=False):
+def lookup_geometry(anchor, requested, expanded_size, area, preference="more_room", vertical=False, *, expand_down=False):
     from PyQt6.QtCore import QRect, QSize
 
-    offset = 15
+    offset = POPUP_GAP
     sides = ("left", "right") if vertical else ("above", "below")
     position = anchor.x() if vertical else anchor.y()
     start, end = (area.left(), area.right() + 1) if vertical else (area.top(), area.bottom() + 1)
@@ -141,17 +145,22 @@ def lookup_geometry(anchor, requested, expanded_size, area, preference="more_roo
         side = sides.index(preference)
     width = min(requested.width(), area.width(), max(1, room[side]) if vertical else area.width())
     height = min(requested.height(), area.height(), area.height() if vertical else max(1, room[side]))
-    x, y = popup_position(anchor.x(), anchor.y(), QSize(width, height), area, "visual_novel_mode", vertical)
+    # Place the compact preview at the top of the expanded area for downward growth.
+    reserved_height = height
+    if expand_down:
+        available_height = area.height() if vertical else max(1, room[side])
+        reserved_height = min(max(height, expanded_size.height()), available_height)
+    x, y = popup_position(anchor.x(), anchor.y(), QSize(width, reserved_height), area, "visual_novel_mode", vertical)
     if vertical:
         x = position + offset if side else position - offset - width
     else:
-        y = position + offset if side else position - offset - height
+        y = position + offset if side else position - offset - reserved_height
     x = max(area.left(), min(x, area.right() + 1 - width))
     y = max(area.top(), min(y, area.bottom() + 1 - height))
     return QRect(x, y, width, height)
 
 
-def expanded_geometry(previous, requested, area, anchor=None, vertical=False):
+def expanded_geometry(previous, requested, area, anchor=None, vertical=False, *, expand_down=False):
     from PyQt6.QtCore import QRect
     width, height = min(requested.width(), area.width()), min(requested.height(), area.height())
     x, y = previous.x(), previous.y()
@@ -162,9 +171,14 @@ def expanded_geometry(previous, requested, area, anchor=None, vertical=False):
                 x = previous.right() + 1 - width
             else:
                 width = min(width, area.right() + 1 - x)
+            if expand_down:
+                height = min(height, area.bottom() + 1 - y)
         elif previous.bottom() < anchor.y():
-            height = min(height, previous.bottom() + 1 - area.top())
-            y = previous.bottom() + 1 - height
+            if expand_down:
+                height = min(height, max(previous.height(), anchor.y() - POPUP_GAP - y))
+            else:
+                height = min(height, previous.bottom() + 1 - area.top())
+                y = previous.bottom() + 1 - height
         else:
             height = min(height, area.bottom() + 1 - y)
     elif y + height > area.bottom() + 1:

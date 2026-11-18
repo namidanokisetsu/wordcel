@@ -341,6 +341,7 @@ class QuickLookupWindow(QDialog):
         self._preview_viewport_height = 0
         self._lookup_anchor = None
         self._lookup_vertical = False
+        self._lookup_expand_down = False
         self._lookup_entry_pending = False
         self._result_screenshot = None
         outer = QVBoxLayout(self)
@@ -2018,9 +2019,13 @@ class QuickLookupWindow(QDialog):
                           max(area.top(), min(y, area.bottom() + 1 - self.height())))
             elif self._peek:
                 key = "vertical_popup_position" if self._lookup_vertical else "horizontal_popup_position"
+                prefix = f"profiles/{self.active_profile}/"
+                self._lookup_expand_down = self.settings.value(prefix + "popup_expansion") == "down"
                 geometry = lookup_geometry(point, QSize(self._normal_size.width(), self.height()), self._normal_size, area,
-                                           self.settings.value(f"profiles/{self.active_profile}/{key}", "more_room"),
-                                           self._lookup_vertical)
+                                           self.settings.value(prefix + key, "more_room"), self._lookup_vertical,
+                                           expand_down=self._lookup_expand_down)
+                if self._lookup_expand_down and geometry.bottom() < point.y():
+                    self._lookup_entry_pending = True
                 self.setMinimumSize(min(340, geometry.width()), min(self.minimumHeight(), geometry.height()))
                 self.setGeometry(geometry)
             else:
@@ -2057,7 +2062,7 @@ class QuickLookupWindow(QDialog):
             return
         geometry = expanded_geometry(previous, requested, screen.availableGeometry(),
                                      self._lookup_anchor if self._peek else None,
-                                     self._peek and self._lookup_vertical)
+                                     self._peek and self._lookup_vertical, expand_down=self._lookup_expand_down)
         self.setMinimumSize(min(340, geometry.width()), min(minimum_height, geometry.height()))
         self.setGeometry(geometry)
         if not self._peek and not self._manual_at_cursor:
@@ -2885,8 +2890,9 @@ class QuickLookupWindow(QDialog):
         return self.frameGeometry().adjusted(-margin, -margin, margin, margin)
 
     def lookup_entry_path_contains(self, point):
-        return (self.isVisible() and self._peek and self._lookup_vertical and self._lookup_entry_pending
-                and popup_entry_path_contains(self.frameGeometry(), self._lookup_anchor, point))
+        return (self.isVisible() and self._peek and self._lookup_entry_pending
+                and popup_entry_path_contains(self.frameGeometry(), self._lookup_anchor, point,
+                                              vertical=self._lookup_vertical))
 
     def _check_cursor_leave(self):
         point = QCursor.pos()

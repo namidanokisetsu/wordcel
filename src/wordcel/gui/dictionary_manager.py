@@ -320,6 +320,13 @@ class SetupDialog(SettingsNavigation, QDialog):
         shared_layout.addRow(self.vertical_popup_sides)
         self.vertical_popup_sides.toggled.connect(self.popup_positions["vertical"].setEnabled)
         self.popup_positions["vertical"].setEnabled(self.vertical_popup_sides.isChecked())
+        self.popup_expansion = QComboBox()
+        self.popup_expansion.addItem("Away from text", "away")
+        self.popup_expansion.addItem("Always down", "down")
+        self.popup_expansion.setToolTip("Always down keeps the headword in place when the popup expands")
+        self.popup_expansion.currentIndexChanged.connect(lambda _: self.autosave(lambda: settings.setValue(
+            f"profiles/{self.profile.currentData()}/popup_expansion", self.popup_expansion.currentData())))
+        shared_layout.addRow("Popup expansion", self.popup_expansion)
         self.selected_text = QCheckBox("Look up selected text automatically")
         shortcut_layout.addRow(self.selected_text)
         self.selected_text.toggled.connect(self.save_text_triggers)
@@ -1111,6 +1118,8 @@ class SetupDialog(SettingsNavigation, QDialog):
                 self.vertical_popup_sides.setChecked(self.settings.value(f"profiles/{code}/vertical_popup_sides", True, bool))
                 for axis, control in self.popup_positions.items():
                     control.setCurrentIndex(max(0, control.findData(self.settings.value(f"profiles/{code}/{axis}_popup_position"))))
+                self.popup_expansion.setCurrentIndex(max(0, self.popup_expansion.findData(
+                    self.settings.value(f"profiles/{code}/popup_expansion"))))
                 self.appearance.reload()
             if only_page in (None, "Audio"):
                 from wordcel.config.config import config
